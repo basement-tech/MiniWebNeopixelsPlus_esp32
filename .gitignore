@@ -1,0 +1,12 @@
+/build/
+/sdkconfig
+/sdkconfig.old
+*.log
+*.pyc
+*.elf
+*.bin
+*.map
+*.bak
+*.swp
+.DS_Store
+/managed_components
