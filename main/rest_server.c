@@ -12,10 +12,12 @@
 #include "esp_chip_info.h"
 #include "esp_random.h"
 #include "esp_log.h"
-//#include "esp_vfs.h"
+#include "esp_vfs.h"
 #include "cJSON.h"
 
 #include "esp_littlefs.h"
+
+#include "builtinfiles.h"
 
 
 static const char *REST_TAG = "esp-rest";
@@ -171,6 +173,12 @@ static esp_err_t temperature_data_get_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+static esp_err_t upload_handler(httpd_req_t *req)  {
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_sendstr(req, uploadContent);
+    return ESP_OK;
+}
+
 esp_err_t start_rest_server(const char *base_path)
 {
     REST_CHECK(base_path, "wrong base path", err);
@@ -212,6 +220,15 @@ esp_err_t start_rest_server(const char *base_path)
     };
     httpd_register_uri_handler(server, &light_brightness_post_uri);
 
+    /* URI handler for file uploads */
+    httpd_uri_t upload_uri = {
+        .uri = "/$upload",
+        .method = HTTP_GET,
+        .handler = upload_handler,
+        .user_ctx = rest_context
+    };
+    httpd_register_uri_handler(server, &upload_uri);
+
     /* URI handler for getting web server files */
     httpd_uri_t common_get_uri = {
         .uri = "/*",
@@ -220,6 +237,7 @@ esp_err_t start_rest_server(const char *base_path)
         .user_ctx = rest_context
     };
     httpd_register_uri_handler(server, &common_get_uri);
+
 
     return ESP_OK;
 err_start:
