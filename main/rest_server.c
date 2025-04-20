@@ -8,12 +8,14 @@
 */
 #include <string.h>
 #include <fcntl.h>
+#include <sys/param.h>
 #include "esp_http_server.h"
 #include "esp_chip_info.h"
 #include "esp_random.h"
 #include "esp_log.h"
 #include "esp_vfs.h"
 #include "cJSON.h"
+
 
 #include "esp_littlefs.h"
 
@@ -144,6 +146,94 @@ static esp_err_t light_brightness_post_handler(httpd_req_t *req)
     return ESP_OK;
 }
 
+/* Copies the full path into destination buffer and returns
+ * pointer to path (skipping the preceding base path) */
+static const char* get_path_from_uri(char *dest, const char *base_path, const char *uri, size_t destsize)
+{
+    const size_t base_pathlen = strlen(base_path);
+    size_t pathlen = strlen(uri);
+
+    const char *quest = strchr(uri, '?');
+    if (quest) {
+        pathlen = MIN(pathlen, quest - uri);
+    }
+    const char *hash = strchr(uri, '#');
+    if (hash) {
+        pathlen = MIN(pathlen, hash - uri);
+    }
+
+    if (base_pathlen + pathlen + 1 > destsize) {
+        /* Full path string won't fit into destination buffer */
+        return NULL;
+    }
+
+    /* Construct full path (base + path) */
+    strcpy(dest, base_path);
+    strlcpy(dest + base_pathlen, uri, pathlen + 1);
+
+    /* Return pointer to path, skipping the base */
+    return dest + base_pathlen;
+}
+
+/* file upload handler */
+#define UPLOAD_POST_URI "/upload"
+#define MAX_FILE_SIZE (200*1024)
+#define MAX_FILE_SIZE_STR "200 KB"
+static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
+
+    char filepath[FILE_PATH_MAX];
+    FILE *fd = NULL;
+    struct stat file_stat;
+
+    /* Skip leading "/upload" from URI to get filename */
+    /* Note sizeof() counts NULL termination hence the -1 */
+    const char *filename = get_path_from_uri(filepath, ((rest_server_context_t *)req->user_ctx)->base_path,
+                                            req->uri + sizeof(UPLOAD_POST_URI) - 1, sizeof(filepath));
+    if (!filename) {
+        /* Respond with 500 Internal Server Error */
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Filename too long");
+        return ESP_FAIL;
+    }
+    else
+        ESP_LOGI(REST_TAG, "Upload: parsed filename = >%s<", filename);
+
+    /* Filename cannot have a trailing '/' */
+    if (filename[strlen(filename) - 1] == '/') {
+        ESP_LOGE(REST_TAG, "Invalid filename : %s", filename);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Invalid filename");
+        return ESP_FAIL;
+    }
+
+    if (stat(filepath, &file_stat) == 0) {
+        ESP_LOGE(REST_TAG, "File already exists : %s", filepath);
+        /* Respond with 400 Bad Request */
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "File already exists");
+        return ESP_FAIL;
+    }
+
+    /* File cannot be larger than a limit */
+    if (req->content_len > MAX_FILE_SIZE) {
+        ESP_LOGE(REST_TAG, "File too large : %d bytes", req->content_len);
+        /* Respond with 400 Bad Request */
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
+                            "File size must be less than "
+                            MAX_FILE_SIZE_STR "!");
+        /* Return failure to close underlying connection else the
+        * incoming file content will keep the socket busy */
+        return ESP_FAIL;
+    }
+
+    fd = fopen(filepath, "w");
+    if (!fd) {
+        ESP_LOGE(REST_TAG, "Failed to create file : %s", filepath);
+        /* Respond with 500 Internal Server Error */
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create file");
+        return ESP_FAIL;
+    }
+
+    return(ESP_OK);
+}
+
 /* Simple handler for getting system handler */
 static esp_err_t system_info_get_handler(httpd_req_t *req)
 {
@@ -222,12 +312,21 @@ esp_err_t start_rest_server(const char *base_path)
 
     /* URI handler for file uploads */
     httpd_uri_t upload_uri = {
-        .uri = "/$upload",
+        .uri = UPLOAD_POST_URI,
         .method = HTTP_GET,
         .handler = upload_handler,
         .user_ctx = rest_context
     };
     httpd_register_uri_handler(server, &upload_uri);
+
+    /* URI handler for file upload return post */
+    httpd_uri_t file_upload_post_uri = {
+        .uri = UPLOAD_POST_URI,
+        .method = HTTP_POST,
+        .handler = file_upload_post_handler,
+        .user_ctx = rest_context
+    };
+    httpd_register_uri_handler(server, &file_upload_post_uri);
 
     /* URI handler for getting web server files */
     httpd_uri_t common_get_uri = {

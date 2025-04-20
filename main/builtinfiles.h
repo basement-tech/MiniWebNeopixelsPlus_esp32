@@ -34,12 +34,22 @@ R"==(
     // allow drag&drop of file objects 
     function dropped(e) {
       dragHelper(e);
+
+      /*
+       * get the list of files that were dropped
+       * and create key/value pairs like:
+       * Content-Disposition: form-data; name="file"; filename="/myfile.txt"
+       */
       var fls = e.dataTransfer.files;
       var formData = new FormData();
       for (var i = 0; i < fls.length; i++) {
         formData.append('file', fls[i], '/' + fls[i].name);
       }
-      fetch('/', { method: 'POST', body: formData }).then(function () {
+      
+      /*
+       * the fetch() sends the uri, method, filename and contents of the file
+       */
+      fetch('/upload', { method: 'POST', body: formData }).then(function () {
         window.alert('done.');
       });
     }
