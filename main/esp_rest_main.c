@@ -19,8 +19,13 @@
 #include "mdns.h"
 #include "lwip/apps/netbiosns.h"
 #include "protocol_examples_common.h"
+
 #if CONFIG_EXAMPLE_WEB_DEPLOY_SD
 #include "driver/sdmmc_host.h"
+#endif
+
+#if CONFIG_EXAMPLE_WEB_DEPLOY_LITTLE_FS
+#include "esp_littlefs.h"
 #endif
 
 #define MDNS_INSTANCE "esp home web server"
@@ -123,6 +128,43 @@ esp_err_t init_fs(void)
 }
 #endif
 
+#if CONFIG_EXAMPLE_WEB_DEPLOY_LITTLE_FS
+esp_err_t init_fs(void)  {
+    esp_vfs_littlefs_conf_t conf = {
+        .base_path = "/littlefs",
+        .partition_label = "files",
+        .format_if_mount_failed = true,
+        .dont_mount = false,
+    };
+
+    // Use settings defined above to initialize and mount LittleFS filesystem.
+    // Note: esp_vfs_littlefs_register is an all-in-one convenience function.
+    esp_err_t ret = esp_vfs_littlefs_register(&conf);
+
+    if (ret != ESP_OK) {
+        if (ret == ESP_FAIL) {
+            ESP_LOGE(TAG, "Failed to mount or format filesystem");
+        } else if (ret == ESP_ERR_NOT_FOUND) {
+            ESP_LOGE(TAG, "Failed to find LittleFS partition");
+        } else {
+            ESP_LOGE(TAG, "Failed to initialize LittleFS (%s)", esp_err_to_name(ret));
+        }
+    }
+
+    size_t total = 0, used = 0;
+    ret = esp_littlefs_info(conf.partition_label, &total, &used);
+    if (ret != ESP_OK) {
+        ESP_LOGE(TAG, "Failed to get LittleFS partition information (%s)", esp_err_to_name(ret));
+        ESP_LOGI(TAG, "Attempting to format partition");
+        esp_littlefs_format(conf.partition_label);
+    } else {
+        ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
+    }
+
+    return(ret);
+}
+#endif
+
 void app_main(void)
 {
     ESP_ERROR_CHECK(nvs_flash_init());
@@ -134,5 +176,5 @@ void app_main(void)
 
     ESP_ERROR_CHECK(example_connect());
     ESP_ERROR_CHECK(init_fs());
-    ESP_ERROR_CHECK(start_rest_server(CONFIG_EXAMPLE_WEB_MOUNT_POINT));
+//    ESP_ERROR_CHECK(start_rest_server(CONFIG_EXAMPLE_WEB_MOUNT_POINT));
 }

@@ -31,6 +31,11 @@ menu "Example Configuration"
             help
                 Deploy website to SPI Nor Flash.
                 Choose this production mode if the size of website is small (less than 2MB).
+        config EXAMPLE_WEB_DEPLOY_LITTLE_FS
+            bool "Deploy website to littleFS partition"
+            help
+                Deploy website to littleFS partition.
+                Files are separately uploaded to littleFS as part of the application.
     endchoice
 
     if EXAMPLE_WEB_DEPLOY_SEMIHOST

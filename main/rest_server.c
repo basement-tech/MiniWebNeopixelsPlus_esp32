@@ -12,8 +12,11 @@
 #include "esp_chip_info.h"
 #include "esp_random.h"
 #include "esp_log.h"
-#include "esp_vfs.h"
+//#include "esp_vfs.h"
 #include "cJSON.h"
+
+#include "esp_littlefs.h"
+
 
 static const char *REST_TAG = "esp-rest";
 #define REST_CHECK(a, str, goto_tag, ...)                                              \
