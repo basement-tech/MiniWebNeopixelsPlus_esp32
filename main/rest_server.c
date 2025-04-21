@@ -256,13 +256,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
         return ESP_FAIL;
     }
 
-    if (stat(filepath, &file_stat) == 0) {
-        ESP_LOGE(REST_TAG, "File already exists : %s", filepath);
-        /* Respond with 400 Bad Request */
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "File already exists ... deleting");
-        unlink(filepath);
-        return ESP_FAIL;
-    }
+
 
     /* File cannot be larger than a limit */
     if (req->content_len > MAX_FILE_SIZE) {
@@ -276,8 +270,17 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
         return ESP_FAIL;
     }
 
-    fd = fopen(filepath, "w");
-    if (!fd) {
+
+
+    /*
+     * if file exists, delete it and continue
+     */
+    if (stat(filepath, &file_stat) == 0) {
+        ESP_LOGI(REST_TAG, "File already exists ... deleting : %s", filepath);
+        unlink(filepath);
+    }
+
+    if ((fd = fopen(filepath, "w")) == NULL) {
         ESP_LOGE(REST_TAG, "Failed to create file : %s", filepath);
         /* Respond with 500 Internal Server Error */
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create file");
@@ -290,8 +293,14 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
      * copy the balance of the first chunk (read above)
      * to the newly opened file
      */
-    if(fwrite(next, 1, received, fd) != received)
+
+    if(fwrite(next, 1, received, fd) != received) {
         ESP_LOGE(REST_TAG, "Error writing first chunk of data to file");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create file");
+        fclose(fd);
+        unlink(filepath);
+        return ESP_FAIL;
+    }
 
     /*
      * read the remaining file contents (if any) from the stream
