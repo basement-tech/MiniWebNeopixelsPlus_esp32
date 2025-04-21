@@ -154,9 +154,19 @@ static esp_err_t light_brightness_post_handler(httpd_req_t *req)
 #define NUM_TIMEOUTS 5
 
 /*
- * look for the filename in the stream of data from the browser.
- * copy the filename to the provided filename buffer and return
- * a pointer to the character of the next data byte
+ * look for the filename in the stream of data from the browser (buf).
+ * copy the filename to the provided filename buffer (filename) and return
+ * a pointer to the character of the next data byte.
+ * NULL is returned if the required strings cannot be found.
+ *
+ * arguments:
+ * char *filename - must point to a buffer into which the filename will be copied
+ * char *buf - input buffer to search, remains unaltered
+ * 
+ * return:
+ * NULL - if error
+ * char *end - pointer to the first character, after the filename, in buf
+ * 
  */
 char *get_filename_from_body(char *filename, char *buf)  {
     char *start = NULL;
@@ -182,7 +192,7 @@ char *get_filename_from_body(char *filename, char *buf)  {
         else
             return(NULL);
     }
-    return(end);
+    return(++end);
 }
 
 static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
@@ -190,8 +200,8 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     char filepath[FILE_PATH_MAX] = {0};
     char filename[FILE_PATH_MAX] = {0};
     FILE *fd = NULL;
-    char *next;
-    int32_t remaining = 0;
+    char *next = NULL;
+    int remaining = 0;
     struct stat file_stat;
     uint8_t timeouts = NUM_TIMEOUTS;  
 
@@ -199,18 +209,24 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     char *buf = ((rest_server_context_t *)req->user_ctx)->scratch;
     int received;  // number of bytes received per tronch
 
-    remaining = req->content_len;
+    remaining = req->content_len;  // number of bytes in total from the browser
+    ESP_LOGI(REST_TAG, "Total size of content = %d", remaining);
 
     /*
      * read the first bunch of data and parse out the filename
      * retry on timeout error only.
      */
-    while((received = httpd_req_recv(req, buf, MIN(remaining, SCRATCH_BUFSIZE)) <= 0) && (timeouts > 0))  {
+    timeouts = NUM_TIMEOUTS;
+    do  {
+        received = httpd_req_recv(req, buf, MIN(remaining, SCRATCH_BUFSIZE));
+        ESP_LOGI(REST_TAG, "Number of bytes received in first chunk = %d in try %d", received, timeouts);
         if(received == HTTPD_SOCK_ERR_TIMEOUT)
             timeouts--;
         else
-            timeouts = -1;
-    }
+            timeouts = received;  // exit with error status (always negative)
+    }  while((received <= 0) && (timeouts > 0));
+
+  
 
     /*
      * if a successful read, parse out the filename
@@ -223,15 +239,15 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
             strncat(filepath, filename, FILE_PATH_MAX-strlen(filepath));
             ESP_LOGI(REST_TAG, "Upload: parsed filepath = >%s<", filepath);
         }
+        received -= (next-buf);  // used up some number of bytes looking for filename
+        ESP_LOGI(REST_TAG, "Size of first chunk after filename extraction = %d", received);
     }
-#ifdef NOT_YET
+
     if (filepath[0] == '\0') {
         /* Respond with 500 Internal Server Error */
-        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Filename too long");
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "filename not found");
         return ESP_FAIL;
     }
-    else
-        ESP_LOGI(REST_TAG, "Upload: parsed filename = >%s<", filepath);
 
     /* Filename cannot have a trailing '/' */
     if (filepath[strlen(filepath) - 1] == '/') {
@@ -243,13 +259,14 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     if (stat(filepath, &file_stat) == 0) {
         ESP_LOGE(REST_TAG, "File already exists : %s", filepath);
         /* Respond with 400 Bad Request */
-        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "File already exists");
+        httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "File already exists ... deleting");
+        unlink(filepath);
         return ESP_FAIL;
     }
 
     /* File cannot be larger than a limit */
     if (req->content_len > MAX_FILE_SIZE) {
-        ESP_LOGE(REST_TAG, "File too large : %d bytes", req->content_len);
+        ESP_LOGE(REST_TAG, "File(s) too large : %d bytes", req->content_len);
         /* Respond with 400 Bad Request */
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
                             "File size must be less than "
@@ -269,41 +286,50 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     ESP_LOGI(REST_TAG, "Receiving file : %s...", filename);
 
+    /*
+     * copy the balance of the first chunk (read above)
+     * to the newly opened file
+     */
+    if(fwrite(next, 1, received, fd) != received)
+        ESP_LOGE(REST_TAG, "Error writing first chunk of data to file");
 
-
-    /* Content length of the request gives
-     * the size of the file being uploaded */
-    remaining = req->content_len;
-
-    while (remaining > 0) {
-
-        ESP_LOGI(TAG, "Remaining size : %d", remaining);
+    /*
+     * read the remaining file contents (if any) from the stream
+     */
+    timeouts = NUM_TIMEOUTS;
+    while ((remaining > 0) && (timeouts > 0)) {
+        ESP_LOGI(REST_TAG, "Remaining size : %d", remaining);
         /* Receive the file part by part into a buffer */
         if ((received = httpd_req_recv(req, buf, MIN(remaining, SCRATCH_BUFSIZE))) <= 0) {
             if (received == HTTPD_SOCK_ERR_TIMEOUT) {
                 /* Retry if timeout occurred */
+                timeouts--;
                 continue;
             }
 
-            /* In case of unrecoverable error,
-             * close and delete the unfinished file*/
+            /* 
+             * Otherwise ... some other error
+             * In case of unrecoverable error,
+             * close and delete the unfinished file
+             */
             fclose(fd);
             unlink(filepath);
 
-            ESP_LOGE(TAG, "File reception failed!");
+            ESP_LOGE(REST_TAG, "File reception failed!");
             /* Respond with 500 Internal Server Error */
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to receive file");
             return ESP_FAIL;
         }
 
         /* Write buffer content to file on storage */
-        if (received && (received != fwrite(buf, 1, received, fd))) {
+        if ((received > 0) && (received != fwrite(buf, 1, received, fd))) {
             /* Couldn't write everything to file!
-             * Storage may be full? */
+             * Storage may be full?
+             */
             fclose(fd);
             unlink(filepath);
 
-            ESP_LOGE(TAG, "File write failed!");
+            ESP_LOGE(REST_TAG, "File write failed!");
             /* Respond with 500 Internal Server Error */
             httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to write file to storage");
             return ESP_FAIL;
@@ -316,8 +342,8 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     /* Close file upon upload completion */
     fclose(fd);
-    ESP_LOGI(TAG, "File reception complete");
-#endif
+    ESP_LOGI(REST_TAG, "File reception complete");
+
     return(ESP_OK);
 }
 
