@@ -187,7 +187,8 @@ char *get_filename_from_body(char *filename, char *buf)  {
 
 static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
-    char filepath[FILE_PATH_MAX];
+    char filepath[FILE_PATH_MAX] = {0};
+    char filename[FILE_PATH_MAX] = {0};
     FILE *fd = NULL;
     char *next;
     int32_t remaining = 0;
@@ -215,14 +216,14 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
      * if a successful read, parse out the filename
      */
     if(timeouts > 0)  {
-        next = get_filename_from_body(filepath, buf);
+        next = get_filename_from_body(filename, buf);
+        if((next != NULL) && (strlen(filename) > 0))  {
+            strncpy(filepath, ((rest_server_context_t *)req->user_ctx)->base_path, FILE_PATH_MAX);
+            strncat(filepath, filename, FILE_PATH_MAX-strlen(filepath));
+            ESP_LOGI(REST_TAG, "Upload: parsed filepath = >%s<", filepath);
+        }
     }
-
-    /* Skip leading "/upload" from URI to get filename */
-    /* Note sizeof() counts NULL termination hence the -1 */
-    //const char *filename = get_path_from_uri(filepath, ((rest_server_context_t *)req->user_ctx)->base_path,
-    //                                        req->uri + sizeof(UPLOAD_POST_URI) - 1, sizeof(filepath));
-
+#ifdef NOT_YET
     if (filepath[0] == '\0') {
         /* Respond with 500 Internal Server Error */
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Filename too long");
@@ -244,7 +245,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "File already exists");
         return ESP_FAIL;
     }
-#ifdef NOT_YET
+
     /* File cannot be larger than a limit */
     if (req->content_len > MAX_FILE_SIZE) {
         ESP_LOGE(REST_TAG, "File too large : %d bytes", req->content_len);
