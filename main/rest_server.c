@@ -152,6 +152,7 @@ static esp_err_t light_brightness_post_handler(httpd_req_t *req)
 #define MAX_FILE_SIZE (200*1024)
 #define MAX_FILE_SIZE_STR "200 KB"
 #define NUM_TIMEOUTS 5
+#define BODY_HEADER_END_STR "\r\n\r\n"
 
 /*
  * look for the filename in the stream of data from the browser (buf).
@@ -195,6 +196,33 @@ char *get_filename_from_body(char *filename, char *buf)  {
     return(++end);
 }
 
+#include <ctype.h>
+void hex_ascii_dump(const char *data, size_t len, size_t perline) {
+    size_t i, j;
+
+    for (i = 0; i < len; i += perline) {
+        // Print the hex part
+        printf("%08X  ", (unsigned int)i);  // Offset
+        for (j = 0; j < perline; j++) {
+            if (i + j < len)
+                printf("%02X ", data[i + j]);
+            else
+                printf("   ");  // Fill in if line is short
+            if (j == (perline/2 - 1)) printf(" ");  // Extra space in the middle
+        }
+
+        printf(" |");
+
+        // Print the ASCII part
+        for (j = 0; j < perline && i + j < len; j++) {
+            unsigned char c = data[i + j];
+            printf("%c", isprint(c) ? c : '.');
+        }
+
+        printf("|\n");
+    }
+}
+
 static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     char filepath[FILE_PATH_MAX] = {0};
@@ -212,9 +240,39 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     remaining = req->content_len;  // number of bytes in total from the browser
     ESP_LOGI(REST_TAG, "Total size of content = %d", remaining);
 
+
+    /*
+     * extract the boundary string from the req header (different from the body header),
+     * and the length of the boundary header to skip when copying data.
+     */
+    char content_type[256];
+    int b_str_len = 0;  // length of the boundary string
+    char *boundary = NULL;
+    char *b_str = NULL;  // pointer to the boundary string in content_type[]
+    if(httpd_req_get_hdr_value_str(req, "Content-Type", content_type, sizeof(content_type)) == ESP_OK)  {
+        ESP_LOGI(REST_TAG, "Content-Type header: %s", content_type);
+        if((boundary = strstr(content_type, "boundary=")))  {
+            b_str = strchr(boundary, '-');  // assume at least one dash ... find the start
+            /*
+             * length of actual boundary string
+             * plus 2 leading dashes
+             * plus 2 trailing dashes
+             * plus 2 terminating \r\n
+             */
+            b_str_len = strlen(b_str) + 6;
+            ESP_LOGI(REST_TAG, "boundary string length = %d", b_str_len);
+        }
+        else
+            ESP_LOGE(REST_TAG, "\"boundary=\" not found");
+    }
+    else
+        ESP_LOGE(REST_TAG, "Content-Type not found");
+
     /*
      * read the first bunch of data and parse out the filename
-     * retry on timeout error only.
+     * retry on timeout error only.  This contains body header data
+     * (e.g. filename) that must be parsed and skipped over to get to 
+     * the body of the file.
      */
     timeouts = NUM_TIMEOUTS;
     do  {
@@ -232,15 +290,24 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
      * if a successful read, parse out the filename
      */
     if(timeouts > 0)  {
+        buf[received] = '\0';  // safety to make string functions work
+
+        ESP_LOGI(REST_TAG, "Raw contents of received buffer:");
+        hex_ascii_dump(buf, remaining, 32);
+
         remaining -= received;  // read the balance below
-        next = get_filename_from_body(filename, buf);
+        next = get_filename_from_body(filename, buf);  // leaves next just after the filename
         if((next != NULL) && (strlen(filename) > 0))  {
             strncpy(filepath, ((rest_server_context_t *)req->user_ctx)->base_path, FILE_PATH_MAX);
             strncat(filepath, filename, FILE_PATH_MAX-strlen(filepath));
             ESP_LOGI(REST_TAG, "Upload: parsed filepath = >%s<", filepath);
         }
-        received -= (next-buf);  // used up some number of bytes looking for filename
         ESP_LOGI(REST_TAG, "Size of first chunk after filename extraction = %d", received);
+        next = strstr(next, BODY_HEADER_END_STR); //search for the best marker between filename and end of body header
+        next += strlen(BODY_HEADER_END_STR); // next is now pointing to the start of actual file data
+        received -= (next-buf);  // used up some number of bytes looking for filename and start of data
+        received -= b_str_len;  // don't read past the actual data into the boundary string
+        ESP_LOGI(REST_TAG, "... and after boundary string subtraction = %d", received);
     }
 
     if (filepath[0] == '\0') {
