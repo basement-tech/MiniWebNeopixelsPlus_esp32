@@ -159,28 +159,38 @@ static esp_err_t light_brightness_post_handler(httpd_req_t *req)
  * a pointer to the character of the next data byte
  */
 char *get_filename_from_body(char *filename, char *buf)  {
+    char *start = NULL;
+    char *end = NULL;
+    char *disp = NULL;
+
     // Extract filename from Content-Disposition
     filename[0] = '\0';
-    char *disp = strstr(buf, "Content-Disposition");
+    disp = strstr(buf, "Content-Disposition");
     if (disp) {
-        char *start = strstr(disp, "filename=\"");
+        start = strstr(disp, "filename=\"");
         if (start) {
             start += strlen("filename=\""); // move past 'filename="'
-            char *end = strchr(start, '"');
+            end = strchr(start, '"');
             if (end) {
-                *end = '\0';
-                filename = start;
+                strncpy(filename, start, (end-start));
+                filename[(end-start)] = '\0';
                 ESP_LOGI(REST_TAG, "Found filename >%s< in body", filename);
-                return(start);
             }
+            else
+                return(NULL);
         }
+        else
+            return(NULL);
     }
-
+    return(end);
 }
+
 static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     char filepath[FILE_PATH_MAX];
     FILE *fd = NULL;
+    char *next;
+    int32_t remaining = 0;
     struct stat file_stat;
     uint8_t timeouts = NUM_TIMEOUTS;  
 
@@ -188,22 +198,24 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     char *buf = ((rest_server_context_t *)req->user_ctx)->scratch;
     int received;  // number of bytes received per tronch
 
-    
+    remaining = req->content_len;
+
     /*
      * read the first bunch of data and parse out the filename
+     * retry on timeout error only.
      */
     while((received = httpd_req_recv(req, buf, MIN(remaining, SCRATCH_BUFSIZE)) <= 0) && (timeouts > 0))  {
-        if(received == == HTTPD_SOCK_ERR_TIMEOUT)
+        if(received == HTTPD_SOCK_ERR_TIMEOUT)
             timeouts--;
         else
-            timeouts = received;
+            timeouts = -1;
     }
 
     /*
      * if a successful read, parse out the filename
      */
     if(timeouts > 0)  {
-        filename = get_filename_from_body(buf)
+        next = get_filename_from_body(filepath, buf);
     }
 
     /* Skip leading "/upload" from URI to get filename */
@@ -211,17 +223,17 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     //const char *filename = get_path_from_uri(filepath, ((rest_server_context_t *)req->user_ctx)->base_path,
     //                                        req->uri + sizeof(UPLOAD_POST_URI) - 1, sizeof(filepath));
 
-    if (!filename) {
+    if (filepath[0] == '\0') {
         /* Respond with 500 Internal Server Error */
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Filename too long");
         return ESP_FAIL;
     }
     else
-        ESP_LOGI(REST_TAG, "Upload: parsed filename = >%s<", filename);
+        ESP_LOGI(REST_TAG, "Upload: parsed filename = >%s<", filepath);
 
     /* Filename cannot have a trailing '/' */
-    if (filename[strlen(filename) - 1] == '/') {
-        ESP_LOGE(REST_TAG, "Invalid filename : %s", filename);
+    if (filepath[strlen(filepath) - 1] == '/') {
+        ESP_LOGE(REST_TAG, "Invalid filename : %s", filepath);
         httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Invalid filename");
         return ESP_FAIL;
     }
@@ -232,7 +244,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
         httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST, "File already exists");
         return ESP_FAIL;
     }
-
+#ifdef NOT_YET
     /* File cannot be larger than a limit */
     if (req->content_len > MAX_FILE_SIZE) {
         ESP_LOGE(REST_TAG, "File too large : %d bytes", req->content_len);
@@ -259,7 +271,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     /* Content length of the request gives
      * the size of the file being uploaded */
-    int remaining = req->content_len;
+    remaining = req->content_len;
 
     while (remaining > 0) {
 
@@ -303,7 +315,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     /* Close file upon upload completion */
     fclose(fd);
     ESP_LOGI(TAG, "File reception complete");
-
+#endif
     return(ESP_OK);
 }
 
