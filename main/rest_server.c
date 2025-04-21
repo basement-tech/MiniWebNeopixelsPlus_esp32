@@ -216,6 +216,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
      * if a successful read, parse out the filename
      */
     if(timeouts > 0)  {
+        remaining -= received;  // read the balance below
         next = get_filename_from_body(filename, buf);
         if((next != NULL) && (strlen(filename) > 0))  {
             strncpy(filepath, ((rest_server_context_t *)req->user_ctx)->base_path, FILE_PATH_MAX);
