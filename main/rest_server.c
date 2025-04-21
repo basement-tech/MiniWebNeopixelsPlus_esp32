@@ -153,6 +153,7 @@ static esp_err_t light_brightness_post_handler(httpd_req_t *req)
 #define MAX_FILE_SIZE_STR "200 KB"
 #define NUM_TIMEOUTS 5
 #define BODY_HEADER_END_STR "\r\n\r\n"
+#define DEBUG_DUMP_RAW 1 // if defined, dump the raw data in post request
 
 /*
  * look for the filename in the stream of data from the browser (buf).
@@ -223,30 +224,17 @@ void hex_ascii_dump(const char *data, size_t len, size_t perline) {
     }
 }
 
-static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
-
-    char filepath[FILE_PATH_MAX] = {0};
-    char filename[FILE_PATH_MAX] = {0};
-    FILE *fd = NULL;
-    char *next = NULL;
-    int remaining = 0;
-    struct stat file_stat;
-    uint8_t timeouts = NUM_TIMEOUTS;  
-
-    /* Retrieve the pointer to scratch buffer for temporary storage */
-    char *buf = ((rest_server_context_t *)req->user_ctx)->scratch;
-    int received;  // number of bytes received per tronch
-
-    remaining = req->content_len;  // number of bytes in total from the browser
-    ESP_LOGI(REST_TAG, "Total size of content = %d", remaining);
-
-
+static int parse_req_header_for_boundary(httpd_req_t *req) {
     /*
      * extract the boundary string from the req header (different from the body header),
      * and the length of the boundary header to skip when copying data.
+     * NOTE: this can be done before any of the body data is read and parsed.
+     * return:
+     *   success : number of bytes in boundary string
+     *   error: -1
      */
     char content_type[256];
-    int b_str_len = 0;  // length of the boundary string
+    int b_str_len = -1;  // length of the boundary string
     char *boundary = NULL;
     char *b_str = NULL;  // pointer to the boundary string in content_type[]
     if(httpd_req_get_hdr_value_str(req, "Content-Type", content_type, sizeof(content_type)) == ESP_OK)  {
@@ -267,6 +255,35 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     }
     else
         ESP_LOGE(REST_TAG, "Content-Type not found");
+    
+    return(b_str_len);
+}
+
+static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
+
+    char filepath[FILE_PATH_MAX] = {0};
+    char filename[FILE_PATH_MAX] = {0};
+    FILE *fd = NULL;
+    char *next = NULL;
+    int remaining = 0;
+    struct stat file_stat;
+    uint8_t timeouts = NUM_TIMEOUTS;
+    bool first_read = true;  // used to do some body header parsing on the first buffer
+    int b_str_len = 0;  // number of bytes in boundary string
+
+    /* Retrieve the pointer to scratch buffer for temporary storage */
+    char *buf = ((rest_server_context_t *)req->user_ctx)->scratch;
+    int received = 0;  // number of bytes received per tronch
+
+    remaining = req->content_len;  // number of bytes in total from the browser
+    ESP_LOGI(REST_TAG, "Total size of content = %d", remaining);
+
+    /*
+     * find the length of the multiform boundary string
+     * so that it can be subtracted from the number of characters
+     * to be read 
+     */
+    b_str_len = parse_req_header_for_boundary(req);
 
     /*
      * read the first bunch of data and parse out the filename
@@ -288,12 +305,16 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     /*
      * if a successful read, parse out the filename
+     * NOTE: assume that the first successful read it big enough to contain
+     *  the filename and body header information.
      */
     if(timeouts > 0)  {
         buf[received] = '\0';  // safety to make string functions work
 
+#ifdef DEBUG_DUMP_RAW
         ESP_LOGI(REST_TAG, "Raw contents of received buffer:");
         hex_ascii_dump(buf, remaining, 32);
+#endif
 
         remaining -= received;  // read the balance below
         next = get_filename_from_body(filename, buf);  // leaves next just after the filename
