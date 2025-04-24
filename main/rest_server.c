@@ -49,6 +49,8 @@ static esp_err_t set_content_type_from_file(httpd_req_t *req, const char *filepa
     const char *type = "text/plain";
     if (CHECK_FILE_EXTENSION(filepath, ".html")) {
         type = "text/html";
+    } else if (CHECK_FILE_EXTENSION(filepath, ".htm")) {
+        type = "text/html";
     } else if (CHECK_FILE_EXTENSION(filepath, ".js")) {
         type = "application/javascript";
     } else if (CHECK_FILE_EXTENSION(filepath, ".css")) {
@@ -71,7 +73,7 @@ static esp_err_t rest_common_get_handler(httpd_req_t *req)
     rest_server_context_t *rest_context = (rest_server_context_t *)req->user_ctx;
     strlcpy(filepath, rest_context->base_path, sizeof(filepath));
     if (req->uri[strlen(req->uri) - 1] == '/') {
-        strlcat(filepath, "/index.html", sizeof(filepath));
+        strlcat(filepath, "/index.htm", sizeof(filepath));
     } else {
         strlcat(filepath, req->uri, sizeof(filepath));
     }
@@ -288,13 +290,15 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     esp_err_t err = ESP_OK; // exit status of the while
     while((remaining > 0) && (err == ESP_OK))  {
+        ESP_LOGI(REST_TAG, "Remaining bytes = %d", remaining);
+
         /*
          * read buffer full of data 
          */
         timeouts = NUM_TIMEOUTS;
         do  {
             received = httpd_req_recv(req, buf, MIN(remaining, SCRATCH_BUFSIZE));
-            ESP_LOGI(REST_TAG, "Number of bytes received in first chunk = %d in try %d", received, timeouts);
+            ESP_LOGI(REST_TAG, "Number of bytes received in chunk = %d in countdown %d", received, timeouts);
             if(received == HTTPD_SOCK_ERR_TIMEOUT)
                 timeouts--;
             else
@@ -302,7 +306,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
         }  while((received <= 0) && (timeouts > 0));
 #ifdef DEBUG_DUMP_RAW
         ESP_LOGI(REST_TAG, "Raw contents of received buffer:");
-        hex_ascii_dump(buf, remaining, 32);
+        hex_ascii_dump(buf, received, 32);
 #endif
 
         /*
