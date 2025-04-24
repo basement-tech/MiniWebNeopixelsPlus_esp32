@@ -271,8 +271,8 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     struct stat file_stat;
     uint8_t timeouts = NUM_TIMEOUTS;
     bool first_read = true;  // used to do some body header parsing on the first buffer
-    bool last_read = false;  // used to skip the boundary string on the final buffer
     int b_str_len = 0;  // number of bytes in boundary string
+    int b_str_bytes_to_skip = 0;
 
     /* Retrieve the pointer to scratch buffer for temporary storage */
     char *buf = ((rest_server_context_t *)req->user_ctx)->scratch;
@@ -317,10 +317,20 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
         if(timeouts > 0)  {
             buf[received] = '\0';  // safety to make string functions work
             remaining -= received;  // subtract the amount that was read ... read the balance below (if any)
-            if(remaining > 0)
-                last_read = false;
+
+            /*
+             * detect if this is the final buffer chunk
+             * NOTE: the boundary string could be split across two reads
+             * ... detect that as well
+             */
+            if(remaining > 0)  {
+                if(remaining >= b_str_len)  // full boundary string in some subsequent read
+                    b_str_bytes_to_skip = 0;
+                else  // split across reads
+                    b_str_bytes_to_skip = b_str_len - remaining;
+            }
             else
-                last_read = true;
+                b_str_bytes_to_skip = b_str_len - b_str_bytes_to_skip;  //subtract number skipped last time
 
             if(first_read == true)  {
                 first_read = false;
@@ -408,13 +418,10 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
             } // if first read
 
             /*
-             * if this is the last buffer full of data, don't copy the
-             * boundary string (i.e. subtract its length from the number of bytes to copy)
+             * subtract the full or partial boundary string length
              */
-            if(last_read == true)  {
-                received -= b_str_len;  // don't read past the actual data into the boundary string
-                ESP_LOGI(REST_TAG, "... and after boundary string subtraction = %d", received);
-            }
+            received -= b_str_bytes_to_skip;  // don't read past the actual data into the boundary string
+            ESP_LOGI(REST_TAG, "... and after boundary string subtraction = %d", received);
 
             /*
              * if we've gotten this far:b_str_len
