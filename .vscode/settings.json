@@ -6,6 +6,9 @@
     "idf.portWin": "COM6",
     "idf.flashType": "UART",
     "files.associations": {
-        "cstring": "c"
+        "cstring": "c",
+        "chrono": "c",
+        "span": "c",
+        "type_traits": "c"
     }
 }
