@@ -10,7 +10,6 @@
 #include <fcntl.h>
 #include <sys/param.h>
 #include <ctype.h>
-#include "driver/uart.h"
 #include "esp_http_server.h"
 #include "esp_chip_info.h"
 #include "esp_random.h"
@@ -37,6 +36,7 @@ static const char *REST_TAG = "esp-rest";
 
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + 128)
 #define SCRATCH_BUFSIZE (10240)
+#define LOCAL_NO_CACHE
 
 typedef struct rest_server_context {
     char base_path[ESP_VFS_PATH_MAX + 1];
@@ -64,6 +64,7 @@ static esp_err_t set_content_type_from_file(httpd_req_t *req, const char *filepa
     } else if (CHECK_FILE_EXTENSION(filepath, ".svg")) {
         type = "text/xml";
     }
+
     return httpd_resp_set_type(req, type);
 }
 
@@ -71,6 +72,7 @@ static esp_err_t set_content_type_from_file(httpd_req_t *req, const char *filepa
 static esp_err_t rest_common_get_handler(httpd_req_t *req)
 {
     char filepath[FILE_PATH_MAX];
+    int total_bytes_sent = 0;
 
     rest_server_context_t *rest_context = (rest_server_context_t *)req->user_ctx;
     strlcpy(filepath, rest_context->base_path, sizeof(filepath));
@@ -88,6 +90,21 @@ static esp_err_t rest_common_get_handler(httpd_req_t *req)
     }
 
     set_content_type_from_file(req, filepath);
+
+    httpd_resp_set_hdr(req, "X-Content-Type-Options", "nosniff");
+
+    char buffer[FILENAME_MAX];
+    snprintf(buffer, sizeof(buffer), "inline; filename=\"%s\"", req->uri);
+    httpd_resp_set_hdr(req, "Content-Disposition", buffer);
+
+    httpd_resp_set_hdr(req, "Access-Control-Allow-Origin", "*");
+    
+#ifdef LOCAL_NO_CACHE
+    httpd_resp_set_hdr(req, "Cache-Control", "no-cache");
+#else
+    httpd_resp_set_hdr(req, "Cache-Control", "public, max-age=86400");
+#endif
+
 
     char *chunk = rest_context->scratch;
     ssize_t read_bytes;
@@ -107,10 +124,12 @@ static esp_err_t rest_common_get_handler(httpd_req_t *req)
                 httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to send file");
                 return ESP_FAIL;
             }
+            else
+                total_bytes_sent += read_bytes;
         }
     } while (read_bytes > 0);
-    /* Close file after sending complete */
     close(fd);
+    ESP_LOGI(REST_TAG, "Total bytes sent = %d", total_bytes_sent);
     ESP_LOGI(REST_TAG, "File sending complete");
     /* Respond with an empty chunk to signal HTTP response completion */
     httpd_resp_send_chunk(req, NULL, 0);
@@ -158,6 +177,7 @@ static esp_err_t light_brightness_post_handler(httpd_req_t *req)
 #define NUM_TIMEOUTS 5
 #define BODY_HEADER_END_STR "\r\n\r\n"
 //#define DEBUG_DUMP_RAW 1 // if defined, dump the raw data in post request
+#define FINAL_EXTRA_CHARS_AT_END 2
 
 /*
  * look for the filename in the stream of data from the browser (buf).
@@ -251,7 +271,7 @@ static int parse_req_header_for_boundary(httpd_req_t *req) {
              * plus 2 trailing dashes
              * plus 2 terminating \r\n
              */
-            b_str_len = strlen(b_str) + 6;
+            b_str_len = strlen(b_str) + 6 + FINAL_EXTRA_CHARS_AT_END;
             ESP_LOGI(REST_TAG, "boundary string length = %d", b_str_len);
         }
         else
@@ -292,7 +312,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     esp_err_t err = ESP_OK; // exit status of the while
     while((remaining > 0) && (err == ESP_OK))  {
-        ESP_LOGI(REST_TAG, "Remaining bytes = %d", remaining);
+        ESP_LOGI(REST_TAG, "Remaining bytes before read = %d", remaining);
 
         /*
          * read buffer full of data 
@@ -435,7 +455,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
              * now: copy the data to the newly opened file
              */
             if(fwrite(next, 1, received, fd) != received) {
-                ESP_LOGE(REST_TAG, "Error writing first chunk of data to file");
+                ESP_LOGE(REST_TAG, "Error writing chunk of data to file");
                 httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create file");
                 fclose(fd);
                 unlink(filepath);
