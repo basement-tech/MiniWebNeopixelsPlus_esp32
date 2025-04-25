@@ -486,6 +486,52 @@ static esp_err_t upload_handler(httpd_req_t *req)  {
     return ESP_OK;
 }
 
+
+// This function is called when the WebServer was requested to list all existing files in the filesystem.
+// a JSON array with file information is returned.
+#include "dirent.h"
+#include "sys/stat.h"
+#define LIST_PATH "/littlefs"
+#define FN_BUFSIZE 256
+esp_err_t list_files_handler(httpd_req_t *req) {
+    DIR *dir;
+    struct dirent *entry;
+    struct stat stat_info;
+    char full_path[FN_BUFSIZE] = {0};
+
+    httpd_resp_set_type(req, "application/json");
+
+    if((dir = opendir(LIST_PATH)) == NULL)  {
+        ESP_LOGE(REST_TAG, "Error opening %s for listing", LIST_PATH);
+        httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Invalid filename");
+        return(ESP_FAIL);
+    }
+
+    cJSON *json_array = cJSON_CreateArray();
+    while ((entry = readdir(dir)) != NULL) {
+        strncpy(full_path, LIST_PATH, FN_BUFSIZE);
+        strncat(full_path, "/", (FN_BUFSIZE-strlen(full_path)));
+        strncat(full_path, entry->d_name, (FN_BUFSIZE-strlen(full_path)));
+        stat(full_path, &stat_info);
+        cJSON *file_obj = cJSON_CreateObject();
+        cJSON_AddStringToObject(file_obj, "name", entry->d_name);
+        cJSON_AddNumberToObject(file_obj, "size", stat_info.st_size);
+
+        // Add to array
+        cJSON_AddItemToArray(json_array, file_obj);
+    }
+    char *json_str = cJSON_Print(json_array);
+    httpd_resp_sendstr(req, json_str);
+    if(json_str != NULL) free(json_str);
+    closedir(dir);
+    cJSON_Delete(json_array);
+
+    return(ESP_OK);
+
+}  // list_files_handler()
+
+
+
 esp_err_t start_rest_server(const char *base_path)
 {
     REST_CHECK(base_path, "wrong base path", err);
@@ -518,6 +564,16 @@ esp_err_t start_rest_server(const char *base_path)
     };
     httpd_register_uri_handler(server, &temperature_data_get_uri);
 
+    
+    /* URI handler for light brightness control */
+    httpd_uri_t list_file_get_uri = {
+        .uri = "/api/v1/system/list",
+        .method = HTTP_GET,
+        .handler = list_files_handler,
+        .user_ctx = rest_context
+    };
+    httpd_register_uri_handler(server, &list_file_get_uri);
+
     /* URI handler for light brightness control */
     httpd_uri_t light_brightness_post_uri = {
         .uri = "/api/v1/light/brightness",
@@ -526,6 +582,7 @@ esp_err_t start_rest_server(const char *base_path)
         .user_ctx = rest_context
     };
     httpd_register_uri_handler(server, &light_brightness_post_uri);
+
 
     /* URI handler for file uploads */
     httpd_uri_t upload_uri = {
