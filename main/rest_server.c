@@ -337,7 +337,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
          * the filename and body header information.
          */
         if(timeouts > 0)  {
-            buf[received] = '\0';  // safety to make string functions work
+            //buf[received] = '\0';  // safety to make string functions work
             remaining -= received;  // subtract the amount that was read ... read the balance below (if any)
 
             /*
@@ -439,6 +439,8 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
                 ESP_LOGI(REST_TAG, "Ready to receiving file : %s...", filename);
             } // if first read
+            else
+                next = buf;  // no header characters to skip after first
 
             /*
              * subtract the full or partial boundary string length
