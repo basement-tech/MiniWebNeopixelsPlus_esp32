@@ -316,10 +316,11 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
         /*
          * read buffer full of data 
+         * leave room for the safety '\0'
          */
         timeouts = NUM_TIMEOUTS;
         do  {
-            received = httpd_req_recv(req, buf, MIN(remaining, SCRATCH_BUFSIZE));
+            received = httpd_req_recv(req, buf, MIN(remaining, (SCRATCH_BUFSIZE-1)));
             ESP_LOGI(REST_TAG, "Number of bytes received in chunk = %d in countdown %d", received, timeouts);
             if(received == HTTPD_SOCK_ERR_TIMEOUT)
                 timeouts--;
@@ -337,7 +338,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
          * the filename and body header information.
          */
         if(timeouts > 0)  {
-            //buf[received] = '\0';  // safety to make string functions work
+            buf[received] = '\0';  // safety to make string functions work ... should be one beyond real data
             remaining -= received;  // subtract the amount that was read ... read the balance below (if any)
 
             /*
