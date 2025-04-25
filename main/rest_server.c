@@ -9,6 +9,8 @@
 #include <string.h>
 #include <fcntl.h>
 #include <sys/param.h>
+#include <ctype.h>
+#include "driver/uart.h"
 #include "esp_http_server.h"
 #include "esp_chip_info.h"
 #include "esp_random.h"
@@ -155,7 +157,7 @@ static esp_err_t light_brightness_post_handler(httpd_req_t *req)
 #define MAX_FILE_SIZE_STR "200 KB"
 #define NUM_TIMEOUTS 5
 #define BODY_HEADER_END_STR "\r\n\r\n"
-#define DEBUG_DUMP_RAW 1 // if defined, dump the raw data in post request
+//#define DEBUG_DUMP_RAW 1 // if defined, dump the raw data in post request
 
 /*
  * look for the filename in the stream of data from the browser (buf).
@@ -199,7 +201,7 @@ char *get_filename_from_body(char *filename, char *buf)  {
     return(++end);
 }
 
-#include <ctype.h>
+
 void hex_ascii_dump(const char *data, size_t len, size_t perline) {
     size_t i, j;
 
@@ -360,6 +362,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
                 next = strstr(next, BODY_HEADER_END_STR); //search for the best marker between filename and end of body header
                 next += strlen(BODY_HEADER_END_STR); // next is now pointing to the start of actual file data
                 received -= (next-buf);  // used up some number of bytes looking for filename and start of data
+                ESP_LOGI(REST_TAG, "Subtracted %d bytes for filename extraction", next-buf);
 
 
 
@@ -421,7 +424,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
              * subtract the full or partial boundary string length
              */
             received -= b_str_bytes_to_skip;  // don't read past the actual data into the boundary string
-            ESP_LOGI(REST_TAG, "... and after boundary string subtraction = %d", received);
+            ESP_LOGI(REST_TAG, "Applying b_str_bytes value of = %d", b_str_bytes_to_skip);
 
             /*
              * if we've gotten this far:b_str_len
