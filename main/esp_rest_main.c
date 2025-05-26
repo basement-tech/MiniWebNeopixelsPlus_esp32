@@ -1,11 +1,22 @@
-/* HTTP Restful API Server Example
-
-   This example code is in the Public Domain (or CC0 licensed, at your option.)
-
-   Unless required by applicable law or agreed to in writing, this
-   software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
-   CONDITIONS OF ANY KIND, either express or implied.
-*/
+/****
+ * miniwebneopixelsplus
+ * -> web client based control of neopixels and servos
+ *    using an embedded web server and littlsfs
+ * 
+ * based on esp-idf HTTP Restful API Server Example
+ *
+ * This code is in the Public Domain (or CC0 licensed, at your option.)
+ *
+ * Unless required by applicable law or agreed to in writing, this
+ * software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
+ * CONDITIONS OF ANY KIND, either express or implied.
+ * 
+ * 
+ * 
+ *
+ * djz 2025
+ * 
+ */
 #include "sdkconfig.h"
 #include "driver/gpio.h"
 #include "esp_vfs_semihost.h"
@@ -30,7 +41,7 @@
 
 #define MDNS_INSTANCE "esp home web server"
 
-static const char *TAG = "example";
+static const char *TAG = "esp_rest_main";
 
 esp_err_t start_rest_server(const char *base_path);
 

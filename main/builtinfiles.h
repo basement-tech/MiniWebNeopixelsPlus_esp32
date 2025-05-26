@@ -6,7 +6,7 @@
  */
 
 
-// used for $upload.htm
+// used for upload.htm
 static const char uploadContent[] =
 R"==(
 <!doctype html>

@@ -5,7 +5,17 @@
    Unless required by applicable law or agreed to in writing, this
    software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
    CONDITIONS OF ANY KIND, either express or implied.
-*/
+ *
+ * The following are registered with the server:
+ * "/api/v1/system/info"       GET  retrieve system information and return in json format
+ * "/api/v1/temp/raw"          GET  example code to retrieve a sample value
+ * "/api/v1/system/list"       GET  retrieve a list of files and return in json format
+ * "/api/v1/light/brightness"  POST used with example frontend to post a value to simulated led brightness
+ * "/upload"                   GET  returns the builtin html/js for the upload drag/drop UI
+ * "/upload"                   POST handles the drop event for uploading file to local embedded FS
+ * "slash-star"                GET  i.e. / * no space, generic "all other" file handler; returns file contents with appropriate type
+ * 
+ */
 #include <string.h>
 #include <fcntl.h>
 #include <sys/param.h>
