@@ -592,6 +592,11 @@ static esp_err_t delete_handler(httpd_req_t *req)  {
 }
 
 static esp_err_t file_delete_post_handler(httpd_req_t *req)  {
+    ESP_LOGI(REST_TAG, "(Simulated)Deleting file %s", req->uri);
+    httpd_resp_set_status(req, "200 OK");  // Setting error status
+    httpd_resp_set_type(req, "text/plain");  // Setting response content type
+    httpd_resp_send(req, "Not yet implemented", HTTPD_RESP_USE_STRLEN);  // Sending the response body
+
     return ESP_OK;
 }
 
