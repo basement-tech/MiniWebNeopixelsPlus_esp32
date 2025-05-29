@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+    <style>
+        .config-input-field  {
+            width: 95%;
+            border-radius: 8px;
+            background-color: lightgoldenrodyellow;
+            font-size: 1.25rem;
+        }
+
+        .config-button  {
+            width: 45%;
+            font-size: 1.5rem;
+            border-radius: 10px;
+            background-color: lightgreen;
+        }
+        
+        .main-config-title  {
+            font-family: 'Black Ops One', Arial, Helvetica, sans-serif;
+            font-size: 16px;
+            font-weight: bold;
+            color: black;
+            margin-bottom: 0;
+            text-align: center;
+            padding: 0.5rem;
+            border: 20px solid #4a4a4a;
+        }
+    </style>
+    <head>
+        <title>Neo Configuration</title>
+    </head>
+    <body>
+    <h1 class="main-config-title">
+        Enter new configuration values and press Save to save, Reboot to leave unchanged
+    </h1>
+    <br>
+    <script>
+        function deviceConfig(event) {
+            event.preventDefault();
+
+            let config_data = {
+                action: String("save"),
+                WIFI_SSID: String(document.getElementById('WIFI_SSID').value),
+                WIFI_Password: String(document.getElementById('WIFI_Password').value),
+                WIFI_DHCP: String(document.getElementById('WIFI_DHCP').value),
+                Fixed_IP_Addr: String(document.getElementById('Fixed_IP_Addr').value),
+                WIFI_timeout: String(document.getElementById('WIFI_timeout').value),
+                GMT_offset: String(document.getElementById('GMT_offset').value),
+                debug_level: String(document.getElementById('debug_level').value),
+                npixel_cnt: String(document.getElementById('npixel_cnt').value),
+                neo_gamma: String(document.getElementById('neo_gamma').value),
+                def_neo_seq: String(document.getElementById('def_neo_seq').value),
+                FS_reformat: String(document.getElementById('FS_reformat').value)
+            }
+            let jsonData = JSON.stringify(config_data);
+            console.log(jsonData);
+
+            fetch('api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: jsonData
+            })
+            .then(response => {
+                if(response.status != 200) {
+                    window.alert("Error processing configuration");
+                }
+                else  {
+                    window.alert("Successfully saved");
+                }
+                return response.text();
+            })
+            .then(result => console.log(result))
+            .catch(error => console.error('Error:', error));
+        }
+
+        function handleCancel()  {
+            console.log("rebooting ...");
+            event.preventDefault();
+
+            let config_data = {
+                action: String("cancel"),
+            }
+            let jsonData = JSON.stringify(config_data);
+            console.log(jsonData);
+
+            fetch('api/config', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: jsonData
+            })
+            .then(response => {
+                if(response.status != 200) {
+                    window.alert("Error processing configuration");
+                }
+                else  {
+                    window.alert("Configuration complete ... rebooting")
+                }
+                return response.text();
+            })
+            .then(result => console.log(result))
+            .catch(error => console.error('Error:', error));
+        }
+    </script>
+<!--
+Note: the final </html> is added by the c code after
+the bottom of the page is dynamically generated.
+-->

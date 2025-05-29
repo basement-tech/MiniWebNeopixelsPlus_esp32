@@ -293,6 +293,68 @@ static int parse_req_header_for_boundary(httpd_req_t *req) {
     return(b_str_len);
 }
 
+/*
+ * parse the response to a drag/drop event by parsing the
+ * multipart form stream.
+ * 
+ * *** NOTE: at this writing, this function can only read a multipart
+ * form with one part (i.e. one file drag/dropped).  Next step will be to
+ * wrap all of this in another loop to rinse and repeat. ***
+ * 
+ * utilize (rest_server_context_t *)req->user_ctx)->scratch for temp storage
+ * - read buffers of max size size of SCRATCH_BUFSIZE
+ * - read until req->content_len is satisfied (from the request header)
+ * 
+ * #define DEBUG_DUMP_RAW to get a hex dump of the raw buffers
+ * 
+ * From the request header:
+ * - total number of bytes to read (req->content_len)
+ * - the boundary string (separates parts of the multipart form) is contained in the request header,
+ *   Content-Type field.
+ *   (e.g. Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW)
+ * 
+ * Typical multipart POST:
+ * Boundary String (start of part 1)
+ *   Body Header
+ *     Content-Disposition ...
+ *     ...
+ *   BODY_HEADER_END_STR , typically "\r\n\r\n"
+ *   Contents
+ * Boundary String (start of part 2)
+ *   Body Header
+ *     Content-Disposition ...
+ *     ...
+ *   BODY_HEADER_END_STR , typically "\r\n\r\n"
+ *   Contents
+ * Boundary String (end of data)
+ * 
+ * From the body:
+ * - look for the "Content Disposition:" section of the data stream learn the filename from "filename="
+ *   (note: in looking for this first, ignoring the first boundary string)
+ * - look for the end of the body header (BODY_HEADER_END_STR, typically "\r\n\r\n")
+ * - construct the local filename (do some filename validation)
+ * - don't copy the final boundary string to the local file contents
+ * - close the file
+ * 
+ * Typical debug output:
+ * I (167654) esp-rest: Total size of content = 1456
+ * I (167654) esp-rest: Content-Type header: multipart/form-data; boundary=----WebKitFormBoundaryclQUhk6aZKhpIFBI
+ * I (167664) esp-rest: boundary string length = 46
+ * I (167664) esp-rest: Remaining bytes before read = 1456
+ * I (167674) esp-rest: Number of bytes received in chunk = 1456 in countdown 5
+ * I (167674) esp-rest: Found filename >/index.js< in body
+ * I (167684) esp-rest: Upload: parsed filepath = >/littlefs/index.js<
+ * I (167684) esp-rest: Subtracted 142 bytes for filename extraction
+ * I (167704) esp-rest: File already exists ... deleting : /littlefs/index.js
+ * I (167714) esp-rest: Ready to receiving file : /index.js...
+ * I (167714) esp-rest: Applying b_str_bytes value of = 46
+ * I (167794) esp-rest: File reception complete
+ * 
+ * Care must be taken to detect when a searched-for string straddles two buffer/read chunks:
+ * 
+ * 
+ * 
+ */
 static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     char filepath[FILE_PATH_MAX] = {0};
@@ -359,7 +421,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
             if(remaining > 0)  {
                 if(remaining >= b_str_len)  // full boundary string in some subsequent read
                     b_str_bytes_to_skip = 0;
-                else  // split across reads
+                else  // split across reads ... skip the portion read in this chunk
                     b_str_bytes_to_skip = b_str_len - remaining;
             }
             else

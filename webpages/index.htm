@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<title>The Underhives of Necromunda</title>
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		<meta http-equiv='Content-Type' content='text/html; charset=utf-8'>
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link href="https://fonts.googleapis.com/css2?family=Black+Ops+One&display=swap" rel="stylesheet">
+		<link rel="stylesheet" href="styles.css">
+		<script src="index.js" defer></script>
+	</head>
+	<body>
+	<h1 class="main-title">
+	The Underhives of Necromunda
+	</h1>
+	<br>
+	<!-- More user buttons can be added to those below:
+	 	1) copy and paste one of the existing USER-x button lines
+		2) set the value= to an unused one in the range of USER-1 to USER-5
+		   (currently 5 slots available)
+		3) set id= to match the pattern and tie it to the css
+		4) set the data-file= attribute to match the name of your new json sequence file
+		   (arbitrary filenames supported)
+		5) The free text just before </button> is displayed on the button and
+		   can be set to whatever you want
+		4) create and upload your new sequence file
+		NOTE: for user defined buttons/sequences, the value= must start with "USER",
+		      - - other buttons may not start with those four characters
+	 -->
+	<div class="button-grid">
+		<button 
+		    class="color-control-button" 
+		    value="RED-MED" 
+		    id="red-med" 
+		    data-file="" 
+		    onclick="callCFunction(this)">
+			Red Pulse-Med
+		</button>
+		<button 
+		    class="color-control-button" 
+		    value="GREEN-MED" 
+		    id="green-med" 
+		    data-file="" 
+		    onclick="callCFunction(this)">
+			Green Pulse-Med
+		</button>
+		<button 
+		    class="color-control-button" 
+		    value="PURPLE-SLOW" 
+		    id="purple-slow" 
+		    data-file="" 
+		    onclick="callCFunction(this)">
+			Purple Pulse-Slow
+		</button>
+		<button 
+			class="color-control-button" 
+			value="RAINBOW" 
+			id="rainbow" 
+			data-file="" 
+			onclick="callCFunction(this)">
+			Rainbow
+		</button>
+		<button 
+		    class="color-control-button" 
+		    value="USER-1" 
+		    id="user-1" 
+		    data-file="neo_user_1.json" 
+		    onclick="callCFunction(this)">
+			User Seq-1
+		</button>
+		<button 
+		    class="color-control-button" 
+		    value="USER-2" 
+		    id="user-2" 
+		    data-file="neo_user_2.json" 
+		    onclick="callCFunction(this)">
+			User Seq-2
+		</button>
+		<button 
+			class="color-control-button" 
+			value="USER-3" 
+			id="user-3" 
+			data-file="neo_user_3.json" 
+			onclick="callCFunction(this)">
+			User Seq-3
+		</button>
+		<button 
+			class="color-control-button" 
+			value="USER-4" 
+			id="user-4" 
+			data-file="neo_user_4.json" 
+			onclick="callCFunction(this)">
+			User Seq-4
+		</button>
+		<button 
+			class="color-control-button" 
+			value="STOP" 
+			id="stop" 
+			data-file="" 
+			onclick="callCFunction(this)">
+			*** STOP ***
+		</button>
+	</div>
+	<footer>
+		<p>neopixel fun by daniel@basementtech and zimtech, LLC</p>
+	</footer>
+</html>
+
