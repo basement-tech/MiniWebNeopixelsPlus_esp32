@@ -592,10 +592,29 @@ static esp_err_t delete_handler(httpd_req_t *req)  {
 }
 
 static esp_err_t file_delete_post_handler(httpd_req_t *req)  {
-    ESP_LOGI(REST_TAG, "(Simulated)Deleting file %s", req->uri);
-    httpd_resp_set_status(req, "200 OK");  // Setting error status
+    struct stat file_stat;
+    char filepath[FILE_PATH_MAX] = {0};
+
+    ESP_LOGI(REST_TAG, "Attempting to deleting file %s", req->uri);
+
+    strncpy(filepath, ((rest_server_context_t *)req->user_ctx)->base_path, FILE_PATH_MAX);
+    strncat(filepath, req->uri, FILE_PATH_MAX-strlen(filepath));
+
     httpd_resp_set_type(req, "text/plain");  // Setting response content type
-    httpd_resp_send(req, "Not yet implemented", HTTPD_RESP_USE_STRLEN);  // Sending the response body
+
+    /*
+     * if file exists in the flash FS, delete it and continue
+     */
+    if (stat(filepath, &file_stat) == 0) {
+        ESP_LOGI(REST_TAG, "File exists ... deleting");
+        unlink(filepath);
+        httpd_resp_set_status(req, "200 OK");  // Setting error status
+        httpd_resp_send(req, "Deleted", HTTPD_RESP_USE_STRLEN);  // Sending the response body
+    }
+    else  {
+        httpd_resp_set_status(req, "404 Not Found");  // Setting error status
+        httpd_resp_send(req, "File does not exist", HTTPD_RESP_USE_STRLEN);  // Sending the response body
+    }
 
     return ESP_OK;
 }
