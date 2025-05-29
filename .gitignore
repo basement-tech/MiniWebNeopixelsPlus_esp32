@@ -1,4 +1,5 @@
-/build/
+/build/*
+!/build/config
 /sdkconfig
 /sdkconfig.old
 *.log
