@@ -182,6 +182,7 @@ static esp_err_t light_brightness_post_handler(httpd_req_t *req)
 
 /* file upload handler */
 #define UPLOAD_POST_URI "/upload"
+#define DELETE_POST_URI "/delete"
 #define MAX_FILE_SIZE (200*1024)
 #define MAX_FILE_SIZE_STR "200 KB"
 #define NUM_TIMEOUTS 5
@@ -584,6 +585,16 @@ static esp_err_t upload_handler(httpd_req_t *req)  {
     return ESP_OK;
 }
 
+static esp_err_t delete_handler(httpd_req_t *req)  {
+    httpd_resp_set_type(req, "text/html");
+    httpd_resp_sendstr(req, deleteContent);
+    return ESP_OK;
+}
+
+static esp_err_t file_delete_post_handler(httpd_req_t *req)  {
+    return ESP_OK;
+}
+
 
 // This function is called when the WebServer was requested to list all existing files in the filesystem.
 // a JSON array with file information is returned.
@@ -640,6 +651,7 @@ esp_err_t start_rest_server(const char *base_path)
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.uri_match_fn = httpd_uri_match_wildcard;
+    config.max_uri_handlers = 16;  // default was 8 ... too few
 
     ESP_LOGI(REST_TAG, "Starting HTTP Server");
     REST_CHECK(httpd_start(&server, &config) == ESP_OK, "Start server failed", err_start);
@@ -690,7 +702,6 @@ esp_err_t start_rest_server(const char *base_path)
         .user_ctx = rest_context
     };
     httpd_register_uri_handler(server, &upload_uri);
-
     /* URI handler for file upload return post */
     httpd_uri_t file_upload_post_uri = {
         .uri = UPLOAD_POST_URI,
@@ -699,6 +710,25 @@ esp_err_t start_rest_server(const char *base_path)
         .user_ctx = rest_context
     };
     httpd_register_uri_handler(server, &file_upload_post_uri);
+
+
+    /* URI handler for file delete */
+    httpd_uri_t delete_uri = {
+        .uri = DELETE_POST_URI,
+        .method = HTTP_GET,
+        .handler = delete_handler,
+        .user_ctx = rest_context
+    };
+    httpd_register_uri_handler(server, &delete_uri);
+    /* URI handler for deleting locally stored files */
+    httpd_uri_t file_delete_post_uri = {
+        .uri = "/*",
+        .method = HTTP_DELETE,
+        .handler = file_delete_post_handler,
+        .user_ctx = rest_context
+    };
+    httpd_register_uri_handler(server, &file_delete_post_uri);
+
 
     /* URI handler for getting web server files */
     httpd_uri_t common_get_uri = {
