@@ -3,7 +3,7 @@
  * -> web client based control of neopixels and servos
  *    using an embedded web server and littlsfs
  * 
- * based on esp-idf HTTP Restful API Server Example
+ * webserver functionality based on esp-idf HTTP Restful API Server Example
  *
  * This code is in the Public Domain (or CC0 licensed, at your option.)
  *
@@ -11,6 +11,22 @@
  * software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied.
  * 
+ * Web Server
+ * ----------
+ * 
+ * 
+ * Filesystem
+ * ----------
+ * All development and testing done with littleFS.
+ * I left in the other options for reference, but have not done any testing with them.
+ * 
+ * Configuration
+ * -------------
+ * Trying to preserve the use of esp-idf's Menuconfig functionality.
+ * i.e all default configuration is done through the interface in esp-idf.
+ * 
+ * Todo:
+ * o Implement multifile upload
  * 
  * 
  *
@@ -169,7 +185,7 @@ esp_err_t init_fs(void)  {
         ESP_LOGI(TAG, "Attempting to format partition");
         esp_littlefs_format(conf.partition_label);
     } else {
-        ESP_LOGI(TAG, "Partition size: total: %d, used: %d", total, used);
+        ESP_LOGI(TAG, "Filesystem Partition size: total: %d, used: %d", total, used);
     }
 
     return(ret);
