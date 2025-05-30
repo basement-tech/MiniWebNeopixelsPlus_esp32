@@ -47,6 +47,9 @@
 #include "lwip/apps/netbiosns.h"
 #include "protocol_examples_common.h"
 
+#include "bt_eepromlib.h"
+
+
 #if CONFIG_EXAMPLE_WEB_DEPLOY_SD
 #include "driver/sdmmc_host.h"
 #endif

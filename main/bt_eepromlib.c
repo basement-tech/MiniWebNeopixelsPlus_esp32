@@ -28,11 +28,13 @@
  *
  */
 
-#define ESP_IDF_NVS  // for esp32 versus esp8266 (arduino ide)
+
 
 #include <stdlib.h>  // for atoi()
 #include <string.h>  // for strncpy()
 #include <ctype.h>  // for isdigit()
+
+#include "bt_eepromlib.h"
 
 #ifdef ESP_IDF_NVS
 #include "esp_system.h"
@@ -49,7 +51,7 @@ static nvs_handle_t nvs_handle;  // points to the open nvs partition
 #include <EEPROM.h>
 #endif
 
-#include "bt_eepromlib.h"
+
 
 /*
  * place to hold the settings for network, mqtt, calibration, etc.
@@ -79,8 +81,13 @@ struct eeprom_in  {
 
 /*
  * NOTE: validation must be at index = 0
+ *
+ * NOTE: important that the servo auth is false to insure no
+ * physical damage when error occurs with eeprom function and
+ * attempt is made to limp along with defaults.
+ * 
  */
-#define EEPROM_ITEMS 12
+#define EEPROM_ITEMS 13
 struct eeprom_in eeprom_input[EEPROM_ITEMS] {
   {"",                                           "Validation",    "",                                       mon_config.valid,            sizeof(mon_config.valid)},
   {"DHCP Enable (true, false)",                  "WIFI_DHCP",     "false",                                  mon_config.dhcp_enable,      sizeof(mon_config.dhcp_enable)},
@@ -94,6 +101,7 @@ struct eeprom_in eeprom_input[EEPROM_ITEMS] {
   {"Neopixel gamma (true, false)",               "neo_gamma",     "true",                                   mon_config.neogamma,         sizeof(mon_config.neogamma)},
   {"Enter default seq label (or \"none\")",      "def_neo_seq",   "none",                                   mon_config.neodefault,       sizeof(mon_config.neodefault)},
   {"Reformat FS (true, false)",                  "FS_reformat",   "false",                                  mon_config.reformat,         sizeof(mon_config.reformat)},
+  {"Servo move authorized (true, false)",        "Servo auth",    "false",                                  mon_config.servo_auth,       sizeof(mon_config.servo_auth)},
 };
 
 /*
@@ -118,6 +126,7 @@ void init_eeprom_input()  {
     eeprom_input[9].value = mon_config.neogamma;
     eeprom_input[10].value = mon_config.neodefault;
     eeprom_input[11].value = mon_config.reformat;
+    eeprom_input[12].value = mon_config.servo_auth;
 }
 
 /*
@@ -195,33 +204,7 @@ void dispall_eeprom_parms()  {
   }
 }
 
-/*
- * read exactly the number of bytes from eeprom 
- * that match[] is long and compare to see if the eeprom has
- * ever been written with a valid set of data from this
- * exact revision.
- * 
- * returns the value of strcmp()
- */
-bool eeprom_validation(char match[])  {
-  int mlen;
-  char ebuf[32];
-  char in;
-  int i;
 
-  mlen = strlen(match);
-
-  for(i = 0; i < mlen; i++)
-    ebuf[i] = EEPROM.get(i, in);
-  ebuf[i] = '\0';
-  
-#ifdef FL_DEBUG_MSG
-  Serial.print("match ->");Serial.print(match); Serial.println("<-");
-  Serial.print("ebuf ->");Serial.print(ebuf); Serial.println("<-");
-#endif
-  
-  return(strcmp(match, ebuf));
-}
 
 /*
  * OK, I just got tired of trying to figure out the available libraries.
@@ -319,41 +302,111 @@ int l_read_string(char *buf, int blen, bool echo)  {
  * "EEPROM" init, read, write
  */
 #ifdef ESP_IDF_NVS
+
+/*
+ * if the blob is empty or the initial sizeof(match) does
+ * not match the arguments contents, then return false.
+ * 
+ * compare to see if the eeprom has
+ * ever been written with a valid set of data from this
+ * exact revision.
+ * 
+ * returns the value of strcmp()
+ */
+bool eeprom_validation(char match[])  {
+  esp_err_t err = ESP_OK;
+  size_t required_size = 0;  // value will default to 0, if not set yet in NVS
+  char ebuf[MAX_VERSION_STRING_LEN];
+  int mlen = strlen(match);
+  bool ret = false;
+
+  nvs_get_blob(nvs_handle, EEPROM_BLOB_NAME, NULL, &required_size);
+  if(required_size == 0)
+    ret = false; // empty; no match
+  else  {
+    nvs_get_blob(nvs_handle, EEPROM_BLOB_NAME, ebuf, strlen(match));
+    if(strcmp(match, ebuf) == 0)
+      ret = true;
+    else
+      ret = false;
+  }
+
+  return(strcmp(match, ebuf));
+}
+
 void eeprom_begin(void) {
+
+    size_t required_size = 0;  // value will default to 0, if not set yet in NVS
 	  esp_err_t err = nvs_flash_init();
+
+    /*
+     * the nvs should never be full.  If the init fails for that reason or because
+     * the format seems out of date, "reformat", which is expected to cause defaults
+     * to be loaded downstream.
+     */
     if (err == ESP_ERR_NVS_NO_FREE_PAGES || err == ESP_ERR_NVS_NEW_VERSION_FOUND) {
         // NVS partition was truncated and needs to be erased
         // Retry nvs_flash_init
-        ESP_ERROR_CHECK(nvs_flash_erase());
-        err = nvs_flash_init();
+        ESP_ERROR_CHECK(nvs_flash_erase());  // unlikely failure; fatal error
+        ESP_ERROR_CHECK(nvs_flash_init());  // unlikely failure; fatal error
     }
-    ESP_ERROR_CHECK( err );  // fatal errors
-    err = nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &nvs_handle);
+    ESP_ERROR_CHECK(nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &nvs_handle));
+
+    /*
+     * atttempt to get the blob (i.e. confirm that it's there).
+     * if it appears not, attempt to create it.
+     */
+    err = nvs_get_blob(nvs_handle, EEPROM_BLOB_NAME, NULL, &required_size);
+    if(err != ESP_OK)
+      nvs_set_blob(nvs_handle, EEPROM_BLOB_NAME, NULL, sizeof(mon_config));  // new mon_config size if new version
 }
 
+/*
+ * copy the contents of the nvs to the mon_config structure
+ */
 void eeprom_get(void) {
 
 	  // Read the size of memory space required for blob
     size_t required_size = 0;  // value will default to 0, if not set yet in NVS
 
-    err = nvs_get_blob(nvs_handle, EEPROM_BLOB_NAME, NULL, &required_size);
-    if (err != ESP_OK && err != ESP_ERR_NVS_NOT_FOUND) return err;
-
-    // Read previously saved blob if available
-    if (required_size > 0) {
-        err = nvs_get_blob(nvs_handle, EEPROM_BLOB_NAME, mon_config, &required_size);
-        if (err != ESP_OK) {
-            free(run_time);
-            return err;
-        }
-    }
+    nvs_get_blob(nvs_handle, EEPROM_BLOB_NAME, mon_config, &required_size);
 }
 
 void eeprom_put(void) {
-	EEPROM.put(0, mon_config);
-	EEPROM.commit();
+  nvs_set_blob(nvs_handle, EEPROM_BLOB_NAME, NULL, sizeof(mon_config));
+	nvs_commit(nvs_handle);
 }
+
 #else
+
+/*
+ * read exactly the number of bytes from eeprom 
+ * that match[] is long and compare to see if the eeprom has
+ * ever been written with a valid set of data from this
+ * exact revision.
+ * 
+ * returns the value of strcmp()
+ */
+bool eeprom_validation(char match[])  {
+  int mlen;
+  char ebuf[32];
+  char in;
+  int i;
+
+  mlen = strlen(match);
+
+  for(i = 0; i < mlen; i++)
+    ebuf[i] = EEPROM.get(i, in);
+  ebuf[i] = '\0';
+  
+#ifdef FL_DEBUG_MSG
+  Serial.print("match ->");Serial.print(match); Serial.println("<-");
+  Serial.print("ebuf ->");Serial.print(ebuf); Serial.println("<-");
+#endif
+  
+  return(strcmp(match, ebuf));
+}
+
 void eeprom_begin(void) {
 	EEPROM.begin(EEPROM_RESERVE);
 }

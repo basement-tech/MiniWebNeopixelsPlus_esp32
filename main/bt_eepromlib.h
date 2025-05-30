@@ -9,7 +9,11 @@
 #ifndef __BT_EEPROM_H__
 #define __BT_EEPROM_H__
 
+#define ESP_IDF_NVS  // for esp32 versus esp8266 (arduino ide)
+
+#ifndef ESP_IDF_NVS
 #include <Arduino.h>
+#endif
 
 /*
  * this is the size of the EERPOM segment that is accessible
@@ -31,7 +35,8 @@
  * be sure to update this string if you change the 
  * net_config struct below.
  */
-#define EEPROM_VALID  "valid_v0.8.1"
+#define MAX_VERSION_STRING_LEN 32
+#define EEPROM_VALID  "valid_v0.8.2"
 
 /*
  * map of the parameters stored in EEPROM
@@ -52,6 +57,7 @@ char neocount[8];        // number of neopixels in the strand
 char neogamma[8];        // gamma correction or not
 char neodefault[16];     // label of the sequence to load at start
 char reformat[8];        // reformat fs on startup
+char servo_auth[8];       // are the servo's authorized to move
 };
  
 /*
