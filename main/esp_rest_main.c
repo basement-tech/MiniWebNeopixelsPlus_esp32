@@ -192,6 +192,10 @@ esp_err_t init_fs(void)  {
 }
 #endif
 
+esp_err_t init_eeprom()  {
+    return ESP_OK;
+}
+
 void app_main(void)
 {
     ESP_ERROR_CHECK(nvs_flash_init());
