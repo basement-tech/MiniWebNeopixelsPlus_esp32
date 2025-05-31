@@ -57,22 +57,22 @@ char neocount[8];        // number of neopixels in the strand
 char neogamma[8];        // gamma correction or not
 char neodefault[16];     // label of the sequence to load at start
 char reformat[8];        // reformat fs on startup
-char servo_auth[8];       // are the servo's authorized to move
+char servo_auth[8];      // are the servo's authorized to move
 };
  
 /*
  * function declarations
  */
-net_config *get_mon_config_ptr(void);
+struct net_config *get_mon_config_ptr(void);
 void eeprom_user_input(bool out);
 int getone_eeprom_input(int i);
 void getall_eeprom_inputs();
 void dispall_eeprom_parms();
 bool eeprom_validation(char match[]);
 int l_read_string(char *buf, int blen, bool echo);
-int8_t eeprom_convert_ip(char *sipaddr, uint8_t octets[]);
-void createHTMLfromEEPROM(char *buf, int size);
-void saveJsonToEEPROM(JsonDocument jsonDoc);
+//int8_t eeprom_convert_ip(char *sipaddr, uint8_t octets[]);
+//void createHTMLfromEEPROM(char *buf, int size);
+//void saveJsonToEEPROM(JsonDocument jsonDoc);
 
 void eeprom_begin(void);
 void eeprom_get(void);

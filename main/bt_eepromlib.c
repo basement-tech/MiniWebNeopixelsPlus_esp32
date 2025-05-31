@@ -150,18 +150,18 @@ int getone_eeprom_input(int i)  {
    * parameter, skip it
    */
   if(eeprom_input[i].prompt[0] != '\0')  {
-    Serial.print(eeprom_input[i].prompt);
-    Serial.print("[");Serial.print(eeprom_input[i].value);Serial.print("]");
-    Serial.print("(max ");Serial.print(eeprom_input[i].buflen - 1);Serial.print(" chars):");
+    printf("%s", eeprom_input[i].prompt);
+    printf("["); printf("%s", eeprom_input[i].value); printf("]");
+    printf("(max "); printf("%d", eeprom_input[i].buflen - 1); printf(" chars):");
     if((insize = l_read_string(inbuf, sizeof(inbuf), true)) > 0)  {
       if(insize < (eeprom_input[i].buflen))
         strcpy(eeprom_input[i].value, inbuf);
       else  {
-        Serial.println(); 
-        Serial.println("Error: too many characters; value will be unchanged");
+        printf("\n"); 
+        printf("Error: too many characters; value will be unchanged\n");
       }
     }
-    Serial.println();
+    printf("\n");
   }
   return(insize);
 }
@@ -170,10 +170,10 @@ void getall_eeprom_inputs()  {
   int i;
   int ret;
   
-  Serial.println();    
-  Serial.println("Press <enter> alone to accept previous EEPROM value shown");
-  Serial.println("Press <esc> as the first character to skip to the end");
-  Serial.println();
+  printf("\n");    
+  printf("Press <enter> alone to accept previous EEPROM value shown\n");
+  printf("Press <esc> as the first character to skip to the end\n");
+  printf("\n");
 
   /*
    * loop through getting all of the EEPROM parameter user inputs.
@@ -189,18 +189,18 @@ void getall_eeprom_inputs()  {
 
 void dispall_eeprom_parms()  {
   
-  Serial.println();    
-  Serial.print("Local copy of EEPROM contents(");
-  Serial.print(sizeof(mon_config));Serial.print(" of ");
-  Serial.print(EEPROM_RESERVE); Serial.println(" bytes used):");
+  printf("\n");    
+  printf("Local copy of EEPROM contents(");
+  printf"%d", (sizeof(mon_config)); printf(" of ");
+  printf("%d", EEPROM_RESERVE); printf(" bytes used):\n");
 
   /*
    * loop through getting all of the EEPROM parameter user inputs.
    * if <esc> (indicated by -2) is pressed, skip the balance.
    */
   for(int i = 0; i < EEPROM_ITEMS; i++)  {
-    Serial.print(eeprom_input[i].label);
-    Serial.print(" ->"); Serial.print(eeprom_input[i].value); Serial.println("<-");
+    printf("%s", eeprom_input[i].label);
+    printf(" ->"); printf("%s", eeprom_input[i].value); printf("<-\n");
   }
 }
 
@@ -232,14 +232,14 @@ int l_read_string(char *buf, int blen, bool echo)  {
     if(Serial.available() > 0)  {
       *buf = Serial.read();
 #ifdef FL_DEBUG_MSG
-      Serial.print("char=");Serial.print(*buf);Serial.println(*buf, HEX);
+      printf("char=");printf("%c", *buf);printf("%x\n", *buf);
 #endif
       /*
        * echo if commanded to do so by the state of the echo argument.
        * don't echo the <esc>.
        */
       if((echo == true) && (*buf != '\x1B'))
-        Serial.print(*buf);
+        printf("%c", *buf);
       switch(*buf)  {
         /*
          * terminate the string and get out
@@ -273,7 +273,7 @@ int l_read_string(char *buf, int blen, bool echo)  {
           if(count > 0)
             buf--;
             count--;
-            Serial.print(" \b");  /* blank out the character */
+            printf(" \b");  /* blank out the character */
           break;
 
         /*          
@@ -400,8 +400,8 @@ bool eeprom_validation(char match[])  {
   ebuf[i] = '\0';
   
 #ifdef FL_DEBUG_MSG
-  Serial.print("match ->");Serial.print(match); Serial.println("<-");
-  Serial.print("ebuf ->");Serial.print(ebuf); Serial.println("<-");
+  printf("match ->");printf("%s", match); printf("<-\n");
+  printf("ebuf ->");printf("%s", ebuf); printf\nrand48("<-");
 #endif
   
   return(strcmp(match, ebuf));
@@ -444,11 +444,11 @@ void eeprom_user_input(bool out)  {
      */
     if(eeprom_validation((char *)EEPROM_VALID) == 0)  {
       eeprom_get();  /* if the EEPROM is valid, get the whole contents */
-      Serial.println();
+      printf("\n");
       dispall_eeprom_parms();
     }
     else  {
-      Serial.println("Notice: eeprom contents invalid or first time ... loading defaults");
+      printf("Notice: eeprom contents invalid or first time ... loading defaults\n");
       set_eeprom_initial();
     }
 
@@ -457,22 +457,22 @@ void eeprom_user_input(bool out)  {
      */
     getall_eeprom_inputs();
 
-    Serial.println();
+    printf("\n");
     dispall_eeprom_parms();
-    Serial.print("Press any key to accept, or reset to correct");
+    printf("Press any key to accept, or reset to correct");
     while(Serial.available() <= 0);
     Serial.read();
-    Serial.println();
+    printf("\n");
     
     /*
      * if agreed, write the new data to the EEPROM and use it
      */
     if(eeprom_validation((char *)EEPROM_VALID) == 0)
-      Serial.print("EEPROM: previous data exists ... ");
+      printf("EEPROM: previous data exists ... ");
     else
-      Serial.print("EEPROM data never initialized ... ");
+      printf("EEPROM data never initialized ... ");
       
-    Serial.print("overwrite with new values? ('y' or 'n'):");
+    printf("overwrite with new values? ('y' or 'n'):");
     out = false;
     do {
       l_read_string(inbuf, sizeof(inbuf), true);
@@ -481,17 +481,17 @@ void eeprom_user_input(bool out)  {
       else if (strcmp(inbuf, "n") == 0)
         out = true;
       else  {
-        Serial.println();
-        Serial.print("EEPROM data valid ... overwrite with new values? ('y' or 'n'):");
+        printf("\n");
+        printf("EEPROM data valid ... overwrite with new values? ('y' or 'n'):");
       }
     } while(out == false);
-    Serial.println();
+    printf("\n");
 
     /*
      * write the data to EEPROM if an affirmative answer was given
      */
     if(strcmp(inbuf, "y") == 0)  {
-      Serial.println("Writing data to EEPROM ...");
+      printf("Writing data to EEPROM ...\n");
       strcpy(mon_config.valid, EEPROM_VALID);
       eeprom_put();
     }
@@ -499,18 +499,18 @@ void eeprom_user_input(bool out)  {
   
   if(eeprom_validation((char *)EEPROM_VALID) == 0)  {
     eeprom_get();
-    Serial.println("EEPROM data valid ... using it");
+    printf("EEPROM data valid ... using it\n");
     dispall_eeprom_parms();
   }
   else  {
-    Serial.println("EEPROM data NOT valid ... reset and try enter valid data");
+    printf("EEPROM data NOT valid ... reset and try enter valid data\n");
     Serial.read();
   }
 }
 
 
 
-
+#ifdef NOT_YET
 /*
  * convert a string representation of a v4 IP address to the
  * four-octet version that WIFI classes seem to want.
@@ -594,7 +594,7 @@ void createHTMLfromEEPROM(char *buf, int size)  {
     init_eeprom_input();
   }
   else  {
-    Serial.println("Notice: eeprom contents invalid or first time ... loading defaults");
+    printf("Notice: eeprom contents invalid or first time ... loading defaults\n");
     set_eeprom_initial();
   }
 
@@ -630,9 +630,9 @@ void createHTMLfromEEPROM(char *buf, int size)  {
   strncpy((char*)(buf+strlen(buf)), "\t</form>\n",                                                             (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
   buf[bufsize] = '\0';  // just in case ... note already reduced by one above
 
-  Serial.print("html buflen=");
-  Serial.print(strlen(buf));
-  Serial.print("\n");
+  printf("html buflen=");
+  printf("%d", strlen(buf));
+  printf("\n");
 
 }
 
@@ -649,12 +649,13 @@ void saveJsonToEEPROM(JsonDocument jsonDoc)  {
   for(int parm = 1; parm < EEPROM_ITEMS; parm++)  {
     if(jsonDoc[eeprom_input[parm].label].isNull() == false)  {
       strncpy(eeprom_input[parm].value, jsonDoc[eeprom_input[parm].label], (eeprom_input[parm].buflen-1));
-      Serial.print("Saving to eeprom_input[] ");
-      Serial.print(eeprom_input[parm].label);
-      Serial.print("=");
-      Serial.println(eeprom_input[parm].value);
+      printf("Saving to eeprom_input[] ");
+      printf()"%s", eeprom_input[parm].label);
+      printf("=");
+      printf("%s\n", eeprom_input[parm].value);
     }
   }
 
   eeprom_put();  // write to physical eeprom/flash
 }
+#endif
