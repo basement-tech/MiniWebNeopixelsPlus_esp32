@@ -28,7 +28,7 @@
  *
  */
 
-
+#ifdef CUT_ME_OUT
 
 #include <stdlib.h>  // for atoi()
 #include <string.h>  // for strncpy()
@@ -659,3 +659,5 @@ void saveJsonToEEPROM(JsonDocument jsonDoc)  {
   eeprom_put();  // write to physical eeprom/flash
 }
 #endif
+
+#endif // CUT_ME_OUT
