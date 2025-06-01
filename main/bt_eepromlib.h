@@ -9,6 +9,8 @@
 #ifndef __BT_EEPROM_H__
 #define __BT_EEPROM_H__
 
+#include <stdbool.h>
+
 #define ESP_IDF_NVS  // for esp32 versus esp8266 (arduino ide)
 
 #ifndef ESP_IDF_NVS
@@ -44,7 +46,7 @@
  * custom types, so even if things are added here,
  * the rest of the code should work.
  */
-struct net_config  {
+typedef struct  {
 char valid[32];          // eeprom version validation string
 char dhcp_enable[8];     // enable/disable dhcp
 char wlan_ssid[64];      // wifi ssid
@@ -58,12 +60,12 @@ char neogamma[8];        // gamma correction or not
 char neodefault[16];     // label of the sequence to load at start
 char reformat[8];        // reformat fs on startup
 char servo_auth[8];      // are the servo's authorized to move
-};
+} net_config_t;
  
 /*
  * function declarations
  */
-struct net_config *get_mon_config_ptr(void);
+net_config_t *get_mon_config_ptr(void);
 void eeprom_user_input(bool out);
 int getone_eeprom_input(int i);
 void getall_eeprom_inputs();

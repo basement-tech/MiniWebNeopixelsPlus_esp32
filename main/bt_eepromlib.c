@@ -28,11 +28,14 @@
  *
  */
 
-#ifdef CUT_ME_OUT
 
 #include <stdlib.h>  // for atoi()
 #include <string.h>  // for strncpy()
 #include <ctype.h>  // for isdigit()
+#include "esp_log.h"
+#include "driver/uart.h"
+#include "hal/uart_ll.h"
+#include "soc/uart_struct.h"
 
 #include "bt_eepromlib.h"
 
@@ -41,7 +44,7 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 
-static nvs_handle_t nvs_handle;  // points to the open nvs partition
+static nvs_handle_t eeprom_nvs_handle;  // points to the open nvs partition
 #define STORAGE_NAMESPACE "nvs_as_eeprom"
 #define EEPROM_BLOB_NAME "app_settings"
 
@@ -51,13 +54,13 @@ static nvs_handle_t nvs_handle;  // points to the open nvs partition
 #include <EEPROM.h>
 #endif
 
-
+#define TAG "bt_eepromlib.c"
 
 /*
  * place to hold the settings for network, mqtt, calibration, etc.
  * (i.e. holds the working copy of parameter values)
  */
-struct net_config mon_config;
+net_config_t mon_config;
 
 /*
  * this section deals with getting the user input to
@@ -88,7 +91,7 @@ struct eeprom_in  {
  * 
  */
 #define EEPROM_ITEMS 13
-struct eeprom_in eeprom_input[EEPROM_ITEMS] {
+struct eeprom_in eeprom_input[EEPROM_ITEMS] = {
   {"",                                           "Validation",    "",                                       mon_config.valid,            sizeof(mon_config.valid)},
   {"DHCP Enable (true, false)",                  "WIFI_DHCP",     "false",                                  mon_config.dhcp_enable,      sizeof(mon_config.dhcp_enable)},
   {"Enter WIFI SSID",                            "WIFI_SSID",     "my_ssid",                                mon_config.wlan_ssid,        sizeof(mon_config.wlan_ssid)},
@@ -101,7 +104,7 @@ struct eeprom_in eeprom_input[EEPROM_ITEMS] {
   {"Neopixel gamma (true, false)",               "neo_gamma",     "true",                                   mon_config.neogamma,         sizeof(mon_config.neogamma)},
   {"Enter default seq label (or \"none\")",      "def_neo_seq",   "none",                                   mon_config.neodefault,       sizeof(mon_config.neodefault)},
   {"Reformat FS (true, false)",                  "FS_reformat",   "false",                                  mon_config.reformat,         sizeof(mon_config.reformat)},
-  {"Servo move authorized (true, false)",        "Servo auth",    "false",                                  mon_config.servo_auth,       sizeof(mon_config.servo_auth)},
+  {"Servo move authorized (true, false)",        "Servo auth",    "false",                                  mon_config.servo_auth,       sizeof(mon_config.servo_auth)}
 };
 
 /*
@@ -133,7 +136,7 @@ void init_eeprom_input()  {
  * break the data compartmentalization a little and allow the calling
  * data space to access mon_config directly.  I'm hoping this will be read-only.
  */
-net_config *get_mon_config_ptr(void) {
+net_config_t *get_mon_config_ptr(void) {
 	return(&mon_config);
 }
 
@@ -143,7 +146,7 @@ net_config *get_mon_config_ptr(void) {
  */
 int getone_eeprom_input(int i)  {
   char inbuf[64];
-  int  insize;
+  int  insize = 0;
 
   /*
    * if there is no prompt associated with the subject
@@ -191,7 +194,7 @@ void dispall_eeprom_parms()  {
   
   printf("\n");    
   printf("Local copy of EEPROM contents(");
-  printf"%d", (sizeof(mon_config)); printf(" of ");
+  printf("%d", sizeof(mon_config)); printf(" of ");
   printf("%d", EEPROM_RESERVE); printf(" bytes used):\n");
 
   /*
@@ -227,10 +230,17 @@ int l_read_string(char *buf, int blen, bool echo)  {
   int count = 0;
   bool out = false;
   int ret = -1;
+  unsigned int len = 0;  // not an _t type since that's the way the function is defined
+
+  /*
+   * temporarily turn off logging to allow reading on the monitor port
+   */
+  esp_log_level_set("uart", ESP_LOG_NONE);
+
 
   while((out == false) && (count < blen))  {
-    if(Serial.available() > 0)  {
-      *buf = Serial.read();
+    if((len = uart_ll_get_rxfifo_len(UART_LL_GET_HW(UART_NUM_0))) > 0)  {
+      uart_read_bytes(UART_NUM_0, buf, ((len < blen) ? len : blen), 0);
 #ifdef FL_DEBUG_MSG
       printf("char=");printf("%c", *buf);printf("%x\n", *buf);
 #endif
@@ -272,9 +282,9 @@ int l_read_string(char *buf, int blen, bool echo)  {
         case '\b':
           if(count > 0)
             buf--;
-            count--;
-            printf(" \b");  /* blank out the character */
-          break;
+          count--;
+          printf(" \b");  /* blank out the character */
+        break;
 
         /*          
          * normal character
@@ -284,8 +294,9 @@ int l_read_string(char *buf, int blen, bool echo)  {
           count++;
         break;
       }
-    }
+    }  // if input
   }
+  esp_log_level_set("uart", ESP_LOG_INFO);
 
   /*
    * compiler wouldn't let me have the return() inside the if()'s
@@ -317,21 +328,27 @@ bool eeprom_validation(char match[])  {
   esp_err_t err = ESP_OK;
   size_t required_size = 0;  // value will default to 0, if not set yet in NVS
   char ebuf[MAX_VERSION_STRING_LEN];
-  int mlen = strlen(match);
   bool ret = false;
 
-  nvs_get_blob(nvs_handle, EEPROM_BLOB_NAME, NULL, &required_size);
-  if(required_size == 0)
-    ret = false; // empty; no match
-  else  {
-    nvs_get_blob(nvs_handle, EEPROM_BLOB_NAME, ebuf, strlen(match));
-    if(strcmp(match, ebuf) == 0)
-      ret = true;
-    else
-      ret = false;
+  err = nvs_get_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, NULL, &required_size);
+  if(err != ESP_OK)  {
+    ESP_LOGE(TAG, "error reading parameter blob %s", EEPROM_BLOB_NAME);
+    ret = false;
   }
-
-  return(strcmp(match, ebuf));
+  else  {
+    ESP_LOGI(TAG, "nvs_get_blob successrully reported size = %d", required_size);
+    if(required_size == 0)
+      ret = false; // empty; no match
+    else  {
+      required_size = strlen(match);
+      nvs_get_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, ebuf, &required_size);
+      if(strcmp(match, ebuf) == 0)
+        ret = true;
+      else
+        ret = false;
+    }
+  }
+  return(ret);
 }
 
 void eeprom_begin(void) {
@@ -350,15 +367,17 @@ void eeprom_begin(void) {
         ESP_ERROR_CHECK(nvs_flash_erase());  // unlikely failure; fatal error
         ESP_ERROR_CHECK(nvs_flash_init());  // unlikely failure; fatal error
     }
-    ESP_ERROR_CHECK(nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &nvs_handle));
+    ESP_ERROR_CHECK(nvs_open(STORAGE_NAMESPACE, NVS_READWRITE, &eeprom_nvs_handle));
 
     /*
      * atttempt to get the blob (i.e. confirm that it's there).
      * if it appears not, attempt to create it.
      */
-    err = nvs_get_blob(nvs_handle, EEPROM_BLOB_NAME, NULL, &required_size);
-    if(err != ESP_OK)
-      nvs_set_blob(nvs_handle, EEPROM_BLOB_NAME, NULL, sizeof(mon_config));  // new mon_config size if new version
+    err = nvs_get_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, NULL, &required_size);
+    if(err != ESP_OK)  {
+      ESP_LOGI(TAG, "%s does not exist ... creating", EEPROM_BLOB_NAME);
+      nvs_set_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, NULL, sizeof(mon_config));  // new mon_config size if new version
+    }
 }
 
 /*
@@ -369,12 +388,12 @@ void eeprom_get(void) {
 	  // Read the size of memory space required for blob
     size_t required_size = 0;  // value will default to 0, if not set yet in NVS
 
-    nvs_get_blob(nvs_handle, EEPROM_BLOB_NAME, mon_config, &required_size);
+    nvs_get_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, (void *)(&mon_config), &required_size);
 }
 
 void eeprom_put(void) {
-  nvs_set_blob(nvs_handle, EEPROM_BLOB_NAME, NULL, sizeof(mon_config));
-	nvs_commit(nvs_handle);
+  nvs_set_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, NULL, sizeof(mon_config));
+	nvs_commit(eeprom_nvs_handle);
 }
 
 #else
@@ -442,8 +461,8 @@ void eeprom_user_input(bool out)  {
      *
      * ... proceed to get user input
      */
-    if(eeprom_validation((char *)EEPROM_VALID) == 0)  {
-      eeprom_get();  /* if the EEPROM is valid, get the whole contents */
+    if(eeprom_validation((char *)EEPROM_VALID) == true)  {
+      //eeprom_get();  /* if the EEPROM is valid, get the whole contents */
       printf("\n");
       dispall_eeprom_parms();
     }
@@ -451,6 +470,7 @@ void eeprom_user_input(bool out)  {
       printf("Notice: eeprom contents invalid or first time ... loading defaults\n");
       set_eeprom_initial();
     }
+
 
     /*
      * run the prompt/input sequenct to get the eeprom changes
@@ -460,9 +480,12 @@ void eeprom_user_input(bool out)  {
     printf("\n");
     dispall_eeprom_parms();
     printf("Press any key to accept, or reset to correct");
+#ifdef ONLY_TO_HERE
+    /*
     while(Serial.available() <= 0);
     Serial.read();
     printf("\n");
+    */
     
     /*
      * if agreed, write the new data to the EEPROM and use it
@@ -495,16 +518,22 @@ void eeprom_user_input(bool out)  {
       strcpy(mon_config.valid, EEPROM_VALID);
       eeprom_put();
     }
+  #endif // ONLY_TO_HERE
   } /* entering new data */
   
-  if(eeprom_validation((char *)EEPROM_VALID) == 0)  {
+  /*
+   * didn't press a key to change parameters
+   */
+  if(eeprom_validation((char *)EEPROM_VALID) == true)  {
     eeprom_get();
     printf("EEPROM data valid ... using it\n");
     dispall_eeprom_parms();
   }
   else  {
     printf("EEPROM data NOT valid ... reset and try enter valid data\n");
+/*
     Serial.read();
+*/
   }
 }
 
@@ -660,4 +689,3 @@ void saveJsonToEEPROM(JsonDocument jsonDoc)  {
 }
 #endif
 
-#endif // CUT_ME_OUT

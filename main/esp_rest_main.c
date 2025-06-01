@@ -218,6 +218,8 @@ esp_err_t init_eeprom()  {
     int8_t i = 10;
     size_t len = 0;
     char throw_away[THROW_AWAY_LEN] = {0};  // assume that the user doesn't enter more than 32 characters
+    bool out = false;
+
     printf("Press any key to configure ... ");
     do  {
         len = uart_ll_get_rxfifo_len(UART_LL_GET_HW(UART_NUM_0));
@@ -228,12 +230,14 @@ esp_err_t init_eeprom()  {
     printf("Throwing away %d bytes\n", len);
     fflush(stdout);
     if(len > 0)  {
+        out = true;
         // Disable UART0 logs for communication
         esp_log_level_set("uart", ESP_LOG_NONE);
         uart_read_bytes(UART_NUM_0, throw_away, ((len < THROW_AWAY_LEN) ? len : THROW_AWAY_LEN), 0);
         // Re-enable UART0 logging for monitoring
         esp_log_level_set("uart", ESP_LOG_INFO);
     }
+    eeprom_user_input(out);
     return ESP_OK;
 }
 

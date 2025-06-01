@@ -12,6 +12,7 @@
         "type_traits": "c",
         "esp_log.h": "c",
         "uart.h": "c",
-        "uart_struct.h": "c"
+        "uart_struct.h": "c",
+        "netbiosns.h": "c"
     }
 }
