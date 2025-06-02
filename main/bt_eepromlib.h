@@ -10,12 +10,7 @@
 #define __BT_EEPROM_H__
 
 #include <stdbool.h>
-
-#define ESP_IDF_NVS  // for esp32 versus esp8266 (arduino ide)
-
-#ifndef ESP_IDF_NVS
-#include <Arduino.h>
-#endif
+#include "esp_system.h"
 
 /*
  * this is the size of the EERPOM segment that is accessible
@@ -72,6 +67,7 @@ void getall_eeprom_inputs();
 void dispall_eeprom_parms();
 bool eeprom_validation(char match[]);
 int l_read_string(char *buf, int blen, bool echo);
+esp_err_t prompt_countdown(bool *out);
 //int8_t eeprom_convert_ip(char *sipaddr, uint8_t octets[]);
 //void createHTMLfromEEPROM(char *buf, int size);
 //void saveJsonToEEPROM(JsonDocument jsonDoc);

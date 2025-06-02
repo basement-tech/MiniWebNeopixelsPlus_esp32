@@ -195,56 +195,18 @@ esp_err_t init_fs(void)  {
 }
 #endif
 
-/*
- * the serial port that is used for the monitor/console port
- * (UART_NUM_0 by default) is configured and initialized by hidden
- * code that is executed prior to calling my app_main() equivalent function.
- * Contrary to what is done with typical user controlled uarts, that is calling
- * driver_install(), this is done at a low level (talks directly to hardware at the
- * HAL level) and therefore doesn't afford the developer access to driver level
- * function call convenience.
- * 
- * Therefore, to do something like the arduino Serial.available(), a low level call
- * to see how many characters are in the input buffer just be called (see below).
- * 
- * this avoids having to put the port in non-blocking mode.
- * 
- */
-#include "driver/uart.h"
-#include "hal/uart_ll.h"
-#include "soc/uart_struct.h"
-#define THROW_AWAY_LEN 32
-esp_err_t init_eeprom()  {
-    int8_t i = 10;
-    size_t len = 0;
-    uint8_t throw_away = '\0';  // assume that the user doesn't enter more than 32 characters
-    bool out = false;
-
-    printf("Press any key to configure ... ");
-    do  {
-        len = uart_ll_get_rxfifo_len(UART_LL_GET_HW(UART_NUM_0));
-        printf("%d ... ", i--);
-        fflush(stdout);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }  while((len <= 0) &&  (i > 0));
-    printf("Throwing away %d bytes\n", len);
-    fflush(stdout);
-    if(len > (size_t)0)  {
-        out = true;
-        // Disable UART0 logs for communication
-        esp_log_level_set("uart", ESP_LOG_NONE);
-        while( len-- > (size_t)0)
-            uart_ll_read_rxfifo(UART_LL_GET_HW(UART_NUM_0), &throw_away, 1);
-        // Re-enable UART0 logging for monitoring
-        esp_log_level_set("uart", ESP_LOG_INFO);
-    }
-    eeprom_user_input(out);
-    return ESP_OK;
-}
 
 void app_main(void)
 {
-    init_eeprom();
+    bool out = false;
+
+    esp_log_level_set("*", ESP_LOG_VERBOSE);
+
+    eeprom_begin();
+    printf("Press any key to configure ... ");fflush(stdout);
+    prompt_countdown(&out);
+    eeprom_user_input(out);
+
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
     ESP_ERROR_CHECK(esp_event_loop_create_default());

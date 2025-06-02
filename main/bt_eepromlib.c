@@ -36,10 +36,7 @@
 #include "driver/uart.h"
 #include "hal/uart_ll.h"
 #include "soc/uart_struct.h"
-
 #include "bt_eepromlib.h"
-
-#ifdef ESP_IDF_NVS
 #include "esp_system.h"
 #include "nvs_flash.h"
 #include "nvs.h"
@@ -48,13 +45,7 @@ static nvs_handle_t eeprom_nvs_handle;  // points to the open nvs partition
 #define STORAGE_NAMESPACE "nvs_as_eeprom"
 #define EEPROM_BLOB_NAME "app_settings"
 
-#else
-#include <ArduinoJson.h>
-#include <Arduino_DebugUtils.h>
-#include <EEPROM.h>
-#endif
-
-#define TAG "bt_eepromlib.c"
+#define TAG "bt_eepromlib.c"  //for logging
 
 /*
  * place to hold the settings for network, mqtt, calibration, etc.
@@ -236,7 +227,7 @@ int l_read_string(char *buf, int blen, bool echo)  {
   /*
    * temporarily turn off logging to allow reading on the monitor port
    */
-  esp_log_level_set("uart", ESP_LOG_NONE);
+  esp_log_level_set("*", ESP_LOG_NONE);
   uart_flush_input(UART_NUM_0);
 
   while((out == false) && (count < blen))  {
@@ -301,7 +292,7 @@ int l_read_string(char *buf, int blen, bool echo)  {
     }  // if input
     vTaskDelay(10/portTICK_PERIOD_MS);
   }
-  esp_log_level_set("uart", ESP_LOG_INFO);
+  esp_log_level_set("*", ESP_LOG_VERBOSE);
 
   /*
    * compiler wouldn't let me have the return() inside the if()'s
@@ -317,7 +308,6 @@ int l_read_string(char *buf, int blen, bool echo)  {
 /*
  * "EEPROM" init, read, write
  */
-#ifdef ESP_IDF_NVS
 
 /*
  * if the blob is empty or the initial sizeof(match) does
@@ -332,7 +322,7 @@ int l_read_string(char *buf, int blen, bool echo)  {
 bool eeprom_validation(char match[])  {
   esp_err_t err = ESP_OK;
   size_t required_size = 0;  // value will default to 0, if not set yet in NVS
-  char ebuf[MAX_VERSION_STRING_LEN];
+  char ebuf[sizeof(mon_config)];
   bool ret = false;
 
   err = nvs_get_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, NULL, &required_size);
@@ -345,8 +335,10 @@ bool eeprom_validation(char match[])  {
     if(required_size == 0)
       ret = false; // empty; no match
     else  {
-      required_size = strlen(match);
       nvs_get_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, ebuf, &required_size);
+      ebuf[strlen(match)] = '\0';
+      printf("eeprom validation string to match: >%s<\n", match);fflush(stdout);
+      printf("eeprom validation string from memory: >%s<\n", ebuf);fflush(stdout);
       if(strcmp(match, ebuf) == 0)
         ret = true;
       else
@@ -381,7 +373,7 @@ void eeprom_begin(void) {
     err = nvs_get_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, NULL, &required_size);
     if(err != ESP_OK)  {
       ESP_LOGI(TAG, "%s does not exist ... creating", EEPROM_BLOB_NAME);
-      nvs_set_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, NULL, sizeof(mon_config));  // new mon_config size if new version
+      nvs_set_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, (void *)(&mon_config), sizeof(mon_config));  // new mon_config size if new version
     }
 }
 
@@ -389,65 +381,62 @@ void eeprom_begin(void) {
  * copy the contents of the nvs to the mon_config structure
  */
 void eeprom_get(void) {
-
-	  // Read the size of memory space required for blob
-    size_t required_size = 0;  // value will default to 0, if not set yet in NVS
-
-    nvs_get_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, (void *)(&mon_config), &required_size);
+  size_t required_size;
+  nvs_get_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, (void *)(&mon_config), &required_size);
 }
 
 void eeprom_put(void) {
-  nvs_set_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, NULL, sizeof(mon_config));
+  nvs_set_blob(eeprom_nvs_handle, EEPROM_BLOB_NAME, (void *)(&mon_config), sizeof(mon_config));
 	nvs_commit(eeprom_nvs_handle);
 }
 
-#else
-
 /*
- * read exactly the number of bytes from eeprom 
- * that match[] is long and compare to see if the eeprom has
- * ever been written with a valid set of data from this
- * exact revision.
+ * the serial port that is used for the monitor/console port
+ * (UART_NUM_0 by default) is configured and initialized by hidden
+ * code that is executed prior to calling my app_main() equivalent function.
+ * Contrary to what is done with typical user controlled uarts, that is calling
+ * driver_install(), this is done at a low level (talks directly to hardware at the
+ * HAL level) and therefore doesn't afford the developer access to driver level
+ * function call convenience.
  * 
- * returns the value of strcmp()
+ * Therefore, to do something like the arduino Serial.available(), a low level call
+ * to see how many characters are in the input buffer just be called (see below).
+ * 
+ * this avoids having to put the port in non-blocking mode.
+ * 
  */
-bool eeprom_validation(char match[])  {
-  int mlen;
-  char ebuf[32];
-  char in;
-  int i;
 
-  mlen = strlen(match);
+#define THROW_AWAY_LEN 32
+esp_err_t prompt_countdown(bool *out)  {
+    int8_t i = 10;
+    size_t len = 0;
+    uint8_t throw_away = '\0';  // assume that the user doesn't enter more than 32 characters
 
-  for(i = 0; i < mlen; i++)
-    ebuf[i] = EEPROM.get(i, in);
-  ebuf[i] = '\0';
-  
-#ifdef FL_DEBUG_MSG
-  printf("match ->");printf("%s", match); printf("<-\n");
-  printf("ebuf ->");printf("%s", ebuf); printf\nrand48("<-");
-#endif
-  
-  return(strcmp(match, ebuf));
+    *out = false;
+    do  {
+        len = uart_ll_get_rxfifo_len(UART_LL_GET_HW(UART_NUM_0));
+        printf("%d ... ", i--);
+        fflush(stdout);
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }  while((len <= 0) &&  (i > 0));
+    ESP_LOGI(TAG, "Throwing away %d bytes\n", len);
+    if(len > (size_t)0)  {
+        *out = true;
+        // Disable UART0 logs for communication
+        esp_log_level_set("*", ESP_LOG_NONE);
+        while( len-- > (size_t)0)
+            uart_ll_read_rxfifo(UART_LL_GET_HW(UART_NUM_0), &throw_away, 1);
+        // Re-enable UART0 logging for monitoring
+        esp_log_level_set("*", ESP_LOG_VERBOSE);
+    }
+    return ESP_OK;
 }
 
-void eeprom_begin(void) {
-	EEPROM.begin(EEPROM_RESERVE);
-}
-
-void eeprom_get(void) {
-	EEPROM.get(0, mon_config);
-}
-
-void eeprom_put(void) {
-	EEPROM.put(0, mon_config);
-	EEPROM.commit();
-}
-#endif
 
 void eeprom_user_input(bool out)  {
 
   char inbuf[64];
+  bool save = false;
 
   /*
    * if the user entered a character and caused the above
@@ -467,7 +456,7 @@ void eeprom_user_input(bool out)  {
      * ... proceed to get user input
      */
     if(eeprom_validation((char *)EEPROM_VALID) == true)  {
-      //eeprom_get();  /* if the EEPROM is valid, get the whole contents */
+      eeprom_get();  /* if the EEPROM is valid, get the whole contents */
       printf("\n");fflush(stdout);
       dispall_eeprom_parms();
     }
@@ -484,61 +473,56 @@ void eeprom_user_input(bool out)  {
 
     printf("\n");fflush(stdout);
     dispall_eeprom_parms();
-    printf("Press any key to accept, or reset to correct");fflush(stdout);
-#ifdef ONLY_TO_HERE
-    /*
-    while(Serial.available() <= 0);
-    Serial.read();
-    printf("\n");
-    */
+    printf("Press any key to accept, or reset to correct (no change after 10 sec countdown)");fflush(stdout);
+    prompt_countdown(&save);
+
+    if(save == true)  {
+      /*
+      * if agreed, write the new data to the EEPROM and use it
+      */
+      if(eeprom_validation((char *)EEPROM_VALID) == 0)  {
+        printf("EEPROM: previous data exists ... ");fflush(stdout);
+      }
+      else  {
+        printf("EEPROM data never initialized ... ");fflush(stdout);
+      }
+        
+      printf("overwrite with new values? ('y' or 'n'):");fflush(stdout);
+      out = false;
+      do {
+        l_read_string(inbuf, sizeof(inbuf), true);
+        if(strcmp(inbuf, "y") == 0)
+          out = true;
+        else if (strcmp(inbuf, "n") == 0)
+          out = true;
+        else  {
+          printf("\n");
+          printf("EEPROM data valid ... overwrite with new values? ('y' or 'n'):");
+        }
+      } while(out == false);
+      printf("\n");
+
+      /*
+      * write the data to EEPROM if an affirmative answer was given
+      */
+      if(strcmp(inbuf, "y") == 0)  {
+        printf("Writing data to EEPROM ...\n");fflush(stdout);
+        strcpy(mon_config.valid, EEPROM_VALID);
+        eeprom_put();
+      }
+    } /* entering new data */
     
     /*
-     * if agreed, write the new data to the EEPROM and use it
-     */
-    if(eeprom_validation((char *)EEPROM_VALID) == 0)
-      printf("EEPROM: previous data exists ... ");
-    else
-      printf("EEPROM data never initialized ... ");
-      
-    printf("overwrite with new values? ('y' or 'n'):");
-    out = false;
-    do {
-      l_read_string(inbuf, sizeof(inbuf), true);
-      if(strcmp(inbuf, "y") == 0)
-        out = true;
-      else if (strcmp(inbuf, "n") == 0)
-        out = true;
-      else  {
-        printf("\n");
-        printf("EEPROM data valid ... overwrite with new values? ('y' or 'n'):");
-      }
-    } while(out == false);
-    printf("\n");
-
-    /*
-     * write the data to EEPROM if an affirmative answer was given
-     */
-    if(strcmp(inbuf, "y") == 0)  {
-      printf("Writing data to EEPROM ...\n");
-      strcpy(mon_config.valid, EEPROM_VALID);
-      eeprom_put();
+    * didn't press a key to change parameters
+    */
+    if(eeprom_validation((char *)EEPROM_VALID) == true)  {
+      eeprom_get();
+      printf("EEPROM data valid ... using it\n");fflush(stdout);
+      dispall_eeprom_parms();
     }
-  #endif // ONLY_TO_HERE
-  } /* entering new data */
-  
-  /*
-   * didn't press a key to change parameters
-   */
-  if(eeprom_validation((char *)EEPROM_VALID) == true)  {
-    eeprom_get();
-    printf("EEPROM data valid ... using it\n");
-    dispall_eeprom_parms();
-  }
-  else  {
-    printf("EEPROM data NOT valid ... reset and try enter valid data\n");
-/*
-    Serial.read();
-*/
+    else  {
+      printf("EEPROM data NOT valid ... reset and try enter valid data\n");fflush(stdout);
+    }
   }
 }
 
