@@ -47,6 +47,7 @@
 #include "lwip/apps/netbiosns.h"
 #include "protocol_examples_common.h"
 
+#include "neo_system.h"
 #include "bt_eepromlib.h"
 
 
