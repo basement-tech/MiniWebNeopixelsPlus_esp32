@@ -155,16 +155,16 @@ int getone_eeprom_input(int i)  {
   if(eeprom_input[i].prompt[0] != '\0')  {
     printf("%s", eeprom_input[i].prompt);
     printf("["); printf("%s", eeprom_input[i].value); printf("]");
-    printf("(max "); printf("%d", eeprom_input[i].buflen - 1); printf(" chars):");
+    printf("(max "); printf("%d", eeprom_input[i].buflen - 1); printf(" chars):");fflush(stdout);
     if((insize = l_read_string(inbuf, sizeof(inbuf), true)) > 0)  {
       if(insize < (eeprom_input[i].buflen))
         strcpy(eeprom_input[i].value, inbuf);
       else  {
         printf("\n"); 
-        printf("Error: too many characters; value will be unchanged\n");
+        printf("Error: too many characters; value will be unchanged\n");fflush(stdout);
       }
     }
-    printf("\n");
+    printf("\n");fflush(stdout);
   }
   return(insize);
 }
@@ -177,6 +177,7 @@ void getall_eeprom_inputs()  {
   printf("Press <enter> alone to accept previous EEPROM value shown\n");
   printf("Press <esc> as the first character to skip to the end\n");
   printf("\n");
+  fflush(stdout);
 
   /*
    * loop through getting all of the EEPROM parameter user inputs.
@@ -230,26 +231,29 @@ int l_read_string(char *buf, int blen, bool echo)  {
   int count = 0;
   bool out = false;
   int ret = -1;
-  unsigned int len = 0;  // not an _t type since that's the way the function is defined
+  uint32_t len = 0;  // not an _t type since that's the way the function is defined
 
   /*
    * temporarily turn off logging to allow reading on the monitor port
    */
   esp_log_level_set("uart", ESP_LOG_NONE);
-
+  uart_flush_input(UART_NUM_0);
 
   while((out == false) && (count < blen))  {
-    if((len = uart_ll_get_rxfifo_len(UART_LL_GET_HW(UART_NUM_0))) > 0)  {
-      uart_read_bytes(UART_NUM_0, buf, ((len < blen) ? len : blen), 0);
+    len = uart_ll_get_rxfifo_len(UART_LL_GET_HW(UART_NUM_0));
+    if(len > (uint32_t)0)  {
+      fflush(stdout);
+      uart_ll_read_rxfifo(UART_LL_GET_HW(UART_NUM_0), (uint8_t *)buf, 1);
 #ifdef FL_DEBUG_MSG
-      printf("char=");printf("%c", *buf);printf("%x\n", *buf);
+      printf("char=");printf("%c", *buf);printf("%x\n", *buf);fflush(stdout);
 #endif
       /*
        * echo if commanded to do so by the state of the echo argument.
        * don't echo the <esc>.
        */
-      if((echo == true) && (*buf != '\x1B'))
-        printf("%c", *buf);
+      if((echo == true) && (*buf != '\x1B'))  {
+        printf("%c", *buf);fflush(stdout);
+      }
       switch(*buf)  {
         /*
          * terminate the string and get out
@@ -283,7 +287,7 @@ int l_read_string(char *buf, int blen, bool echo)  {
           if(count > 0)
             buf--;
           count--;
-          printf(" \b");  /* blank out the character */
+          printf(" \b");fflush(stdout);  /* blank out the character */
         break;
 
         /*          
@@ -295,6 +299,7 @@ int l_read_string(char *buf, int blen, bool echo)  {
         break;
       }
     }  // if input
+    vTaskDelay(10/portTICK_PERIOD_MS);
   }
   esp_log_level_set("uart", ESP_LOG_INFO);
 
@@ -463,11 +468,11 @@ void eeprom_user_input(bool out)  {
      */
     if(eeprom_validation((char *)EEPROM_VALID) == true)  {
       //eeprom_get();  /* if the EEPROM is valid, get the whole contents */
-      printf("\n");
+      printf("\n");fflush(stdout);
       dispall_eeprom_parms();
     }
     else  {
-      printf("Notice: eeprom contents invalid or first time ... loading defaults\n");
+      printf("Notice: eeprom contents invalid or first time ... loading defaults\n");fflush(stdout);
       set_eeprom_initial();
     }
 
@@ -477,9 +482,9 @@ void eeprom_user_input(bool out)  {
      */
     getall_eeprom_inputs();
 
-    printf("\n");
+    printf("\n");fflush(stdout);
     dispall_eeprom_parms();
-    printf("Press any key to accept, or reset to correct");
+    printf("Press any key to accept, or reset to correct");fflush(stdout);
 #ifdef ONLY_TO_HERE
     /*
     while(Serial.available() <= 0);

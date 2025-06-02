@@ -217,7 +217,7 @@ esp_err_t init_fs(void)  {
 esp_err_t init_eeprom()  {
     int8_t i = 10;
     size_t len = 0;
-    char throw_away[THROW_AWAY_LEN] = {0};  // assume that the user doesn't enter more than 32 characters
+    uint8_t throw_away = '\0';  // assume that the user doesn't enter more than 32 characters
     bool out = false;
 
     printf("Press any key to configure ... ");
@@ -229,11 +229,12 @@ esp_err_t init_eeprom()  {
     }  while((len <= 0) &&  (i > 0));
     printf("Throwing away %d bytes\n", len);
     fflush(stdout);
-    if(len > 0)  {
+    if(len > (size_t)0)  {
         out = true;
         // Disable UART0 logs for communication
         esp_log_level_set("uart", ESP_LOG_NONE);
-        uart_read_bytes(UART_NUM_0, throw_away, ((len < THROW_AWAY_LEN) ? len : THROW_AWAY_LEN), 0);
+        while( len-- > (size_t)0)
+            uart_ll_read_rxfifo(UART_LL_GET_HW(UART_NUM_0), &throw_away, 1);
         // Re-enable UART0 logging for monitoring
         esp_log_level_set("uart", ESP_LOG_INFO);
     }
