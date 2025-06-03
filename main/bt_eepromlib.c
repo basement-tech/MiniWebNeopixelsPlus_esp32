@@ -41,6 +41,8 @@
 #include "nvs_flash.h"
 #include "nvs.h"
 
+#include "neo_system.h"
+
 static nvs_handle_t eeprom_nvs_handle;  // points to the open nvs partition
 #define STORAGE_NAMESPACE "nvs_as_eeprom"
 #define EEPROM_BLOB_NAME "app_settings"
@@ -144,18 +146,18 @@ int getone_eeprom_input(int i)  {
    * parameter, skip it
    */
   if(eeprom_input[i].prompt[0] != '\0')  {
-    printf("%s", eeprom_input[i].prompt);
-    printf("["); printf("%s", eeprom_input[i].value); printf("]");
-    printf("(max "); printf("%d", eeprom_input[i].buflen - 1); printf(" chars):");fflush(stdout);
+    CLI_PRINTF("%s", eeprom_input[i].prompt);
+    CLI_PRINTF("["); CLI_PRINTF("%s", eeprom_input[i].value); CLI_PRINTF("]");
+    CLI_PRINTF("(max "); CLI_PRINTF("%d", eeprom_input[i].buflen - 1); CLI_PRINTF(" chars):");
     if((insize = l_read_string(inbuf, sizeof(inbuf), true)) > 0)  {
       if(insize < (eeprom_input[i].buflen))
         strcpy(eeprom_input[i].value, inbuf);
       else  {
-        printf("\n"); 
-        printf("Error: too many characters; value will be unchanged\n");fflush(stdout);
+        CLI_PRINTF("\n"); 
+        CLI_PRINTF("Error: too many characters; value will be unchanged\n");fflush(stdout);
       }
     }
-    printf("\n");fflush(stdout);
+    CLI_PRINTF("\n");
   }
   return(insize);
 }
@@ -164,11 +166,10 @@ void getall_eeprom_inputs()  {
   int i;
   int ret;
   
-  printf("\n");    
-  printf("Press <enter> alone to accept previous EEPROM value shown\n");
-  printf("Press <esc> as the first character to skip to the end\n");
-  printf("\n");
-  fflush(stdout);
+  CLI_PRINTF("\n");    
+  CLI_PRINTF("Press <enter> alone to accept previous EEPROM value shown\n");
+  CLI_PRINTF("Press <esc> as the first character to skip to the end\n");
+  CLI_PRINTF("\n");
 
   /*
    * loop through getting all of the EEPROM parameter user inputs.
@@ -184,18 +185,18 @@ void getall_eeprom_inputs()  {
 
 void dispall_eeprom_parms()  {
   
-  printf("\n");    
-  printf("Local copy of EEPROM contents(");
-  printf("%d", sizeof(mon_config)); printf(" of ");
-  printf("%d", EEPROM_RESERVE); printf(" bytes used):\n");
+  CLI_PRINTF("\n");    
+  CLI_PRINTF("Local copy of EEPROM contents(");
+  CLI_PRINTF("%d", sizeof(mon_config)); printf(" of ");
+  CLI_PRINTF("%d", EEPROM_RESERVE); printf(" bytes used):\n");
 
   /*
    * loop through getting all of the EEPROM parameter user inputs.
    * if <esc> (indicated by -2) is pressed, skip the balance.
    */
   for(int i = 0; i < EEPROM_ITEMS; i++)  {
-    printf("%s", eeprom_input[i].label);
-    printf(" ->"); printf("%s", eeprom_input[i].value); printf("<-\n");
+    CLI_PRINTF("%s", eeprom_input[i].label);
+    CLI_PRINTF(" ->"); CLI_PRINTF("%s", eeprom_input[i].value); printf("<-\n");
   }
 }
 
@@ -292,7 +293,7 @@ int l_read_string(char *buf, int blen, bool echo)  {
     }  // if input
     vTaskDelay(10/portTICK_PERIOD_MS);
   }
-  esp_log_level_set("*", ESP_LOG_VERBOSE);
+  esp_log_level_set("*", NEO_DEBUG_LEVEL);
 
   /*
    * compiler wouldn't let me have the return() inside the if()'s
@@ -317,7 +318,8 @@ int l_read_string(char *buf, int blen, bool echo)  {
  * ever been written with a valid set of data from this
  * exact revision.
  * 
- * returns the value of strcmp()
+ * returns bool true if an exact match to stored version string
+ * 
  */
 bool eeprom_validation(char match[])  {
   esp_err_t err = ESP_OK;
@@ -415,11 +417,10 @@ esp_err_t prompt_countdown(bool *out)  {
     *out = false;
     do  {
         len = uart_ll_get_rxfifo_len(UART_LL_GET_HW(UART_NUM_0));
-        printf("%d ... ", i--);
-        fflush(stdout);
+        CLI_PRINTF("%d ... ", i--);
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }  while((len <= 0) &&  (i > 0));
-    ESP_LOGI(TAG, "Throwing away %d bytes\n", len);
+    ESP_LOGD(TAG, "Throwing away %d bytes\n", len);
     if(len > (size_t)0)  {
         *out = true;
         // Disable UART0 logs for communication
@@ -427,7 +428,7 @@ esp_err_t prompt_countdown(bool *out)  {
         while( len-- > (size_t)0)
             uart_ll_read_rxfifo(UART_LL_GET_HW(UART_NUM_0), &throw_away, 1);
         // Re-enable UART0 logging for monitoring
-        esp_log_level_set("*", ESP_LOG_VERBOSE);
+        esp_log_level_set("*", NEO_DEBUG_LEVEL);
     }
     return ESP_OK;
 }
@@ -457,11 +458,11 @@ void eeprom_user_input(bool out)  {
      */
     if(eeprom_validation((char *)EEPROM_VALID) == true)  {
       eeprom_get();  /* if the EEPROM is valid, get the whole contents */
-      printf("\n");fflush(stdout);
+      CLI_PRINTF("\n");
       dispall_eeprom_parms();
     }
     else  {
-      printf("Notice: eeprom contents invalid or first time ... loading defaults\n");fflush(stdout);
+      ESP_LOGI(TAG, "Notice: eeprom contents invalid or first time ... loading defaults\n");
       set_eeprom_initial();
     }
 
@@ -471,23 +472,23 @@ void eeprom_user_input(bool out)  {
      */
     getall_eeprom_inputs();
 
-    printf("\n");fflush(stdout);
+    CLI_PRINTF("\n");
     dispall_eeprom_parms();
-    printf("Press any key to accept, or reset to correct (no change after 10 sec countdown)");fflush(stdout);
+    CLI_PRINTF("Press any key to accept, or reset to correct (no change after 10 sec countdown)");
     prompt_countdown(&save);
 
     if(save == true)  {
       /*
       * if agreed, write the new data to the EEPROM and use it
       */
-      if(eeprom_validation((char *)EEPROM_VALID) == 0)  {
-        printf("EEPROM: previous data exists ... ");fflush(stdout);
+      if(eeprom_validation((char *)EEPROM_VALID) == true)  {
+        CLI_PRINTF("EEPROM: previous data exists ... ");
       }
       else  {
-        printf("EEPROM data never initialized ... ");fflush(stdout);
+        CLI_PRINTF("EEPROM data never initialized ... ");
       }
         
-      printf("overwrite with new values? ('y' or 'n'):");fflush(stdout);
+      CLI_PRINTF("overwrite with new values? ('y' or 'n'):");
       out = false;
       do {
         l_read_string(inbuf, sizeof(inbuf), true);
@@ -496,17 +497,17 @@ void eeprom_user_input(bool out)  {
         else if (strcmp(inbuf, "n") == 0)
           out = true;
         else  {
-          printf("\n");
-          printf("EEPROM data valid ... overwrite with new values? ('y' or 'n'):");
+          CLI_PRINTF("\n");
+          CLI_PRINTF("EEPROM data valid ... overwrite with new values? ('y' or 'n'):");
         }
       } while(out == false);
-      printf("\n");
+      CLI_PRINTF("\n");
 
       /*
       * write the data to EEPROM if an affirmative answer was given
       */
       if(strcmp(inbuf, "y") == 0)  {
-        printf("Writing data to EEPROM ...\n");fflush(stdout);
+        ESP_LOGI(TAG, "Writing data to EEPROM ...");
         strcpy(mon_config.valid, EEPROM_VALID);
         eeprom_put();
       }
@@ -517,11 +518,11 @@ void eeprom_user_input(bool out)  {
     */
     if(eeprom_validation((char *)EEPROM_VALID) == true)  {
       eeprom_get();
-      printf("EEPROM data valid ... using it\n");fflush(stdout);
+      ESP_LOGI(TAG, "EEPROM data valid ... using it");
       dispall_eeprom_parms();
     }
     else  {
-      printf("EEPROM data NOT valid ... reset and try enter valid data\n");fflush(stdout);
+      CLI_PRINTF("EEPROM data NOT valid ... reset and try enter valid data\n");
     }
   }
 }

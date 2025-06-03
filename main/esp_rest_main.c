@@ -201,12 +201,12 @@ void app_main(void)
 {
     bool out = false;
 
-    esp_log_level_set("*", ESP_LOG_VERBOSE);
+    esp_log_level_set("*", NEO_DEBUG_LEVEL);
 
-    eeprom_begin();
-    printf("Press any key to configure ... ");fflush(stdout);
-    prompt_countdown(&out);
-    eeprom_user_input(out);
+    eeprom_begin();  // initialize the NVS blob used for eeprom-like parameter storage
+    CLI_PRINTF("Press any key to configure ... \n");
+    prompt_countdown(&out);  // give the user (n) seconds to change parameters
+    eeprom_user_input(out);  // get the user input based on whether the user hit a key
 
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
