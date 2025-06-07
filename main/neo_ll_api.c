@@ -18,7 +18,7 @@ rmt_transmit_config_t tx_config = {
     .loop_count = 0, // no transfer loop
 };
 
-static neo_strand_t pixels;
+static neo_strand_t strand;
 
 esp_err_t pixels_init(void)  {
     ESP_LOGI(TAG, "Create RMT TX channel");
@@ -27,16 +27,30 @@ esp_err_t pixels_init(void)  {
     ESP_LOGI(TAG, "Install led strip encoder");
     ESP_ERROR_CHECK(rmt_new_led_strip_encoder(&encoder_config, &led_encoder));
 
-    ESP_ERROR_CHECK(rmt_new_led_strip_encoder(&encoder_config, &led_encoder));
-
     ESP_LOGI(TAG, "Enable RMT TX channel");
     ESP_ERROR_CHECK(rmt_enable(led_chan));
+
+    strand.numpixels = 0;
+    strand.pixels = NULL;
 
     return(ESP_OK);
 }
 
 esp_err_t pixels_setcount(uint16_t num_pixels)  {
-    pixels.numpixels = num_pixels;
-    
+    strand.numpixels = num_pixels;
+
+    return(ESP_OK);
+}
+
+esp_err_t pixels_alloc(void)  {
+    /*
+     * if this is a reallocation, free first
+     */
+    if(strand.pixels != NULL)  {
+        free(strand.pixels);
+    }
+
+    if((strand.pixels = malloc(sizeof(pixel_t) * strand.numpixels)) == NULL)
+        return(ESP_ERR_NO_MEM);
     return(ESP_OK);
 }
