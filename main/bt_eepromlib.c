@@ -536,7 +536,7 @@ void eeprom_user_input(bool out)  {
 
 
 
-#ifdef NOT_YET
+
 /*
  * convert a string representation of a v4 IP address to the
  * four-octet version that WIFI classes seem to want.
@@ -552,6 +552,12 @@ void eeprom_user_input(bool out)  {
  * return:  0 if successfully confirmed
  *          -1 if any error is encountered
  */
+int lisdigit(char in)  {
+  if((in < '9') && (in > '0'))
+    return(1);
+  return(0);
+}
+
 int8_t eeprom_convert_ip(char *sipaddr, uint8_t octets[])  {
   int8_t ret = 0;
   int8_t converts = 0;  // number of dots found as error check
@@ -563,7 +569,7 @@ int8_t eeprom_convert_ip(char *sipaddr, uint8_t octets[])  {
   plbuf = lbuf;
   for(int i = 0; ((i <= 3) && (ret == 0)); i++)  {
     while((*sipaddr != '.') && (*sipaddr != '\0') && (ret == 0))  {
-      if(!isdigit(*sipaddr))
+      if(lisdigit(*sipaddr) == 0)
         ret = -1;
       else if(--nbuf <= 0)
         ret = -1;
@@ -635,25 +641,25 @@ void createHTMLfromEEPROM(char *buf, int size)  {
    */
   int bufsize = size - 1;  // I think I have to save one for the final '\0'
 
-  strncpy((char*)(buf+strlen(buf)), "\t<form onsubmit=\"deviceConfig(event)\">\n",                             (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
+  strncpy((char*)(buf+strlen(buf)), "\t<form onsubmit=\"deviceConfig(event)\">\n",                             (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
   for(int parm = 1; parm < EEPROM_ITEMS; parm++)  {
-        strncpy((char*)(buf+strlen(buf)), "\t<label for=\"",                                                   (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
-        strncpy((char*)(buf+strlen(buf)), eeprom_input[parm].label,                                            (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
-        strncpy((char*)(buf+strlen(buf)), "\">",                                                               (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
-        strncpy((char*)(buf+strlen(buf)), eeprom_input[parm].label,                                            (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
-        strncpy((char*)(buf+strlen(buf)), " </label>\n",                                                       (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
-        strncpy((char*)(buf+strlen(buf)), "\t<input type=\"text\" class=\"config-input-field\" id=\"",         (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
-        strncpy((char*)(buf+strlen(buf)), eeprom_input[parm].label,                                            (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
-        strncpy((char*)(buf+strlen(buf)), "\" name=\"",                                                        (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
-        strncpy((char*)(buf+strlen(buf)), eeprom_input[parm].label,                                            (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
-        strncpy((char*)(buf+strlen(buf)), "\" value=\"",                                                       (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
-        strncpy((char*)(buf+strlen(buf)), eeprom_input[parm].value,                                            (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
-        strncpy((char*)(buf+strlen(buf)), "\"/><br><br>\n",                                                     (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
+        strncpy((char*)(buf+strlen(buf)), "\t<label for=\"",                                                   (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
+        strncpy((char*)(buf+strlen(buf)), eeprom_input[parm].label,                                            (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
+        strncpy((char*)(buf+strlen(buf)), "\">",                                                               (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
+        strncpy((char*)(buf+strlen(buf)), eeprom_input[parm].label,                                            (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
+        strncpy((char*)(buf+strlen(buf)), " </label>\n",                                                       (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
+        strncpy((char*)(buf+strlen(buf)), "\t<input type=\"text\" class=\"config-input-field\" id=\"",         (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
+        strncpy((char*)(buf+strlen(buf)), eeprom_input[parm].label,                                            (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
+        strncpy((char*)(buf+strlen(buf)), "\" name=\"",                                                        (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
+        strncpy((char*)(buf+strlen(buf)), eeprom_input[parm].label,                                            (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
+        strncpy((char*)(buf+strlen(buf)), "\" value=\"",                                                       (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
+        strncpy((char*)(buf+strlen(buf)), eeprom_input[parm].value,                                            (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
+        strncpy((char*)(buf+strlen(buf)), "\"/><br><br>\n",                                                    (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
   }
-  strncpy((char*)(buf+strlen(buf)), "\t<button type=\"submit\" class=\"config-button\">Save</button>\n",                               (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
+  strncpy((char*)(buf+strlen(buf)), "\t<button type=\"submit\" class=\"config-button\">Save</button>\n",       (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
   strncpy((char*)(buf+strlen(buf)), "\t<button type=\"button\" class=\"config-button\" onclick=\"handleCancel()\">Reboot</button>\n", 
-                                                                                                               (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
-  strncpy((char*)(buf+strlen(buf)), "\t</form>\n",                                                             (bufsize-strlen(buf) < 0 ? 0 : bufsize-strlen(buf)));
+                                                                                                               (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
+  strncpy((char*)(buf+strlen(buf)), "\t</form>\n",                                                             (((bufsize-(int)strlen(buf)) < 0) ? 0 : bufsize-strlen(buf)));
   buf[bufsize] = '\0';  // just in case ... note already reduced by one above
 
   printf("html buflen=");
@@ -662,6 +668,7 @@ void createHTMLfromEEPROM(char *buf, int size)  {
 
 }
 
+#ifdef NOT_YET
 /*
  * copy the result from the browser based input (json),
  * back to the local C structure.

@@ -1,8 +1,10 @@
-idf_component_register(SRCS "led_strip_encoder.c" "neo_ll_api.c" "esp_rest_main.c"
+idf_component_register(SRCS "esp_rest_main.c"
                             "rest_server.c"
                             "bt_eepromlib.c"
                             "led_strip_encoder.c"
                             "neo_ll_api.c"
+                            "neo_play.c"
+                            "neo_data.c"
                     INCLUDE_DIRS ".")
 
 #if(CONFIG_EXAMPLE_WEB_DEPLOY_SF)

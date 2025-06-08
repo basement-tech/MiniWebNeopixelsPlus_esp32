@@ -3,9 +3,10 @@
  * neopixel strand and connection data is here too
  */
 #ifndef __NEO_DATA_H__
+#define __NEO_DATA_H__
 
-#include <c_types.h>
-#include <Adafruit_NeoPixel.h>
+#include <stdint.h>
+#include <stdbool.h>
 
 #define NEO_SEQ_STRATEGIES 6
 #define MAX_USER_SEQ       5      // maximum number of user buttons/files
@@ -113,5 +114,5 @@ extern neo_data_t neo_sequences[MAX_SEQUENCES];  // sequence specifications
 extern int8_t seq_index;  // which sequence is being played out
 extern int8_t strategy_idx; // which strategy should be used to play a user file
 
-#define __NEO_DATA_H__
+
 #endif

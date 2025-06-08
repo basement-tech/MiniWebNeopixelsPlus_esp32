@@ -1,34 +1,14 @@
 /*
  * functions to play out the neo_pixel patterns
  */
-#include <Arduino.h>
-#include <Arduino_DebugUtils.h>
-#include <Adafruit_NeoPixel.h>
+#include <string.h>
+#include "esp_littlefs.h"
+#include "esp_log.h"
 
-#include <FS.h>        // File System for Web Server Files
-#include <LittleFS.h>  // This file system is used.
-
-#include <ArduinoJson.h>
-
+#include "neo_ll_api.h"
 #include "neo_data.h"
-#include "app_pins.h"
 
-// TRACE output simplified, can be deactivated here ... switched to arduino debug library
-//#define TRACE(...) Serial.printf(__VA_ARGS__)
-
-// When setting up the NeoPixel library, we tell it how many pixels,
-// and which pin to use to send signals. Note that for older NeoPixel
-// strips you might need to change the third parameter -- see the
-// strandtest example for more information on possible values.
-// Argument 1 = Number of pixels in NeoPixel strip
-// Argument 2 = Arduino pin number (most are valid)
-// Argument 3 = Pixel type flags, add together as needed:
-//   NEO_KHZ800  800 KHz bitstream (most NeoPixel products w/WS2812 LEDs)
-//   NEO_KHZ400  400 KHz (classic 'v1' (not v2) FLORA pixels, WS2811 drivers)
-//   NEO_GRB     Pixels are wired for GRB bitstream (most NeoPixel products)
-//   NEO_RGB     Pixels are wired for RGB bitstream (v1 FLORA pixels, not v2)
-//   NEO_RGBW    Pixels are wired for RGBW bitstream (NeoPixel RGBW products)
-Adafruit_NeoPixel *pixels;
+#define TAG "neo_play"
 
 
 /*
@@ -91,7 +71,7 @@ int8_t neo_set_sequence(const char *label, const char *strategy)  {
    * the initialized value
    */
   if(strategy[0] == '\0')  {
-    DEBUG_INFO("neo_set_sequence: using built in strategy %s for seq_index %d\n", neo_sequences[seq_index].strategy,seq_index);
+    ESP_LOGD(TAG, "neo_set_sequence: using built in strategy %s for seq_index %d\n", neo_sequences[seq_index].strategy,seq_index);
     if(ret == NEO_SUCCESS)  {
       if((new_strat = neo_set_strategy(neo_sequences[seq_index].strategy)) == SEQ_STRAT_UNDEFINED)
         ret = NEO_STRAT_ERR;
@@ -114,7 +94,7 @@ int8_t neo_set_sequence(const char *label, const char *strategy)  {
     current_index = 0;  // reset the pixel count
     neo_state = NEO_SEQ_START;  // cause the state machine to start at the start
     current_strategy = new_strat;
-    DEBUG_INFO("neo_set_sequence: set sequence to %d and strategy to %d\n", seq_index, current_strategy);
+    ESP_LOGD(TAG, "neo_set_sequence: set sequence to %d and strategy to %d\n", seq_index, current_strategy);
   }
 
   return(ret);
@@ -162,20 +142,20 @@ int8_t neo_load_sequence(const char *file)  {
   /*
    * can I see the FS from here ? ... yep.
    */
-  DEBUG_INFO("Total bytes in FS = %d\n", fs_info.totalBytes);
-  DEBUG_INFO("Total bytes used in FS = %d\n", fs_info.usedBytes);
+  ESP_LOGD(TAG, "Total bytes in FS = %d\n", fs_info.totalBytes);
+  ESP_LOGD(TAG, "Total bytes used in FS = %d\n", fs_info.usedBytes);
 
   /*
    * read the contents of the user sequence file and put it
    * in the character buffer buf
    */
   if (LittleFS.exists(file) == false)  {
-      DEBUG_ERROR("ERROR: Filename %s does not exist in file system\n", file);
+      ESP_LOGE(TAG, "ERROR: Filename %s does not exist in file system\n", file);
       ret = NEO_FILE_LOAD_NOFILE;
   }
   else  {
 
-    DEBUG_INFO("Loading filename %s ...\n", file);
+    ESP_LOGD(TAG, "Loading filename %s ...\n", file);
     if((fd = LittleFS.open(file, "r")) == false)  
       ret = NEO_FILE_LOAD_NOFILE;
 
@@ -185,7 +165,7 @@ int8_t neo_load_sequence(const char *file)  {
       }
       *pbuf = '\0';  // terminate the char string
       fd.close();
-      DEBUG_VERBOSE("Raw file contents:\n%s\n", buf);
+      ESP_LOGD(TAG, "Raw file contents:\n%s\n", buf);
 
       /*
       * deserialize the json contents of the file which
@@ -193,7 +173,7 @@ int8_t neo_load_sequence(const char *file)  {
       */
       err = deserializeJson(jsonDoc, buf);
       if(err)  {
-        DEBUG_ERROR("ERROR: Deserialization of file %s failed ... no change in sequence\n", file);
+        ESP_LOGE(TAG, "ERROR: Deserialization of file %s failed ... no change in sequence\n", file);
         ret = NEO_FILE_LOAD_DESERR;
       }
 
@@ -206,7 +186,7 @@ int8_t neo_load_sequence(const char *file)  {
         const char *label, *bonus;
         label = jsonDoc["label"];
 
-        DEBUG_INFO("For sequence \"%s\" : \n", label);
+        ESP_LOGD(TAG, "For sequence \"%s\" : \n", label);
 
         /*
          * find the place in neo_sequences[] where the file contents should be copied/stored
@@ -221,7 +201,7 @@ int8_t neo_load_sequence(const char *file)  {
         */
         if(seq_idx < 0)  {
           ret = NEO_FILE_LOAD_NOPLACE;
-          DEBUG_ERROR("ERROR: neo_load_sequence: no placeholder for %s in sequence array\n", label);
+          ESP_LOGE(TAG, "ERROR: neo_load_sequence: no placeholder for %s in sequence array\n", label);
         }
 
         /*
@@ -246,7 +226,7 @@ int8_t neo_load_sequence(const char *file)  {
             b = obj["b"];
             w = obj["w"];
             t = obj["t"];
-            DEBUG_INFO("colors = %d %d %d %d  interval = %d\n", r, g, b, w, t);
+            ESP_LOGD(TAG, "colors = %d %d %d %d  interval = %d\n", r, g, b, w, t);
             neo_sequences[seq_idx].point[i].red = r;
             neo_sequences[seq_idx].point[i].green = g;
             neo_sequences[seq_idx].point[i].blue = b;
@@ -437,12 +417,12 @@ void neo_single_start(bool clear) {
     err = deserializeJson(jsonDoc, neo_sequences[seq_index].bonus);
 
     if(err)  {
-      DEBUG_ERROR("ERROR: Deserialization of bonus failed ... using zero\n");
+      ESP_LOGE(TAG, "ERROR: Deserialization of bonus failed ... using zero\n");
       single_repeats = 1;  // default to 1 time through
     }
     else  {
       if(jsonDoc["count"].isNull())  {
-        DEBUG_ERROR("WARNING: slowp bonus has no member \"count\" ... using zero\n");
+        ESP_LOGE(TAG, "WARNING: slowp bonus has no member \"count\" ... using zero\n");
         single_repeats = 1;
       }
       else  {
@@ -571,12 +551,12 @@ void neo_slowp_start(bool clear)  {
     err = deserializeJson(jsonDoc, neo_sequences[seq_index].bonus);
 
     if(err)  {
-      DEBUG_ERROR("ERROR: Deserialization of bonus failed ... using zero\n");
+      ESP_LOGE(TAG, "ERROR: Deserialization of bonus failed ... using zero\n");
       flicker_count = 0;
     }
     else  {
       if(jsonDoc["count"].isNull())  {
-        DEBUG_ERROR("WARNING: slowp bonus has no member \"count\" ... using zero\n");
+        ESP_LOGE(TAG, "WARNING: slowp bonus has no member \"count\" ... using zero\n");
         flicker_count = 0;
       }
       else  {
@@ -591,10 +571,10 @@ void neo_slowp_start(bool clear)  {
         flicker_r = neo_check_range(jsonDoc["flicker"]["r"]);
         flicker_g = neo_check_range(jsonDoc["flicker"]["g"]);
         flicker_b = neo_check_range(jsonDoc["flicker"]["b"]);
-        DEBUG_INFO("Setting slowp rgb color to (%d %d %d)\n", flicker_r, flicker_g, flicker_b);
+        ESP_LOGD(TAG, "Setting slowp rgb color to (%d %d %d)\n", flicker_r, flicker_g, flicker_b);
       }
       else
-        DEBUG_ERROR("WARNING: slowp bonus has incomplete member \"flicker\" ... using white\n");
+        ESP_LOGE(TAG, "WARNING: slowp bonus has incomplete member \"flicker\" ... using white\n");
     }
 
 
@@ -611,11 +591,11 @@ void neo_slowp_start(bool clear)  {
       slowp_flickers[j] = (NEO_SLOWP_POINTS-2);
   }
 
-  DEBUG_INFO("Starting slowp: dr = %f, dg = %f, db = %f dt = %d\n", delta_r, delta_g, delta_b, delta_time);
-  DEBUG_VERBOSE("Randoms are (unsorted):");
+  ESP_LOGD(TAG, "Starting slowp: dr = %f, dg = %f, db = %f dt = %d\n", delta_r, delta_g, delta_b, delta_time);
+  ESP_LOGD(TAG, "Randoms are (unsorted):");
   for(uint8_t j = 0; j < flicker_count; j++)
-    DEBUG_VERBOSE("%d  ", slowp_flickers[j]);
-  DEBUG_VERBOSE("\n");
+    ESP_LOGD(TAG, "%d  ", slowp_flickers[j]);
+  ESP_LOGD(TAG, "\n");
 
   /*
    * Sort the array in place
@@ -625,10 +605,10 @@ void neo_slowp_start(bool clear)  {
    */
   qsort(slowp_flickers, flicker_count, sizeof(int16_t), compare_int16_t);
 
-  DEBUG_INFO("Randoms are (sorted):");
+  ESP_LOGD(TAG, "Randoms are (sorted):");
   for(uint8_t j = 0; j < flicker_count; j++)
-    DEBUG_INFO("%d  ", slowp_flickers[j]);
-  DEBUG_INFO("\n");
+    ESP_LOGD(TAG, "%d  ", slowp_flickers[j]);
+  ESP_LOGD(TAG, "\n");
 
   uint8_t r = neo_check_range(slowp_r);
   uint8_t g = neo_check_range(slowp_g);
@@ -735,7 +715,7 @@ void neo_slowp_write(void) {
   pixels->show();   // Send the updated pixel colors to the hardware.
 
 #ifdef DEBUG_HACK
-  DEBUG_VERBOSE("neo_slowp_write: Showed %d  %d  %d\n", slowp_r, slowp_g, slowp_b);
+  ESP_LOGD(TAG, "neo_slowp_write: Showed %d  %d  %d\n", slowp_r, slowp_g, slowp_b);
   while(Serial.available() == 0);
   Serial.read();
 #endif
@@ -796,11 +776,11 @@ void neo_pong_start(bool clear)  {
     err = deserializeJson(jsonDoc, neo_sequences[seq_index].bonus);
 
     if(err)  {
-      DEBUG_ERROR("ERROR: Deserialization of bonus failed ... using zero\n");
+      ESP_LOGE(TAG, "ERROR: Deserialization of bonus failed ... using zero\n");
     }
     else  {
       if(jsonDoc["count"].isNull())  {
-        DEBUG_ERROR("WARNING: pong bonus has no member \"count\" ... using inf.\n");
+        ESP_LOGE(TAG, "WARNING: pong bonus has no member \"count\" ... using inf.\n");
       }
       else  {
         jbuf = jsonDoc["count"];
@@ -846,7 +826,7 @@ void neo_pong_start(bool clear)  {
 
   current_millis = millis();
 
-  DEBUG_INFO("Starting pong: dr = %f, dg = %f, db = %f dt = %d\n", delta_r, delta_g, delta_b, delta_time);
+  ESP_LOGD(TAG, "Starting pong: dr = %f, dg = %f, db = %f dt = %d\n", delta_r, delta_g, delta_b, delta_time);
 
   neo_state = NEO_SEQ_WAIT;
 }

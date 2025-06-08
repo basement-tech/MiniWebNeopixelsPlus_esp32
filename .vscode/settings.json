@@ -14,6 +14,7 @@
         "uart.h": "c",
         "uart_struct.h": "c",
         "netbiosns.h": "c",
-        "freertos.h": "c"
+        "freertos.h": "c",
+        "neo_data.h": "c"
     }
 }
