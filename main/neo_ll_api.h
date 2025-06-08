@@ -20,7 +20,7 @@ typedef struct {
 } neo_strand_t;
 
 #define RMT_LED_STRIP_RESOLUTION_HZ 10000000 // 10MHz resolution, 1 tick = 0.1us (led strip needs a high resolution)
-#define RMT_LED_STRIP_GPIO_NUM      0
+#define RMT_LED_STRIP_GPIO_NUM      18
 
 esp_err_t pixels_clear(void);
 esp_err_t pixels_setcount(uint16_t num_pixels);

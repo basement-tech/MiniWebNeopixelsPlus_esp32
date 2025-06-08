@@ -49,6 +49,7 @@
 
 #include "neo_system.h"
 #include "bt_eepromlib.h"
+#include "neo_ll_api.h"
 
 
 #if CONFIG_EXAMPLE_WEB_DEPLOY_SD
@@ -62,6 +63,8 @@
 #define MDNS_INSTANCE "esp home web server"
 
 static const char *TAG = "esp_rest_main";
+
+net_config_t *pmon_config;
 
 esp_err_t start_rest_server(const char *base_path);
 
@@ -207,6 +210,8 @@ void app_main(void)
     CLI_PRINTF("Press any key to configure ... \n");
     prompt_countdown(&out);  // give the user (n) seconds to change parameters
     eeprom_user_input(out);  // get the user input based on whether the user hit a key
+    pmon_config = get_mon_config_ptr();
+    
 
     ESP_ERROR_CHECK(nvs_flash_init());
     ESP_ERROR_CHECK(esp_netif_init());
@@ -218,4 +223,9 @@ void app_main(void)
     ESP_ERROR_CHECK(example_connect());
     ESP_ERROR_CHECK(init_fs());
     ESP_ERROR_CHECK(start_rest_server(CONFIG_EXAMPLE_WEB_MOUNT_POINT));
+
+    pixels_init();
+    pixels_setcount(atoi(pmon_config->neocount));
+    pixels_alloc();
+
 }

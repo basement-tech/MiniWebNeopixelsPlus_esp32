@@ -53,7 +53,7 @@ static nvs_handle_t eeprom_nvs_handle;  // points to the open nvs partition
  * place to hold the settings for network, mqtt, calibration, etc.
  * (i.e. holds the working copy of parameter values)
  */
-net_config_t mon_config;
+static net_config_t mon_config;
 
 /*
  * this section deals with getting the user input to
