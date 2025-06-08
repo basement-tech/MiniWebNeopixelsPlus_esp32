@@ -246,6 +246,7 @@ void app_main(void)
      * Configuration CLI
      */
     eeprom_begin();  // initialize the NVS blob used for eeprom-like parameter storage
+    ESP_LOGI(TAG, EEPROM_INTRO_MSG);
     CLI_PRINTF("Press any key to configure ... \n");
     prompt_countdown(&out);  // give the user (n) seconds to change parameters
     eeprom_user_input(out);  // get the user input based on whether the user hit a key
@@ -279,7 +280,7 @@ void app_main(void)
     /*
      * create a task to play out the neopixel example
      */
-    ESP_LOGI(TAG, "Starting neopixel handler from main() ...");
+    ESP_LOGI(TAG, "Starting neopixel process from main() ...");
     xTaskCreate(neopixel_process, "neopixel_process", 4096, NULL, 10, NULL);
 
 }

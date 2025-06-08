@@ -433,11 +433,37 @@ esp_err_t prompt_countdown(bool *out)  {
     return ESP_OK;
 }
 
-
+/*
+ * eeprom_user_input()
+ *
+ * attempt to validate the eeprom contents.
+ * if valid, read the contents into the working copy of parameters.
+ * if not valid, load the working copy with default values.
+ * if the out flag is set, ask the user to customize the parameter values.
+ */
 void eeprom_user_input(bool out)  {
 
   char inbuf[64];
   bool save = false;
+
+  /*
+    * if the eeprom contains valid contents from a previously
+    * successful user input session, just get it.
+    *
+    * if not, load the default/compiled in values as initial
+    * eeprom values
+    *
+    * ... proceed to get user input
+    */
+  if(eeprom_validation((char *)EEPROM_VALID) == true)  {
+    eeprom_get();  /* if the EEPROM is valid, get the whole contents */
+    CLI_PRINTF("\n");
+    dispall_eeprom_parms();
+  }
+  else  {
+    ESP_LOGI(TAG, "Notice: eeprom contents invalid or first time ... loading defaults\n");
+    set_eeprom_initial();
+  }
 
   /*
    * if the user entered a character and caused the above
@@ -447,25 +473,6 @@ void eeprom_user_input(bool out)  {
    * present previous, valid data from EEPROM as defaults
    */
   if(out == true)  {
-    /*
-     * if the eeprom contains valid contents from a previously
-     * successful user input session, just get it.
-     *
-     * if not, load the default/compiled in values as initial
-     * eeprom values
-     *
-     * ... proceed to get user input
-     */
-    if(eeprom_validation((char *)EEPROM_VALID) == true)  {
-      eeprom_get();  /* if the EEPROM is valid, get the whole contents */
-      CLI_PRINTF("\n");
-      dispall_eeprom_parms();
-    }
-    else  {
-      ESP_LOGI(TAG, "Notice: eeprom contents invalid or first time ... loading defaults\n");
-      set_eeprom_initial();
-    }
-
 
     /*
      * run the prompt/input sequenct to get the eeprom changes
