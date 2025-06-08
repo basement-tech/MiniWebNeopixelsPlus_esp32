@@ -33,6 +33,9 @@
  * djz 2025
  * 
  */
+#include <stdio.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "sdkconfig.h"
 #include "driver/gpio.h"
 #include "esp_vfs_semihost.h"
@@ -199,6 +202,18 @@ esp_err_t init_fs(void)  {
 }
 #endif
 
+/*
+ * neopixel process
+ */
+static void neopixel_process(void *)  {
+    pixels_init();
+    pixels_setcount(atoi(pmon_config->neocount));
+    pixels_alloc();
+
+    while(1)  {
+        vTaskDelay(2000 / portTICK_PERIOD_MS);
+    }
+}
 
 void app_main(void)
 {
@@ -206,26 +221,44 @@ void app_main(void)
 
     esp_log_level_set("*", NEO_DEBUG_LEVEL);
 
+    /*
+     * Configuration CLI
+     */
     eeprom_begin();  // initialize the NVS blob used for eeprom-like parameter storage
     CLI_PRINTF("Press any key to configure ... \n");
     prompt_countdown(&out);  // give the user (n) seconds to change parameters
     eeprom_user_input(out);  // get the user input based on whether the user hit a key
     pmon_config = get_mon_config_ptr();
     
-
+    ESP_LOGI(TAG, "Initializing NVS ...");
     ESP_ERROR_CHECK(nvs_flash_init());
+
+    ESP_LOGI(TAG, "Initializing underlying tcp/ip stack ...");
     ESP_ERROR_CHECK(esp_netif_init());
+
+    ESP_LOGI(TAG, "Starting event loop ...");
     ESP_ERROR_CHECK(esp_event_loop_create_default());
+
+    ESP_LOGI(TAG, "Initializing mdns ...");
     initialise_mdns();
     netbiosns_init();
+    ESP_LOGI(TAG, "Setting hostname to \"%s\" ...", CONFIG_EXAMPLE_MDNS_HOST_NAME);
     netbiosns_set_name(CONFIG_EXAMPLE_MDNS_HOST_NAME);
 
+    ESP_LOGI(TAG, "Initializing wifi ...");
     ESP_ERROR_CHECK(example_connect());
+
+    ESP_LOGI(TAG, "Initializing local filesystem ...");
     ESP_ERROR_CHECK(init_fs());
+
+    
+    ESP_LOGI(TAG, "Starting webserver ...");
     ESP_ERROR_CHECK(start_rest_server(CONFIG_EXAMPLE_WEB_MOUNT_POINT));
 
-    pixels_init();
-    pixels_setcount(atoi(pmon_config->neocount));
-    pixels_alloc();
+    /*
+     * create a task to play out the neopixel example
+     */
+    ESP_LOGI(TAG, "Starting neopixel handler from main() ...");
+    xTaskCreate(neopixel_process, "neopixel_process", 4096, NULL, 10, NULL);
 
 }

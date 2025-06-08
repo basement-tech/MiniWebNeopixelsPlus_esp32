@@ -410,7 +410,7 @@ void eeprom_put(void) {
 
 #define THROW_AWAY_LEN 32
 esp_err_t prompt_countdown(bool *out)  {
-    int8_t i = 10;
+    int8_t i = CLI_COUNTDOWN_STEPS;
     size_t len = 0;
     uint8_t throw_away = '\0';  // assume that the user doesn't enter more than 32 characters
 
@@ -418,7 +418,7 @@ esp_err_t prompt_countdown(bool *out)  {
     do  {
         len = uart_ll_get_rxfifo_len(UART_LL_GET_HW(UART_NUM_0));
         CLI_PRINTF("%d ... ", i--);
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
+        vTaskDelay(CLI_COUNTDOWN_PERIOD / portTICK_PERIOD_MS);
     }  while((len <= 0) &&  (i > 0));
     ESP_LOGD(TAG, "Throwing away %d bytes\n", len);
     if(len > (size_t)0)  {

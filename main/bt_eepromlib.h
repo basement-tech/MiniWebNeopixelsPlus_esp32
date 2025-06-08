@@ -27,6 +27,12 @@
 #define EEPROM_INTRO_MSG "neopixel fun by daniel@basementtech and zimtech, LLC"
 
 /*
+ * configuration CLI parameters
+ */
+#define CLI_COUNTDOWN_PERIOD  1000 // mS between eeprom countdown steps
+#define CLI_COUNTDOWN_STEPS   5    // number of countdown steps before expiring
+
+/*
  * string to match for validation
  * this indicates the version/structure of the EEPROM too.
  * be sure to update this string if you change the 
