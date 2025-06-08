@@ -69,7 +69,7 @@ esp_err_t pixels_setPixelColor(uint32_t i, uint8_t r, uint8_t g, uint8_t b, uint
 
 esp_err_t pixels_show(void)  {
     //memset(led_strip_pixels, 0, sizeof(led_strip_pixels));
-    ESP_ERROR_CHECK(rmt_transmit(led_chan, led_encoder, (const void *)strand.pixels, (sizeof(pixel_t) * strand.numpixels), &tx_config));
+    ESP_ERROR_CHECK(rmt_transmit(led_chan, led_encoder, (const void *)(strand.pixels), (sizeof(pixel_t) * strand.numpixels), &tx_config));
     ESP_ERROR_CHECK(rmt_tx_wait_all_done(led_chan, portMAX_DELAY));
 
     return(ESP_OK);

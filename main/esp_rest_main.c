@@ -208,14 +208,15 @@ esp_err_t init_fs(void)  {
 #define NEO_TAG "neopixel_process"
 static void neopixel_process(void *)  {
     uint16_t count = atoi(pmon_config->neocount);
+    bool on = false;
+    uint8_t r, g, b;
     pixels_init();
     pixels_setcount(count);
     ESP_LOGI(NEO_TAG, "Allocating array for %d pixels", count);
     pixels_alloc();
 
     while(1)  {
-        bool on = false;
-        uint8_t r, g, b;
+
         if(on == true)  {
             on = false;
             r = 50;
@@ -246,7 +247,7 @@ void app_main(void)
      * Configuration CLI
      */
     eeprom_begin();  // initialize the NVS blob used for eeprom-like parameter storage
-    ESP_LOGI(TAG, EEPROM_INTRO_MSG);
+    CLI_PRINTF("%s\n", EEPROM_INTRO_MSG);
     CLI_PRINTF("Press any key to configure ... \n");
     prompt_countdown(&out);  // give the user (n) seconds to change parameters
     eeprom_user_input(out);  // get the user input based on whether the user hit a key
