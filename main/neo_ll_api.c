@@ -18,7 +18,7 @@ rmt_transmit_config_t tx_config = {
     .loop_count = 0, // no transfer loop
 };
 
-static neo_strand_t strand;
+static neo_strand_t strand;  // pointer to strand to be allocated later
 
 esp_err_t pixels_init(void)  {
     ESP_LOGI(TAG, "Create RMT TX channel");
@@ -52,5 +52,25 @@ esp_err_t pixels_alloc(void)  {
 
     if((strand.pixels = malloc(sizeof(pixel_t) * strand.numpixels)) == NULL)
         return(ESP_ERR_NO_MEM);
+    return(ESP_OK);
+}
+
+esp_err_t pixels_setPixelColor(uint32_t i, uint8_t r, uint8_t g, uint8_t b, uint8_t w)  {
+    if(strand.pixels == NULL)
+        return(ESP_ERR_NO_MEM);
+    else {
+        strand.pixels[i].r = r;
+        strand.pixels[i].g = g;
+        strand.pixels[i].b = b;
+    }
+    return(ESP_OK);
+}
+
+
+esp_err_t pixels_show(void)  {
+    //memset(led_strip_pixels, 0, sizeof(led_strip_pixels));
+    ESP_ERROR_CHECK(rmt_transmit(led_chan, led_encoder, (const void *)strand.pixels, (sizeof(pixel_t) * strand.numpixels), &tx_config));
+    ESP_ERROR_CHECK(rmt_tx_wait_all_done(led_chan, portMAX_DELAY));
+
     return(ESP_OK);
 }

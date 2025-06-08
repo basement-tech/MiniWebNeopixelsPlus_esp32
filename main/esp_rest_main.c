@@ -205,14 +205,35 @@ esp_err_t init_fs(void)  {
 /*
  * neopixel process
  */
+#define NEO_TAG "neopixel_process"
 static void neopixel_process(void *)  {
+    uint16_t count = atoi(pmon_config->neocount);
     pixels_init();
-    pixels_setcount(atoi(pmon_config->neocount));
+    pixels_setcount(count);
+    ESP_LOGI(NEO_TAG, "Allocating array for %d pixels", count);
     pixels_alloc();
 
     while(1)  {
-        vTaskDelay(2000 / portTICK_PERIOD_MS);
+        bool on = false;
+        uint8_t r, g, b;
+        if(on == true)  {
+            on = false;
+            r = 50;
+            g = 0;
+            b = 0;
+        }
+        else  {
+            on = true;
+            r = 0;
+            g = 0;
+            b = 50;
+        }
+        for(uint16_t i = 0; i < count; i++)
+            pixels_setPixelColor(i, g, r, b, 0);
+        pixels_show();
+        vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
+
 }
 
 void app_main(void)
