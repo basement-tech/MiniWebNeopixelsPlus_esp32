@@ -1,9 +1,10 @@
 ## IDF Component Manager Manifest File
 dependencies:
-  joltwallet/littlefs: "^1.19.1"
-  espressif/mdns: "^1.0.3"
+  joltwallet/littlefs: ^1.19.1
+  espressif/mdns: ^1.0.3
   ## Required IDF version
   idf:
-    version: ">=5.0"
+    version: '>=5.0'
   protocol_examples_common:
     path: ${IDF_PATH}/examples/common_components/protocol_examples_common
+  espressif/json_parser: ^1.0.3
