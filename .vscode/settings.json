@@ -15,6 +15,10 @@
         "uart_struct.h": "c",
         "netbiosns.h": "c",
         "freertos.h": "c",
-        "neo_data.h": "c"
+        "neo_data.h": "c",
+        "atomic": "c",
+        "*.inc": "c",
+        "fcntl.h": "c",
+        "esp_vfs.h": "c"
     }
 }

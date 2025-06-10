@@ -25,6 +25,14 @@
  * Trying to preserve the use of esp-idf's Menuconfig functionality.
  * i.e all default configuration is done through the interface in esp-idf.
  * 
+ * Components/Libraries
+ * --------------------
+ * cJSON - used to serialize strings to json
+ * espressif_json_parser - deserialize/parse json input
+ * espressif_jsmn - espressif_json_parser is built on this
+ * joltwallet_littlefs - littleFS embedded filesystem
+ * espressif_mdns - mdns for hostname access via .local
+ * 
  * Todo:
  * o Implement multifile upload
  * 
@@ -53,6 +61,7 @@
 #include "neo_system.h"
 #include "bt_eepromlib.h"
 #include "neo_ll_api.h"
+#include "neo_data.h"
 
 
 #if CONFIG_EXAMPLE_WEB_DEPLOY_SD
@@ -168,8 +177,8 @@ esp_err_t init_fs(void)
 #if CONFIG_EXAMPLE_WEB_DEPLOY_LITTLE_FS
 esp_err_t init_fs(void)  {
     esp_vfs_littlefs_conf_t conf = {
-        .base_path = "/littlefs",
-        .partition_label = "files",
+        .base_path = LITTLE_FS_MOUNT_POINT,
+        .partition_label = LITTLE_FS_PARTITION_LABEL,
         .format_if_mount_failed = true,
         .dont_mount = false,
     };
@@ -210,11 +219,23 @@ static void neopixel_process(void *)  {
     uint16_t count = atoi(pmon_config->neocount);
     bool on = false;
     uint8_t r, g, b;
+
+    /*
+     * TODO
+     * temporary test of file loading
+     */
+    if(neo_load_sequence("neo_user_1.json") != 0)
+        ESP_LOGE(TAG, "Error loading test sequence file");
+    
     pixels_init();
     pixels_setcount(count);
     ESP_LOGI(NEO_TAG, "Allocating array for %d pixels", count);
     pixels_alloc();
 
+    /*
+     * TODO
+     * temporary test of neo_pixel activity
+     */
     while(1)  {
 
         if(on == true)  {

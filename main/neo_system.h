@@ -14,4 +14,7 @@ static inline void cli_printf(const char *format, ...) {
 
 #define CLI_PRINTF(...) cli_printf(__VA_ARGS__)
 
+#define LITTLE_FS_MOUNT_POINT     "/littlefs"
+#define LITTLE_FS_PARTITION_LABEL "files"
+
 #endif

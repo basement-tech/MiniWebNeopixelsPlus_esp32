@@ -2,14 +2,20 @@
  * functions to play out the neo_pixel patterns
  */
 #include <string.h>
+#include <sys/param.h>
+#include <ctype.h>
+#include <fcntl.h>
+#include "esp_vfs.h"  //resolves read, close
 #include "esp_littlefs.h"
 #include "esp_log.h"
 
+#include "neo_system.h"
 #include "neo_ll_api.h"
 #include "neo_data.h"
 
 #define TAG "neo_play"
 
+#define FILE_PATH_MAX (ESP_VFS_PATH_MAX + 128)
 
 /*
  * housekeeping for the sequence state machine
@@ -126,47 +132,54 @@ int8_t neo_is_user(const char *label)  {
  */
 int8_t neo_load_sequence(const char *file)  {
 
-  FSInfo fs_info;
-  LittleFS.info(fs_info);
-
-  JsonDocument jsonDoc;
-  DeserializationError err;
-
   int8_t ret = 0;
-  File fd;  // file pointer to read from
-  char buf[1024];  // buffer in which to read the file contents  TODO: paramaterize
+  int fd;  // file pointer to read from
+  struct stat file_stat;
+  char buf[NEO_MAX_SEQ_FILE_SIZE];  // buffer in which to read the file contents
   char *pbuf;  // helper
- 
-  pbuf = buf;
+  char filepath[FILE_PATH_MAX];  // fully qualified path to file
 
   /*
-   * can I see the FS from here ? ... yep.
+   * verify access to the filesystem by displaying partition info
    */
-  ESP_LOGD(TAG, "Total bytes in FS = %d\n", fs_info.totalBytes);
-  ESP_LOGD(TAG, "Total bytes used in FS = %d\n", fs_info.usedBytes);
+  size_t total = 0, used = 0;
+  if(esp_littlefs_info(LITTLE_FS_PARTITION_LABEL, &total, &used) != ESP_OK)  {
+    ESP_LOGE(TAG, "Failed to get LittleFS partition information (%s)", esp_err_to_name(ret));
+    return(-1);
+  } 
+  else {
+    ret = 0;
+    ESP_LOGI(TAG, "Filesystem Partition size: total: %d, used: %d", total, used);
+  }
+
+  strncpy(filepath, LITTLE_FS_MOUNT_POINT, FILE_PATH_MAX);
+  strncat(filepath, "/", (FILE_PATH_MAX - strlen(filepath)));
+  strncat(filepath, file, (FILE_PATH_MAX - strlen(filepath)));
 
   /*
    * read the contents of the user sequence file and put it
    * in the character buffer buf
    */
-  if (LittleFS.exists(file) == false)  {
+
+  if (stat(file, &file_stat) == 0)  {
       ESP_LOGE(TAG, "ERROR: Filename %s does not exist in file system\n", file);
       ret = NEO_FILE_LOAD_NOFILE;
   }
   else  {
 
-    ESP_LOGD(TAG, "Loading filename %s ...\n", file);
-    if((fd = LittleFS.open(file, "r")) == false)  
-      ret = NEO_FILE_LOAD_NOFILE;
+    ESP_LOGI(TAG, "Loading filename %s ...\n", file);
 
+    int fd = open(filepath, O_RDONLY, 0);
+    if (fd == -1) {
+        ESP_LOGE(TAG, "Failed to open file : %s", filepath);
+        return -1;
+    }
     else  {
-      while(fd.available())  {
-        *pbuf++ = fd.read();
-      }
-      *pbuf = '\0';  // terminate the char string
-      fd.close();
-      ESP_LOGD(TAG, "Raw file contents:\n%s\n", buf);
-
+      int read_bytes = read(fd, buf, sizeof(buf));
+      buf[read_bytes] = '\0';  // terminate the char string
+      close(fd);
+      ESP_LOGI(TAG, "Raw file contents:\n%s\n", buf);
+#ifdef NOT_YET
       /*
       * deserialize the json contents of the file which
       * is now in buf  -> JsonDocument jsonDoc
@@ -237,10 +250,14 @@ int8_t neo_load_sequence(const char *file)  {
           ret = neo_set_sequence(label, jsonDoc["strategy"]);
         }
       }
+#endif
     }
   }
   return(ret);
 }
+
+
+#ifdef NOT_YET
 
 /*
  * convert r, g, b to Adafruit color with/without gamma32()
@@ -1034,3 +1051,5 @@ void neo_cycle_stop(void)  {
   neo_state = NEO_SEQ_STOPPING;
   seq_index = -1;  // so it doesn't match
 }
+
+#endif // NOT_YET
