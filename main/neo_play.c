@@ -132,19 +132,19 @@ int8_t neo_is_user(const char *label)  {
  *          -1: file not found or error opening
  *          -2: error deserializing file
  */
+#define B_RESERVE 14  // reserves space for the json tag, etc
 int8_t neo_load_sequence(const char *file)  {
 
   int8_t ret = 0;
 
   struct stat file_stat;
   char buf[NEO_MAX_SEQ_FILE_SIZE];  // buffer in which to read the file contents
-  char *pbuf;  // helper
   char filepath[FILE_PATH_MAX];  // fully qualified path to file
 
   jparse_ctx_t jctx;  // for json parsing
   char label[MAX_NUM_LABEL];
   char strategy[MAX_NEO_STRATEGY];
-  char bonus[MAX_NEO_BONUS];
+  char bonus[MAX_NEO_BONUS-B_RESERVE];
   int count; // for counting points in a sequence
   int r = 0;
   int g = 0;
@@ -209,9 +209,8 @@ int8_t neo_load_sequence(const char *file)  {
       else  {
         json_obj_get_string(&jctx, "label", label, sizeof(label));
         json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));
-//        neo_set_sequence(label, strategy); // TODO
+//        neo_set_strategy(label, strategy); // TODO ... is this needed ? ... maybe wan an error check ???
         json_obj_get_string(&jctx, "bonus", bonus, sizeof(bonus));
-//      reserialize bonus and stuff back in array TODO
 
         json_obj_get_array(&jctx, "points", &count);  // down one level into the array
 
@@ -226,6 +225,12 @@ int8_t neo_load_sequence(const char *file)  {
          * find the place in neo_sequences[] where the file contents should be copied/stored
          */
         int8_t seq_idx = neo_find_sequence(label);
+
+        /*
+         * reserialize bonus for later use
+         * Note: printf() is already in use to the memory footprint is blown already.
+         */
+        snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "{\"bonus\": \"%s\"}", bonus);
 
         /*
         * iterate over the points in the array
