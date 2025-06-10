@@ -13,6 +13,7 @@
 #define MAX_USER_SEQ       5      // maximum number of user buttons/files
 #define MAX_SEQUENCES      10     // number of sequences to allocate
 #define MAX_NUM_SEQ_POINTS 256    // maximum number of points per sequence
+#define MAX_NUM_LABEL      32     // max number of chars in label
 #define MAX_NEO_BONUS      128     // max chars  in strategy bonus
 #define MAX_NEO_STRATEGY   16     // max chars in a strategy string
 #define NEO_SLOWP_POINTS   1024   // number of points (smoothness) in SLOWP sequence

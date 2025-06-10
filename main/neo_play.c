@@ -2,12 +2,14 @@
  * functions to play out the neo_pixel patterns
  */
 #include <string.h>
+#include <stdint.h>
 #include <sys/param.h>
 #include <ctype.h>
 #include <fcntl.h>
 #include "esp_vfs.h"  //resolves read, close
 #include "esp_littlefs.h"
 #include "esp_log.h"
+#include "json_parser.h"
 
 #include "neo_system.h"
 #include "neo_ll_api.h"
@@ -133,11 +135,22 @@ int8_t neo_is_user(const char *label)  {
 int8_t neo_load_sequence(const char *file)  {
 
   int8_t ret = 0;
-  int fd;  // file pointer to read from
+
   struct stat file_stat;
   char buf[NEO_MAX_SEQ_FILE_SIZE];  // buffer in which to read the file contents
   char *pbuf;  // helper
   char filepath[FILE_PATH_MAX];  // fully qualified path to file
+
+  jparse_ctx_t jctx;  // for json parsing
+  char label[MAX_NUM_LABEL];
+  char strategy[MAX_NEO_STRATEGY];
+  char bonus[MAX_NEO_BONUS];
+  int count; // for counting points in a sequence
+  int r = 0;
+  int g = 0;
+  int b = 0;
+  int w = 0;
+  int t = 0;
 
   /*
    * verify access to the filesystem by displaying partition info
@@ -179,13 +192,12 @@ int8_t neo_load_sequence(const char *file)  {
       buf[read_bytes] = '\0';  // terminate the char string
       close(fd);
       ESP_LOGI(TAG, "Raw file contents:\n%s\n", buf);
-#ifdef NOT_YET
+
       /*
       * deserialize the json contents of the file which
       * is now in buf  -> JsonDocument jsonDoc
       */
-      err = deserializeJson(jsonDoc, buf);
-      if(err)  {
+      if(json_parse_start(&jctx, buf, strlen(buf)) != OS_SUCCESS)  {
         ESP_LOGE(TAG, "ERROR: Deserialization of file %s failed ... no change in sequence\n", file);
         ret = NEO_FILE_LOAD_DESERR;
       }
@@ -195,9 +207,18 @@ int8_t neo_load_sequence(const char *file)  {
       * convert to a JsonArray points[]
       */
       else  {
-        JsonArray points = jsonDoc["points"].as<JsonArray>();
-        const char *label, *bonus;
-        label = jsonDoc["label"];
+        json_obj_get_string(&jctx, "label", label, sizeof(label));
+        json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));
+//        neo_set_sequence(label, strategy); // TODO
+        json_obj_get_string(&jctx, "bonus", bonus, sizeof(bonus));
+//      reserialize bonus and stuff back in array TODO
+
+        json_obj_get_array(&jctx, "points", &count);  // down one level into the array
+
+        if(count > MAX_NUM_SEQ_POINTS)  {
+          ESP_LOGI(TAG, "Too many points in sequence file ... truncating");
+          count = MAX_NUM_SEQ_POINTS;
+        }
 
         ESP_LOGD(TAG, "For sequence \"%s\" : \n", label);
 
@@ -228,29 +249,28 @@ int8_t neo_load_sequence(const char *file)  {
            * reserialize the bonus object for later deserialization
            * (may be interpretted differently buy eash strategy)
            */
-          serializeJson(jsonDoc["bonus"], neo_sequences[seq_idx].bonus);
+          //serializeJson(jsonDoc["bonus"], neo_sequences[seq_idx].bonus);
 
-          uint16_t i = 0;
-          for(JsonObject obj : points)  {
-            uint8_t r, g, b, w;
-            int32_t t;
-            r = obj["r"];
-            g = obj["g"];
-            b = obj["b"];
-            w = obj["w"];
-            t = obj["t"];
-            ESP_LOGD(TAG, "colors = %d %d %d %d  interval = %d\n", r, g, b, w, t);
+          for(uint16_t i = 0; i < count; i++)  {
+
+
+            json_arr_get_object(&jctx, i); // index into the array, set jctx
+            json_obj_get_int(&jctx, "r", &r);
+            json_obj_get_int(&jctx, "g", &g);
+            json_obj_get_int(&jctx, "b", &b);
+            json_obj_get_int(&jctx, "t", &t);
+            ESP_LOGD(TAG, "colors = %d %d %d %d  interval = %d", r, g, b, w, t);
             neo_sequences[seq_idx].point[i].red = r;
             neo_sequences[seq_idx].point[i].green = g;
             neo_sequences[seq_idx].point[i].blue = b;
             neo_sequences[seq_idx].point[i].white = w;
             neo_sequences[seq_idx].point[i].ms_after_last = t;
-            i++;
+            json_arr_leave_object(&jctx);
           }
-          ret = neo_set_sequence(label, jsonDoc["strategy"]);
         }
+        json_obj_leave_array(&jctx);  // pop back out of the array
       }
-#endif
+      json_parse_end(&jctx);
     }
   }
   return(ret);
@@ -994,6 +1014,9 @@ seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
   { SEQ_STRAT_SLOWP,     "slowp",          neo_slowp_start,   neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
 };
 
+
+
+
 /*
  * expose a method to set the strategy from the "main"
  * look through the labels for a match with the argument
@@ -1051,5 +1074,4 @@ void neo_cycle_stop(void)  {
   neo_state = NEO_SEQ_STOPPING;
   seq_index = -1;  // so it doesn't match
 }
-
 #endif // NOT_YET

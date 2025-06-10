@@ -4,6 +4,7 @@
 #include "esp_log.h"
 
 #define NEO_DEBUG_LEVEL ESP_LOG_INFO
+//#define NEO_DEBUG_LEVEL ESP_LOG_DEBUG
 static inline void cli_printf(const char *format, ...) {
     va_list args;
     va_start(args, format);
