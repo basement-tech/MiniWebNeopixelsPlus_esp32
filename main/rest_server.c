@@ -32,6 +32,15 @@
 
 #include "builtinfiles.h"
 
+/*
+ * URI's that this server can handle
+ */
+#define UPLOAD_POST_URI  "/upload"  // upload files
+#define DELETE_POST_URI  "/delete"  // delete files
+#define LIST_GET_URI     "/api/v1/system/list" // list files in local filesystem
+#define SYS_INFO_GET_URI "/api/v1/system/info" // list information about the system
+#define BUTTON_POST_URI  "/api/button"  // respond to a neopixel button from the browser
+
 
 static const char *REST_TAG = "esp-rest";
 #define REST_CHECK(a, str, goto_tag, ...)                                              \
@@ -181,8 +190,7 @@ static esp_err_t light_brightness_post_handler(httpd_req_t *req)
 
 
 /* file upload handler */
-#define UPLOAD_POST_URI "/upload"
-#define DELETE_POST_URI "/delete"
+
 #define MAX_FILE_SIZE (200*1024)
 #define MAX_FILE_SIZE_STR "200 KB"
 #define NUM_TIMEOUTS 5
@@ -663,7 +671,61 @@ esp_err_t list_files_handler(httpd_req_t *req) {
 
 }  // list_files_handler()
 
+/*
+ * handle a sequence button being pressed on the browser UI
+ */
+esp_err_t button_post_handler(httpd_req_t *req)  {
+    int remaining = 0;
+    uint8_t timeouts = NUM_TIMEOUTS;
 
+    /* Retrieve the pointer to scratch buffer for temporary storage */
+    char *buf = ((rest_server_context_t *)req->user_ctx)->scratch;
+    int received = 0;  // number of bytes received per tronch
+
+    remaining = req->content_len;  // number of bytes in total from the browser
+    ESP_LOGI(REST_TAG, "Total size of content = %d", remaining);
+
+    /*
+     * read the body of the POST into the scratch buffer
+     */
+    esp_err_t err = ESP_OK; // exit status of the while
+    while((remaining > 0) && (err == ESP_OK))  {
+        ESP_LOGI(REST_TAG, "Remaining bytes before read = %d", remaining);
+
+        /*
+         * read buffer full of data 
+         * leave room for the safety '\0'
+         */
+        timeouts = NUM_TIMEOUTS;
+        do  {
+            received = httpd_req_recv(req, buf, MIN(remaining, (SCRATCH_BUFSIZE-1)));
+            ESP_LOGI(REST_TAG, "Number of bytes received in chunk = %d in countdown %d", received, timeouts);
+            if(received == HTTPD_SOCK_ERR_TIMEOUT)
+                timeouts--;
+            else
+                timeouts = received;  // exit with error status (always negative)
+        }  while((received <= 0) && (timeouts > 0));
+
+        /*
+         * if a successful read, parse out the filename
+         * NOTE: assume that the first successful read it big enough to contain
+         * the filename and body header information.
+         */
+        if(timeouts > 0)  {
+            buf[received] = '\0';  // safety to make string functions work ... should be one beyond real data
+            remaining -= received;  // subtract the amount that was read ... read the balance below (if any)
+        }
+        else
+            err = ESP_ERR_TIMEOUT;
+    }
+
+    if(err == ESP_OK)
+        ESP_LOGI(REST_TAG, "button post sent:\n%s", buf);
+    else
+        ESP_LOGE(REST_TAG, "Error reading body of button POST");
+
+    return(ESP_OK);
+}
 
 esp_err_t start_rest_server(const char *base_path)
 {
@@ -682,7 +744,7 @@ esp_err_t start_rest_server(const char *base_path)
 
     /* URI handler for fetching system info */
     httpd_uri_t system_info_get_uri = {
-        .uri = "/api/v1/system/info",
+        .uri = SYS_INFO_GET_URI,
         .method = HTTP_GET,
         .handler = system_info_get_handler,
         .user_ctx = rest_context
@@ -701,7 +763,7 @@ esp_err_t start_rest_server(const char *base_path)
     
     /* URI handler for light brightness control */
     httpd_uri_t list_file_get_uri = {
-        .uri = "/api/v1/system/list",
+        .uri = LIST_GET_URI,
         .method = HTTP_GET,
         .handler = list_files_handler,
         .user_ctx = rest_context
@@ -753,6 +815,15 @@ esp_err_t start_rest_server(const char *base_path)
     };
     httpd_register_uri_handler(server, &file_delete_post_uri);
 
+
+    /* URI handler for file upload return post */
+    httpd_uri_t button_post_uri = {
+        .uri = BUTTON_POST_URI,
+        .method = HTTP_POST,
+        .handler = button_post_handler,
+        .user_ctx = rest_context
+    };
+    httpd_register_uri_handler(server, &button_post_uri);
 
     /* URI handler for getting web server files */
     httpd_uri_t common_get_uri = {
