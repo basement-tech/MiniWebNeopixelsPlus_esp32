@@ -8,11 +8,13 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+
 #define NEO_MAX_SEQ_FILE_SIZE 1024 // maximum size of a sequence file
 #define NEO_SEQ_STRATEGIES 6
 #define MAX_USER_SEQ       5      // maximum number of user buttons/files
 #define MAX_SEQUENCES      10     // number of sequences to allocate
 #define MAX_NUM_SEQ_POINTS 256    // maximum number of points per sequence
+#define MAX_FILENAME       128    // length of filename (without base)
 #define MAX_NUM_LABEL      32     // max number of chars in label
 #define MAX_NEO_BONUS      128     // max chars  in strategy bonus
 #define MAX_NEO_STRATEGY   16     // max chars in a strategy string
@@ -41,6 +43,14 @@
 #define   NEO_FILE_LOAD_DESERR   -7
 #define   NEO_FILE_LOAD_NOPLACE  -8
 #define   NEO_FILE_LOAD_OTHER    -9
+
+/*
+ * data for commnication to the neo_play related process
+ */
+typedef struct {
+    char strategy[MAX_NEO_STRATEGY];
+    char file[MAX_FILENAME];
+}  neo_mutex_data_t;
 
 /*
  * struct for individual points in the pattern

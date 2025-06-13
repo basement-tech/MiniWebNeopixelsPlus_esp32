@@ -673,6 +673,8 @@ esp_err_t list_files_handler(httpd_req_t *req) {
 
 /*
  * handle a sequence button being pressed on the browser UI
+ * expecting a json formatted string containing "sequence"
+ * and "file" fields.
  */
 esp_err_t button_post_handler(httpd_req_t *req)  {
     int remaining = 0;

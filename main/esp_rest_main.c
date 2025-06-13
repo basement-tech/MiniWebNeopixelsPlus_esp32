@@ -214,18 +214,39 @@ esp_err_t init_fs(void)  {
 /*
  * neopixel process
  */
+SemaphoreHandle_t xneoMutex;  // used to protect communication to neo_play
+neo_mutex_data_t neo_mutex_data;  // data to be sent to neo_play process from webserver
+
 #define NEO_TAG "neopixel_process"
-static void neopixel_process(void *)  {
+static void neopixel_process(void *pvParameters)  {
     uint16_t count = atoi(pmon_config->neocount);
     bool on = false;
     uint8_t r, g, b;
+
+    xneoMutex = xSemaphoreCreateMutex();
+
+    if(xneoMutex == NULL)  {
+        ESP_LOGE(NEO_TAG, "Error creating neoMutex ... default sequence only");
+    }
+    else{
+        ESP_LOGI(NEO_TAG, "neoMutex created successfully");
+    }
+
+    if(xSemaphoreTake(xneoMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
+        ESP_LOGE(NEO_TAG, "Failed to take mutex on initial sequence set ... no change");
+    else  {
+        strncpy(neo_mutex_data.strategy, pmon_config->neodefault, MAX_NEO_STRATEGY);
+        ESP_LOGI(NEO_TAG, "%s to be sent as initial sequence", neo_mutex_data.strategy);
+        neo_mutex_data.file[0] = '\0';
+        xSemaphoreGive(xneoMutex);
+    }
 
     /*
      * TODO
      * temporary test of file loading
      */
     if(neo_load_sequence("neo_user_1.json") != 0)
-        ESP_LOGE(TAG, "Error loading test sequence file");
+        ESP_LOGE(NEO_TAG, "Error loading test sequence file");
     
     pixels_init();
     pixels_setcount(count);
