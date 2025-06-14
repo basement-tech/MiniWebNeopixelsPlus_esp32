@@ -230,7 +230,7 @@ int8_t neo_load_sequence(const char *file)  {
         /*
          * find the place in neo_sequences[] where the file contents should be copied/stored
          */
-        int8_t seq_idx = neo_find_sequence(label);  // LABEL
+        int8_t seq_idx = neo_find_sequence(label);  // use LABEL
 
 
 
@@ -256,7 +256,7 @@ int8_t neo_load_sequence(const char *file)  {
            * reserialize bonus for later use
            * Note: printf() is already in use to the memory footprint is blown already.
            */
-          snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "{\"bonus\": \"%s\"}", bonus);  // BONUS
+          snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "{\"bonus\": \"%s\"}", bonus);  // save BONUS
 
           /*
            * save the strategy in the sequence array
@@ -264,8 +264,8 @@ int8_t neo_load_sequence(const char *file)  {
            * to detect if a file is alreadly loaded/don't reload is implemented
            * NOTE: neo_set_sequence(label, strategy) sets the active strategy (below).
            */
-          strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));
-          
+          strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));  // save STRATEGY
+
           /*
            * move the color data into the sequence array
            */
@@ -287,7 +287,7 @@ int8_t neo_load_sequence(const char *file)  {
           /*
            * launch the newly loaded sequence
            */
-          ret = neo_set_sequence(label, strategy);
+          ret = neo_set_sequence(label, strategy);  // LAUNCH
         }
         json_obj_leave_array(&jctx);  // pop back out of the array
       }
@@ -307,10 +307,10 @@ int8_t neo_load_sequence(const char *file)  {
 uint32_t (*neo_convert_color)(uint8_t r, uint8_t g, uint8_t b);
 
 uint32_t neo_color_gamma(uint8_t r, uint8_t g, uint8_t b)  {
-  return pixels->gamma32(pixels->Color(r, g, b));
+  return pixels_gamma32(pixels_Color(r, g, b));
 }
 uint32_t neo_color_nogamma(uint8_t r, uint8_t g, uint8_t b)  {
-    return (pixels->Color(r, g, b));
+    return (pixels_Color(r, g, b));
 }
 
 void neo_set_gamma_color(bool gamma_enable)  {
@@ -320,23 +320,21 @@ void neo_set_gamma_color(bool gamma_enable)  {
     neo_convert_color = neo_color_nogamma;
 }
 
-
-
 /*
  * helper for writing a single color to all pixels
  */
 void neo_write_pixel(bool clear)  {
-  if(clear != 0)  pixels->clear(); // Set all pixel colors to 'off'
+  if(clear != 0)  pixels_clear(); // Set all pixel colors to 'off'
 
   /*
     * send the next point in the sequence to the strand
     */
-  for(int i=0; i < pixels->numPixels(); i++) { // For each pixel...
-    pixels->setPixelColor(i, neo_convert_color( neo_sequences[seq_index].point[current_index].red, 
+  for(int i=0; i < pixels_numPixels(); i++) { // For each pixel...
+    pixels_setPixelColor(i, neo_convert_color( neo_sequences[seq_index].point[current_index].red, 
                                                 neo_sequences[seq_index].point[current_index].green,
                                                 neo_sequences[seq_index].point[current_index].blue));
   }
-  pixels->show();   // Send the updated pixel colors to the hardware.
+  pixels_show();   // Send the updated pixel colors to the hardware.
 }
 
 /*
@@ -349,7 +347,7 @@ void neo_write_pixel(bool clear)  {
  *
  */
 void neo_n_blinks(uint8_t r, uint8_t g, uint8_t b, int8_t reps, int32_t t)  {
-  uint32_t color = pixels->Color(r, g, b);
+  uint32_t color = pixels_Color(r, g, b);
 
   for(int8_t j = reps; j > 0; j--)  {
     /*
@@ -357,26 +355,25 @@ void neo_n_blinks(uint8_t r, uint8_t g, uint8_t b, int8_t reps, int32_t t)  {
     */
     for(int i=0; i < pixels->numPixels(); i++) // For each pixel...
       pixels->setPixelColor(i, color);
-    pixels->show();   // Send the updated pixel colors to the hardware.
+    pixels_show();   // Send the updated pixel colors to the hardware.
 
-    delay(t);
+    vTaskDelay(t / portTICK_PERIOD_MS);
 
-    pixels->clear();
+    pixels_clear();
     pixels->show();
     
-    delay(t);
+    vTaskDelay(t / portTICK_PERIOD_MS);
   }
 }
 
 /*
- * initialize the neopixel strand and set it to off/idle
+ * initialize strand to a known state and set it to state machine to off/idle
  */
-void neo_init(uint16_t numPixels, int16_t pin, neoPixelType pixelFormat)  {
-  pixels = new Adafruit_NeoPixel(numPixels, pin, pixelFormat);
+void neo_init(void)  {
 
-  pixels->begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
-  pixels->clear(); // Set all pixel colors to 'off'
-  pixels->show();   // Send the updated pixel colors to the hardware.
+  pixels_begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
+  pixels_clear(); // Set all pixel colors to 'off'
+  pixels_show();   // Send the updated pixel colors to the hardware.
   neo_state = NEO_SEQ_STOPPED;
 }
 

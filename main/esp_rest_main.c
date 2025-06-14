@@ -252,6 +252,7 @@ static void neopixel_process(void *pvParameters)  {
     pixels_setcount(count);
     ESP_LOGI(NEO_TAG, "Allocating array for %d pixels", count);
     pixels_alloc();
+    neo_init();
 
     /*
      * TODO

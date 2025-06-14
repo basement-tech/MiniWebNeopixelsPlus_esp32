@@ -54,6 +54,10 @@ esp_err_t pixels_setcount(uint16_t num_pixels)  {
     return(ESP_OK);
 }
 
+uint16_t pixels_numPixels(void)  {
+    return(strand.numpixels);
+}
+
 /*
  * allocate the space for the local/working copy (versus the RMT hardware copy)
  * of the neo_pixel color data.  Manipulating this copy has no effect on plaout
@@ -100,6 +104,15 @@ esp_err_t pixels_clear(void)  {
     }
     return(ESP_OK);
 }
+
+// TODO: Implement these
+uint32_t pixels_Color(uint8_t r, uint8_t g, uint8_t b)  {
+    return(0);
+}
+uint32_t pixels_gamma32(uint32_t color)  {
+    return(0);
+}
+
 
 /*
  * move the local copy of neo_pixel color data to the RMT hardware

@@ -24,10 +24,13 @@ typedef struct {
 
 esp_err_t pixels_clear(void);
 esp_err_t pixels_setcount(uint16_t num_pixels);
+uint16_t pixels_numPixels(void);
 esp_err_t pixels_alloc(void);
 esp_err_t pixels_init(void);
 esp_err_t pixels_setPixelColor(uint32_t i, uint8_t r, uint8_t g, uint8_t b, uint8_t w);
 esp_err_t pixels_show(void);
+uint32_t pixels_Color(uint8_t r, uint8_t g, uint8_t b);
+uint32_t pixels_gamma32(uint32_t color);
 
 
 #endif  //__NEO_LL_API_H__

@@ -119,7 +119,7 @@ typedef struct {
  * public functions relating to neopixels
  */
 void neo_cycle_next(void);
-//void neo_init(uint16_t numPixels, int16_t pin, neoPixelType pixelFormat);
+void neo_init(void);
 int8_t neo_is_user(const char *label);
 int8_t neo_load_sequence(const char *file);
 int8_t neo_set_sequence(const char *label, const char *strategy);
