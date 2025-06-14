@@ -2,6 +2,14 @@
 
 #define TAG "neo_ll_api.c"
 
+/*
+ * This section sets up the RMT channel to play out neo_pixel
+ * data without any software interaction once loaded (hardware driven).
+ * NOTE: this is specific to the esp32 and is not available in esp8266.
+ * 
+ * No space is allocated for the local copy of neo_pixel color data.  That
+ * is done separately by pixels_alloc() based on the configured number of pixels
+ */
 static rmt_channel_handle_t led_chan = NULL;
 rmt_tx_channel_config_t tx_chan_config = {
     .clk_src = RMT_CLK_SRC_DEFAULT, // select source clock
@@ -36,12 +44,21 @@ esp_err_t pixels_init(void)  {
     return(ESP_OK);
 }
 
+/*
+ * set the number of pixels in the strand control structure.
+ * this is the place that matters for actual playout.
+ */
 esp_err_t pixels_setcount(uint16_t num_pixels)  {
     strand.numpixels = num_pixels;
 
     return(ESP_OK);
 }
 
+/*
+ * allocate the space for the local/working copy (versus the RMT hardware copy)
+ * of the neo_pixel color data.  Manipulating this copy has no effect on plaout
+ * until pixels_show() is called.
+ */
 esp_err_t pixels_alloc(void)  {
     /*
      * if this is a reallocation, free first
@@ -55,6 +72,11 @@ esp_err_t pixels_alloc(void)  {
     return(ESP_OK);
 }
 
+/*
+ * set RGB neo_pixel color data in the local copy of such.
+ * Manipulating this copy has no effect on plaout
+ * until pixels_show() is called.
+ */
 esp_err_t pixels_setPixelColor(uint32_t i, uint8_t r, uint8_t g, uint8_t b, uint8_t w)  {
     if(strand.pixels == NULL)
         return(ESP_ERR_NO_MEM);
@@ -66,9 +88,24 @@ esp_err_t pixels_setPixelColor(uint32_t i, uint8_t r, uint8_t g, uint8_t b, uint
     return(ESP_OK);
 }
 
+/*
+ * set all pixels to black in the local copy of neo_pixel color memory
+ * (have to pixels_show() to physically realize it)
+ */
+esp_err_t pixels_clear(void)  {
+    for(int i = 0; i < strand.numpixels; i++)  {
+        strand.pixels[i].r = 0;
+        strand.pixels[i].g = 0;
+        strand.pixels[i].b = 0;
+    }
+    return(ESP_OK);
+}
 
+/*
+ * move the local copy of neo_pixel color data to the RMT hardware
+ * effecting its playout
+ */
 esp_err_t pixels_show(void)  {
-    //memset(led_strip_pixels, 0, sizeof(led_strip_pixels));
     ESP_ERROR_CHECK(rmt_transmit(led_chan, led_encoder, (const void *)(strand.pixels), (sizeof(pixel_t) * strand.numpixels), &tx_config));
     ESP_ERROR_CHECK(rmt_tx_wait_all_done(led_chan, portMAX_DELAY));
 

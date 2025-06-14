@@ -127,6 +127,8 @@ int8_t neo_is_user(const char *label)  {
  * and load a sequence from file of the same name.
  * NOTE: currently the requested sequence placeholder of the name
  * requested must exist in neo_sequences[] for this to succeed.
+ * 
+ * finally set the newly loaded sequence as current and start it.
  *
  * return:   0: successfully loaded
  *          -1: file not found or error opening
@@ -165,13 +167,18 @@ int8_t neo_load_sequence(const char *file)  {
     ESP_LOGI(TAG, "Filesystem Partition size: total: %d, used: %d", total, used);
   }
 
+  /*
+   * create the fully qualified path to the file
+   */
   strncpy(filepath, LITTLE_FS_MOUNT_POINT, FILE_PATH_MAX);
   strncat(filepath, "/", (FILE_PATH_MAX - strlen(filepath)));
   strncat(filepath, file, (FILE_PATH_MAX - strlen(filepath)));
 
   /*
+   * verify that the file exists and if so,
    * read the contents of the user sequence file and put it
-   * in the character buffer buf
+   * in the character buffer buf.  deserialize the json and 
+   * load it into the sequence array.
    */
 
   if (stat(file, &file_stat) == 0)  {
@@ -204,15 +211,14 @@ int8_t neo_load_sequence(const char *file)  {
 
       /*
       * jsonDoc contains an array of points as JsonObjects
-      * convert to a JsonArray points[]
+      * parse it into the place indicated by the "label" in the file contents.
       */
       else  {
-        json_obj_get_string(&jctx, "label", label, sizeof(label));
-        json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));
-//        neo_set_strategy(label, strategy); // TODO ... is this needed ? ... maybe wan an error check ???
-        json_obj_get_string(&jctx, "bonus", bonus, sizeof(bonus));
+        json_obj_get_string(&jctx, "label", label, sizeof(label));  // used to point to place in sequence array
+        json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));  // copied to the sequence array
+        json_obj_get_string(&jctx, "bonus", bonus, sizeof(bonus));  // reserialized for later use
 
-        json_obj_get_array(&jctx, "points", &count);  // down one level into the array
+        json_obj_get_array(&jctx, "points", &count);  // down one level into the array of points
 
         if(count > MAX_NUM_SEQ_POINTS)  {
           ESP_LOGI(TAG, "Too many points in sequence file ... truncating");
@@ -224,13 +230,9 @@ int8_t neo_load_sequence(const char *file)  {
         /*
          * find the place in neo_sequences[] where the file contents should be copied/stored
          */
-        int8_t seq_idx = neo_find_sequence(label);
+        int8_t seq_idx = neo_find_sequence(label);  // LABEL
 
-        /*
-         * reserialize bonus for later use
-         * Note: printf() is already in use to the memory footprint is blown already.
-         */
-        snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "{\"bonus\": \"%s\"}", bonus);
+
 
         /*
         * iterate over the points in the array
@@ -251,14 +253,23 @@ int8_t neo_load_sequence(const char *file)  {
         */
         else  {
           /*
-           * reserialize the bonus object for later deserialization
-           * (may be interpretted differently buy eash strategy)
+           * reserialize bonus for later use
+           * Note: printf() is already in use to the memory footprint is blown already.
            */
-          //serializeJson(jsonDoc["bonus"], neo_sequences[seq_idx].bonus);
+          snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "{\"bonus\": \"%s\"}", bonus);  // BONUS
 
+          /*
+           * save the strategy in the sequence array
+           * NOTE: this will be more meaningful when the functionality
+           * to detect if a file is alreadly loaded/don't reload is implemented
+           * NOTE: neo_set_sequence(label, strategy) sets the active strategy (below).
+           */
+          strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));
+          
+          /*
+           * move the color data into the sequence array
+           */
           for(uint16_t i = 0; i < count; i++)  {
-
-
             json_arr_get_object(&jctx, i); // index into the array, set jctx
             json_obj_get_int(&jctx, "r", &r);
             json_obj_get_int(&jctx, "g", &g);
@@ -272,10 +283,15 @@ int8_t neo_load_sequence(const char *file)  {
             neo_sequences[seq_idx].point[i].ms_after_last = t;
             json_arr_leave_object(&jctx);
           }
+
+          /*
+           * launch the newly loaded sequence
+           */
+          ret = neo_set_sequence(label, strategy);
         }
         json_obj_leave_array(&jctx);  // pop back out of the array
       }
-      json_parse_end(&jctx);
+      json_parse_end(&jctx);  // done with json
     }
   }
   return(ret);
@@ -1041,7 +1057,6 @@ seq_strategy_t neo_set_strategy(const char *sstrategy)  {
  * and update the strand if so.
  */
 void neo_cycle_next(void)  {
-  uint64_t new_millis = 0;
 
   switch(neo_state)  {
 
