@@ -235,9 +235,9 @@ static void neopixel_process(void *pvParameters)  {
     if(xSemaphoreTake(xneoMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
         ESP_LOGE(NEO_TAG, "Failed to take mutex on initial sequence set ... no change");
     else  {
-        strncpy(neo_mutex_data.strategy, pmon_config->neodefault, MAX_NEO_STRATEGY);
-        ESP_LOGI(NEO_TAG, "%s to be sent as initial sequence", neo_mutex_data.strategy);
-        neo_mutex_data.file[0] = '\0';
+        strncpy(neo_mutex_data.sequence, pmon_config->neodefault, MAX_NEO_SEQUENCE);
+        ESP_LOGI(NEO_TAG, "%s to be sent as initial sequence", neo_mutex_data.sequence);
+        neo_mutex_data.file[0] = '\0';  // default sequence has to be a built-in
         xSemaphoreGive(xneoMutex);
     }
 

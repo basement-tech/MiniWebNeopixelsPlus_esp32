@@ -18,4 +18,6 @@ static inline void cli_printf(const char *format, ...) {
 #define LITTLE_FS_MOUNT_POINT     "/littlefs"
 #define LITTLE_FS_PARTITION_LABEL "files"
 
+
+
 #endif

@@ -282,8 +282,6 @@ int8_t neo_load_sequence(const char *file)  {
 }
 
 
-#ifdef NOT_YET
-
 /*
  * convert r, g, b to Adafruit color with/without gamma32()
  * based on eeprom configuration parameter.
@@ -1079,4 +1077,60 @@ void neo_cycle_stop(void)  {
   neo_state = NEO_SEQ_STOPPING;
   seq_index = -1;  // so it doesn't match
 }
-#endif // NOT_YET
+
+/*
+ * was a new sequence posted from the controlling process
+ * NOTE: neo_set_sequence() determines if this is different
+ * than the currently running sequence.
+ */
+int8_t neo_new_sequence(void)  {
+  int8_t neoerr = NEO_SUCCESS;
+  neo_mutex_data_t l_neo;  // local copy so as not to hold the mutex
+
+  /*
+   * try to grab the semaphore to check if a new sequence was requesed
+   * (just poll, don't wait ... you'll get it the next time around)
+   */
+  if(xSemaphoreTake(xneoMutex, 0) == pdTRUE)  {
+    memcpy(&l_neo, &neo_mutex_data, sizeof(neo_mutex_data_t));
+    xSemaphoreGive(xneoMutex);
+
+    /*
+     * process the button that was pressed based on the seq string
+     */
+    if(l_neo.sequence != NULL)  {
+      ESP_LOGI(TAG, "Setting sequence to %s", l_neo.sequence);
+
+      /*
+        * was it the stop button
+        */
+      if(strcmp(l_neo.sequence, "STOP") == 0)
+        neo_cycle_stop();
+
+      /*
+        * if not STOP, see if it was a USER defined sequence
+        * if so, load the file and set the sequence and strategy
+        */
+      else if((neo_is_user(l_neo.sequence)) == NEO_SUCCESS)  {
+        if((neoerr = neo_load_sequence(l_neo.file)) != NEO_SUCCESS)
+          ESP_LOGE(TAG, "Error loading sequence file after proper detection");
+      }
+
+      /*
+        * if not STOP or USER-x, then attempt to set the sequence,
+        * assuming that it's a pre-defined button.
+        * strategies are hardcoded for built in sequences.
+        */
+      else  {
+        if((neoerr = neo_set_sequence(l_neo.sequence, "")) != NEO_SUCCESS)
+          ESP_LOGI(TAG, "ERROR: Error setting sequence after proper detection");
+      }
+    }
+    else  {
+      neoerr = NEO_NOPLACE;
+      ESP_LOGI(TAG, "ERROR: \"sequence\" not found in json data");
+    }
+  }
+  return(neoerr);
+}
+

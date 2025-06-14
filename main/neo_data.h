@@ -7,6 +7,8 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 
 #define NEO_MAX_SEQ_FILE_SIZE 1024 // maximum size of a sequence file
@@ -18,6 +20,7 @@
 #define MAX_NUM_LABEL      32     // max number of chars in label
 #define MAX_NEO_BONUS      128     // max chars  in strategy bonus
 #define MAX_NEO_STRATEGY   16     // max chars in a strategy string
+#define MAX_NEO_SEQUENCE   32     // max chars in a sequence string
 #define NEO_SLOWP_POINTS   1024   // number of points (smoothness) in SLOWP sequence
 #define NEO_SLOWP_FLICKERS 100    // max number of slowp random flickers
 #define NEO_FLICKER_MAX    255    // value for bright flickers
@@ -48,9 +51,15 @@
  * data for commnication to the neo_play related process
  */
 typedef struct {
-    char strategy[MAX_NEO_STRATEGY];
+    char sequence[MAX_NEO_SEQUENCE];
     char file[MAX_FILENAME];
 }  neo_mutex_data_t;
+
+/*
+ * IPC between webserver and neopixel process
+ */
+extern SemaphoreHandle_t xneoMutex;  // used to protect communication to neo_play
+extern neo_mutex_data_t neo_mutex_data;  // data to be sent to neo_play process from webserver
 
 /*
  * struct for individual points in the pattern

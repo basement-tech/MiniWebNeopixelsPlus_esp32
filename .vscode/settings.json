@@ -19,6 +19,7 @@
         "atomic": "c",
         "*.inc": "c",
         "fcntl.h": "c",
-        "esp_vfs.h": "c"
+        "esp_vfs.h": "c",
+        "esp_vfs_fat.h": "c"
     }
 }
