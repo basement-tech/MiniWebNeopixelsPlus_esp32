@@ -273,7 +273,7 @@ static void neopixel_process(void *pvParameters)  {
             b = 50;
         }
         for(uint16_t i = 0; i < count; i++)
-            pixels_setPixelColor(i, g, r, b, 0);
+            pixels_setPixelColorRGB(i, g, r, b, 0);
         pixels_show();
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }

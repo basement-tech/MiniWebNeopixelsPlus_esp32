@@ -10,6 +10,7 @@
 #include "esp_vfs.h"  //resolves read, close
 #include "esp_littlefs.h"
 #include "esp_log.h"
+#include "esp_timer.h"
 #include "json_parser.h"
 
 #include "neo_system.h"
@@ -34,6 +35,13 @@ seq_strategy_t current_strategy = SEQ_STRAT_POINTS;
 
 uint64_t current_millis = 0; // mS of last update
 int32_t current_index = 0;   // index into the pattern array
+
+/*
+ * compatibility/porting convenience
+ */
+uint64_t millis(void)  {
+  return(esp_timer_get_time()/1000);
+}
 
 /*
  * return the index in neo_sequences[] that matches
@@ -298,29 +306,6 @@ int8_t neo_load_sequence(const char *file)  {
   return(ret);
 }
 
-
-/*
- * convert r, g, b to Adafruit color with/without gamma32()
- * based on eeprom configuration parameter.
- * this is called once in setup() to set a function pointer
- * for efficient operation
- */
-uint32_t (*neo_convert_color)(uint8_t r, uint8_t g, uint8_t b);
-
-uint32_t neo_color_gamma(uint8_t r, uint8_t g, uint8_t b)  {
-  return pixels_gamma32(pixels_Color(r, g, b));
-}
-uint32_t neo_color_nogamma(uint8_t r, uint8_t g, uint8_t b)  {
-    return (pixels_Color(r, g, b));
-}
-
-void neo_set_gamma_color(bool gamma_enable)  {
-  if(gamma_enable)
-    neo_convert_color = neo_color_gamma;
-  else
-    neo_convert_color = neo_color_nogamma;
-}
-
 /*
  * helper for writing a single color to all pixels
  */
@@ -331,9 +316,9 @@ void neo_write_pixel(bool clear)  {
     * send the next point in the sequence to the strand
     */
   for(int i=0; i < pixels_numPixels(); i++) { // For each pixel...
-    pixels_setPixelColor(i, neo_convert_color( neo_sequences[seq_index].point[current_index].red, 
-                                                neo_sequences[seq_index].point[current_index].green,
-                                                neo_sequences[seq_index].point[current_index].blue));
+    pixels_setPixelColorRGB(i, neo_sequences[seq_index].point[current_index].red, 
+                               neo_sequences[seq_index].point[current_index].green,
+                               neo_sequences[seq_index].point[current_index].blue, 0);
   }
   pixels_show();   // Send the updated pixel colors to the hardware.
 }
@@ -355,7 +340,7 @@ void neo_n_blinks(uint8_t r, uint8_t g, uint8_t b, uint8_t w, int8_t reps, int32
     * send the next point in the sequence to the strand
     */
     for(int i=0; i < pixels_numPixels(); i++) // For each pixel...
-      pixels_setPixelColor(i, r, g, b, w);
+      pixels_setPixelColorRGB(i, r, g, b, w);
     pixels_show();   // Send the updated pixel colors to the hardware.
 
     vTaskDelay(t / portTICK_PERIOD_MS);
@@ -481,11 +466,11 @@ void neo_single_start(bool clear) {
         if((single_repeats = atoi(jbuf)) > INT8_MAX) single_repeats = INT8_MAX;
         ESP_LOGI(TAG, "neo_single_start: single_repeats set to %d", single_repeats);
       }
+      json_parse_end(&jctx);  // done with json
     }
   }
   else
     single_repeats = 1;
-  json_parse_end(&jctx);  // done with json
 
   /*
    * get the timing started
@@ -549,7 +534,7 @@ static uint8_t flicker_r, flicker_g, flicker_b;  // colors to flicker to
 static int compare_int16_t(const void *a, const void *b) {
     int16_t c = *(int16_t*)a;
     int16_t d = *(int16_t*)b;
-    return (int(c - d));
+    return ((int)(c - d));
 }
 
 static uint8_t neo_check_range(int32_t testval)  {
@@ -693,7 +678,7 @@ void neo_slowp_start(bool clear)  {
    */
   pixels_clear();
   for(int i=0; i < pixels_numPixels(); i++)  // For each pixel...
-      pixels_setPixelColor(i, neo_convert_color(r, g, b));
+      pixels_setPixelColorRGB(i, r, g, b, 0);
   pixels_show();   // Send the updated pixel colors to the hardware.
 
   current_millis = millis();
@@ -784,7 +769,7 @@ void neo_slowp_write(void) {
     }
   }
   for(int i=0; i < pixels_numPixels(); i++)  // For each pixel...
-      pixels_setPixelColor(i, neo_convert_color(r, g, b));
+      pixels_setPixelColorRGB(i, r, g, b, 0);
 
   pixels_show();   // Send the updated pixel colors to the hardware.
 
@@ -834,35 +819,36 @@ void neo_pong_start(bool clear)  {
   slowp_idx = 0;
   slowp_dir = 1;  // start by going up
 
-  JsonDocument jsonDoc;
-  DeserializationError err;
-  const char *jbuf;  // jsonDoc[] requires this type
+  jparse_ctx_t jctx;  // for json parsing
+  char jbuf[MAX_NEO_BONUS];
 
   pong_repeats = -1; // start with continuous
 
   /*
-   * obtain the number of times the sequence will be run
+   * obtain the number of times the "single" sequence will be run
    * based on the "bonus" parameter from the json sequence file
    */
   if(strlen(neo_sequences[seq_index].bonus) > 0)  {
-    DEBUG_DEBUG("neo_pong_start: bonus = %s\n", neo_sequences[seq_index].bonus);
+    ESP_LOGD(TAG, "neo_pong_start: bonus = %s", neo_sequences[seq_index].bonus);
 
-    err = deserializeJson(jsonDoc, neo_sequences[seq_index].bonus);
-
-    if(err)  {
-      ESP_LOGE(TAG, "ERROR: Deserialization of bonus failed ... using zero\n");
+    if(json_parse_start(&jctx, neo_sequences[seq_index].bonus, strlen(neo_sequences[seq_index].bonus)) != OS_SUCCESS)  {
+      ESP_LOGE(TAG, "ERROR: Deserialization of bonus failed ... using minus one\n");
     }
     else  {
-      if(jsonDoc["count"].isNull())  {
-        ESP_LOGE(TAG, "WARNING: pong bonus has no member \"count\" ... using inf.\n");
+      json_obj_get_string(&jctx, "count", jbuf, sizeof(jbuf));  // used to point to place in sequence array
+
+      if(*jbuf == '\0')  {
+        ESP_LOGE(TAG, "WARNING: pong bonus has no member \"count\" ... using minus one\n");
       }
       else  {
-        jbuf = jsonDoc["count"];
         if((pong_repeats = atoi(jbuf)) > INT16_MAX) pong_repeats = INT16_MAX;
-        DEBUG_DEBUG("neo_pong_start: pong_repeats set to %d\n", pong_repeats);
+        ESP_LOGI(TAG, "neo_pong_start: pong_repeats set to %d", pong_repeats);
       }
+      json_parse_end(&jctx);  // done with json
     }
   }
+
+
 
   p_num_pixels = pixels_numPixels();
 
@@ -893,9 +879,9 @@ void neo_pong_start(bool clear)  {
    * clear and set the first point here
    */
   pixels_clear();
-  pixels_setPixelColor(slowp_idx, neo_convert_color( neo_check_range(slowp_r),
-                                                      neo_check_range(slowp_g),
-                                                      neo_check_range(slowp_b)));  // turn on the next one
+  pixels_setPixelColorRGB(slowp_idx, neo_check_range(slowp_r),
+                                  neo_check_range(slowp_g),
+                                  neo_check_range(slowp_b), 0);  // turn on the next one
   pixels_show();
 
   current_millis = millis();
@@ -906,7 +892,6 @@ void neo_pong_start(bool clear)  {
 }
 
 void neo_pong_write(void) {
-  uint8_t r, g, b;
   
   /*
    * calculate the rgb values
@@ -961,9 +946,9 @@ void neo_pong_write(void) {
    * send the next point in the sequence to the strand
    */
   pixels_clear();  // first turn them all off
-  pixels_setPixelColor(slowp_idx, neo_convert_color( neo_check_range(slowp_r),
-                                                      neo_check_range(slowp_g),
-                                                      neo_check_range(slowp_b)));  // turn on the next one
+  pixels_setPixelColorRGB(slowp_idx, neo_check_range(slowp_r),
+                                     neo_check_range(slowp_g),
+                                     neo_check_range(slowp_b), 0);  // turn on the next one
   pixels_show();   // Send the updated pixel colors to the hardware.
 
   if(pong_repeats == (int16_t)(-1))  // not counting keep going
@@ -976,6 +961,7 @@ void neo_pong_write(void) {
 
 // end of SEQ_STRAT_PONG
 
+#ifdef RAINBOW_PORTED
 /*
  * SEQ_STRAT_RAINBOW
  * cycle a rainbow color pallette along the whole strip
@@ -1036,6 +1022,7 @@ void neo_rainbow_stopping(void)  {
 }
 
 // end of SEQ_STRAT_RAINBOW callbacks
+#endif // RAINBOW_PORTED
 
 /*
  * function calls by strategy for each state in the playback machine
@@ -1047,7 +1034,7 @@ seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
   { SEQ_STRAT_SINGLE,    "single",         neo_single_start,  neo_points_wait,   neo_single_write,    neo_points_stopping,      noop},
   { SEQ_STRAT_CHASE,     "xchase",          start_noop,           noop,               noop,                 noop,               noop},
   { SEQ_STRAT_PONG,      "pong",           neo_pong_start,    neo_slowp_wait,    neo_pong_write,      neo_points_stopping,      noop},
-  { SEQ_STRAT_RAINBOW,   "rainbow",       neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
+//  { SEQ_STRAT_RAINBOW,   "rainbow",       neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
   { SEQ_STRAT_SLOWP,     "slowp",          neo_slowp_start,   neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
 };
 
@@ -1131,7 +1118,7 @@ int8_t neo_new_sequence(void)  {
     /*
      * process the button that was pressed based on the seq string
      */
-    if(l_neo.sequence != NULL)  {
+    if(l_neo.sequence[0] != '\0')  {
       ESP_LOGI(TAG, "Setting sequence to %s", l_neo.sequence);
 
       /*
