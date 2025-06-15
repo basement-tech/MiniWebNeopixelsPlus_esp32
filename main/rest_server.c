@@ -20,6 +20,8 @@
 #include <fcntl.h>
 #include <sys/param.h>
 #include <ctype.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include "esp_http_server.h"
 #include "esp_chip_info.h"
 #include "esp_random.h"
@@ -30,7 +32,9 @@
 
 #include "esp_littlefs.h"
 
+#include "neo_system.h"
 #include "builtinfiles.h"
+#include "neo_data.h"
 
 /*
  * URI's that this server can handle
@@ -721,8 +725,21 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
             err = ESP_ERR_TIMEOUT;
     }
 
-    if(err == ESP_OK)
-        ESP_LOGI(REST_TAG, "button post sent:\n%s", buf);
+    if(err == ESP_OK)  {
+        ESP_LOGI(REST_TAG, "button post sent:\n%s", buf);  // raw post body
+        /*
+         * parse the json post and copy the fields to the IPC place
+         * where the neopixel process will look at it
+         */
+        if(xSemaphoreTake(xneoMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
+            ESP_LOGE(REST_TAG, "Failed to take mutex on initial sequence set ... no change");
+        else  {
+            strncpy(neo_mutex_data.sequence, "DUMMY", MAX_NEO_SEQUENCE);
+            ESP_LOGI(REST_TAG, "%s to be sent as initial sequence", neo_mutex_data.sequence);
+            neo_mutex_data.file[0] = '\0';  // default sequence has to be a built-in
+            xSemaphoreGive(xneoMutex);
+        }
+    }
     else
         ESP_LOGE(REST_TAG, "Error reading body of button POST");
 
