@@ -463,7 +463,10 @@ void neo_single_start(bool clear) {
         single_repeats = 1;
       }
       else  {
-        if((single_repeats = atoi(jbuf)) > INT8_MAX) single_repeats = INT8_MAX;
+        if(atoi(jbuf) > INT8_MAX) 
+          single_repeats = INT8_MAX;
+        else
+          single_repeats = atoi(jbuf);
         ESP_LOGI(TAG, "neo_single_start: single_repeats set to %d", single_repeats);
       }
       json_parse_end(&jctx);  // done with json
@@ -597,7 +600,10 @@ void neo_slowp_start(bool clear)  {
         flicker_count = 0;
       }
       else  {
-        if((flicker_count = atoi(jbuf)) > INT8_MAX) flicker_count = INT8_MAX;
+        if(atoi(jbuf) > INT8_MAX)
+          flicker_count = INT8_MAX;
+        else
+          flicker_count = atoi(jbuf);
         ESP_LOGI(TAG, "neo_slowp_start: flicker_count set to %d", flicker_count);
 
         /*
@@ -619,7 +625,7 @@ void neo_slowp_start(bool clear)  {
 
           json_obj_leave_object(&jctx);
         }
-        ESP_LOGI(TAG, "Setting slowp rgb color to (%d %d %d)\n", flicker_r, flicker_g, flicker_b);
+        ESP_LOGI(TAG, "Setting slowp rgb color to (%u %u %u)\n", flicker_r, flicker_g, flicker_b);
       }
       json_parse_end(&jctx);  // done with json
     }
@@ -650,7 +656,7 @@ void neo_slowp_start(bool clear)  {
       slowp_flickers[j] = (NEO_SLOWP_POINTS-2);
   }
 
-  ESP_LOGD(TAG, "Starting slowp: dr = %f, dg = %f, db = %f dt = %d\n", delta_r, delta_g, delta_b, delta_time);
+  ESP_LOGD(TAG, "Starting slowp: dr = %f, dg = %f, db = %f dt = %lu\n", delta_r, delta_g, delta_b, delta_time);
   ESP_LOGD(TAG, "Randoms are (unsorted):");
   for(uint8_t j = 0; j < flicker_count; j++)
     ESP_LOGD(TAG, "%d  ", slowp_flickers[j]);
@@ -841,7 +847,10 @@ void neo_pong_start(bool clear)  {
         ESP_LOGE(TAG, "WARNING: pong bonus has no member \"count\" ... using minus one\n");
       }
       else  {
-        if((pong_repeats = atoi(jbuf)) > INT16_MAX) pong_repeats = INT16_MAX;
+        if(atoi(jbuf) > INT16_MAX)
+          pong_repeats = INT16_MAX;
+        else
+          pong_repeats = atoi(jbuf);
         ESP_LOGI(TAG, "neo_pong_start: pong_repeats set to %d", pong_repeats);
       }
       json_parse_end(&jctx);  // done with json
@@ -886,7 +895,7 @@ void neo_pong_start(bool clear)  {
 
   current_millis = millis();
 
-  ESP_LOGD(TAG, "Starting pong: dr = %f, dg = %f, db = %f dt = %d\n", delta_r, delta_g, delta_b, delta_time);
+  ESP_LOGD(TAG, "Starting pong: dr = %f, dg = %f, db = %f dt = %lu\n", delta_r, delta_g, delta_b, delta_time);
 
   neo_state = NEO_SEQ_WAIT;
 }
