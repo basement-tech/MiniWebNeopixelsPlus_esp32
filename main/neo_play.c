@@ -6,6 +6,7 @@
 #include <sys/param.h>
 #include <ctype.h>
 #include <fcntl.h>
+#include "esp_random.h"
 #include "esp_vfs.h"  //resolves read, close
 #include "esp_littlefs.h"
 #include "esp_log.h"
@@ -344,23 +345,23 @@ void neo_write_pixel(bool clear)  {
  *
  * NOTE: this is a blocking function i.e. not suitable for use in the loop()
  * NOTE: the neopixel strand must have been initialized prior to calling this function
+ * NOTE: this is not a thread safe function
  *
  */
-void neo_n_blinks(uint8_t r, uint8_t g, uint8_t b, int8_t reps, int32_t t)  {
-  uint32_t color = pixels_Color(r, g, b);
+void neo_n_blinks(uint8_t r, uint8_t g, uint8_t b, uint8_t w, int8_t reps, int32_t t)  {
 
   for(int8_t j = reps; j > 0; j--)  {
     /*
     * send the next point in the sequence to the strand
     */
-    for(int i=0; i < pixels->numPixels(); i++) // For each pixel...
-      pixels->setPixelColor(i, color);
+    for(int i=0; i < pixels_numPixels(); i++) // For each pixel...
+      pixels_setPixelColor(i, r, g, b, w);
     pixels_show();   // Send the updated pixel colors to the hardware.
 
     vTaskDelay(t / portTICK_PERIOD_MS);
 
     pixels_clear();
-    pixels->show();
+    pixels_show();
     
     vTaskDelay(t / portTICK_PERIOD_MS);
   }
@@ -371,7 +372,6 @@ void neo_n_blinks(uint8_t r, uint8_t g, uint8_t b, int8_t reps, int32_t t)  {
  */
 void neo_init(void)  {
 
-  pixels_begin(); // INITIALIZE NeoPixel strip object (REQUIRED)
   pixels_clear(); // Set all pixel colors to 'off'
   pixels_show();   // Send the updated pixel colors to the hardware.
   neo_state = NEO_SEQ_STOPPED;
@@ -424,8 +424,8 @@ void neo_points_wait(void)  {
 }
 
 void neo_points_stopping(void)  {
-  pixels->clear(); // Set all pixel colors to 'off'
-  pixels->show();   // Send the updated pixel colors to the hardware.
+  pixels_clear(); // Set all pixel colors to 'off'
+  pixels_show();   // Send the updated pixel colors to the hardware.
   current_index = 0;
   seq_index = -1; // so it doesn't match
 
@@ -447,9 +447,8 @@ void neo_points_stopping(void)  {
 static int8_t single_repeats = 1;
 
 void neo_single_start(bool clear) {
-  JsonDocument jsonDoc;
-  DeserializationError err;
-  const char *jbuf;  // jsonDoc[] requires this type
+  jparse_ctx_t jctx;  // for json parsing
+  char jbuf[MAX_NEO_BONUS];
 
   neo_write_pixel(true);  // clear the strand and write the first value
 
@@ -465,28 +464,28 @@ void neo_single_start(bool clear) {
    * based on the "bonus" parameter from the json sequence file
    */
   if(strlen(neo_sequences[seq_index].bonus) > 0)  {
-    DEBUG_DEBUG("neo_single_start: bonus = %s\n", neo_sequences[seq_index].bonus);
+    ESP_LOGD(TAG, "neo_single_start: bonus = %s", neo_sequences[seq_index].bonus);
 
-    err = deserializeJson(jsonDoc, neo_sequences[seq_index].bonus);
-
-    if(err)  {
+    if(json_parse_start(&jctx, neo_sequences[seq_index].bonus, strlen(neo_sequences[seq_index].bonus)) != OS_SUCCESS)  {
       ESP_LOGE(TAG, "ERROR: Deserialization of bonus failed ... using zero\n");
       single_repeats = 1;  // default to 1 time through
     }
     else  {
-      if(jsonDoc["count"].isNull())  {
-        ESP_LOGE(TAG, "WARNING: slowp bonus has no member \"count\" ... using zero\n");
+      json_obj_get_string(&jctx, "count", jbuf, sizeof(jbuf));  // used to point to place in sequence array
+
+      if(*jbuf == '\0')  {
+        ESP_LOGE(TAG, "WARNING: slowp bonus has no member \"count\" ... using one\n");
         single_repeats = 1;
       }
       else  {
-        jbuf = jsonDoc["count"];
         if((single_repeats = atoi(jbuf)) > INT8_MAX) single_repeats = INT8_MAX;
-        DEBUG_DEBUG("neo_single_start: single_repeats set to %d\n", single_repeats);
+        ESP_LOGI(TAG, "neo_single_start: single_repeats set to %d", single_repeats);
       }
     }
   }
   else
     single_repeats = 1;
+  json_parse_end(&jctx);  // done with json
 
   /*
    * get the timing started
@@ -567,9 +566,9 @@ void neo_slowp_start(bool clear)  {
   slowp_flicker_idx = 0;  // start at the start
   flicker_count = 0;  // assume none to Start
 
-  JsonDocument jsonDoc;
-  DeserializationError err;
-  const char *jbuf;  // jsonDoc[] requires this type
+  jparse_ctx_t jctx;  // for json parsing
+  char jbuf[MAX_NEO_BONUS];
+  int err = OS_SUCCESS;
 
   /*
    * calculate delta time in mS based on the first (and only)
@@ -599,45 +598,67 @@ void neo_slowp_start(bool clear)  {
    * based on the "bonus" parameter from the json sequence file
    */
   if(strlen(neo_sequences[seq_index].bonus) > 0)  {
-    DEBUG_DEBUG("neo_slowp_start: bonus = %s\n", neo_sequences[seq_index].bonus);
+    ESP_LOGD(TAG, "neo_slowp_start: bonus = %s", neo_sequences[seq_index].bonus);
 
-    err = deserializeJson(jsonDoc, neo_sequences[seq_index].bonus);
-
-    if(err)  {
+    if(json_parse_start(&jctx, neo_sequences[seq_index].bonus, strlen(neo_sequences[seq_index].bonus)) != OS_SUCCESS)  {
       ESP_LOGE(TAG, "ERROR: Deserialization of bonus failed ... using zero\n");
-      flicker_count = 0;
+      flicker_count = 0;  // default to 1 time through
     }
     else  {
-      if(jsonDoc["count"].isNull())  {
-        ESP_LOGE(TAG, "WARNING: slowp bonus has no member \"count\" ... using zero\n");
+      json_obj_get_string(&jctx, "count", jbuf, sizeof(jbuf));  // used to point to place in sequence array
+
+      if(*jbuf == '\0')  {
+        ESP_LOGE(TAG, "WARNING: slowp bonus has no member \"count\" ... using one\n");
         flicker_count = 0;
       }
       else  {
-        jbuf = jsonDoc["count"];
         if((flicker_count = atoi(jbuf)) > INT8_MAX) flicker_count = INT8_MAX;
-      }
+        ESP_LOGI(TAG, "neo_slowp_start: flicker_count set to %d", flicker_count);
 
-      flicker_r = flicker_g = flicker_b = 255;
-      if( (jsonDoc["flicker"]["r"].isNull() == false) &&
-          (jsonDoc["flicker"]["g"].isNull() == false) &&
-          (jsonDoc["flicker"]["r"].isNull() == false)) {
-        flicker_r = neo_check_range(jsonDoc["flicker"]["r"]);
-        flicker_g = neo_check_range(jsonDoc["flicker"]["g"]);
-        flicker_b = neo_check_range(jsonDoc["flicker"]["b"]);
-        ESP_LOGD(TAG, "Setting slowp rgb color to (%d %d %d)\n", flicker_r, flicker_g, flicker_b);
+        /*
+         * what color should the flickers be
+         * in case colors are missing, set the ones we have
+         */
+        flicker_r = flicker_g = flicker_b = 255;  // set fallback
+        if((err = json_obj_get_object(&jctx, "flicker")) != OS_SUCCESS)
+          ESP_LOGE(TAG, "WARNING: slowp bonus has incomplete member \"flicker\" ... using white\n");
+        else  {
+          if(json_obj_get_string(&jctx, "r", jbuf, sizeof(jbuf)) == OS_SUCCESS)
+            flicker_r = neo_check_range(atoi(jbuf));
+
+          if(json_obj_get_string(&jctx, "g", jbuf, sizeof(jbuf)) == OS_SUCCESS)
+            flicker_g = neo_check_range(atoi(jbuf));
+
+          if(json_obj_get_string(&jctx, "b", jbuf, sizeof(jbuf)) == OS_SUCCESS)
+            flicker_b = neo_check_range(atoi(jbuf));
+
+          json_obj_leave_object(&jctx);
+        }
+        ESP_LOGI(TAG, "Setting slowp rgb color to (%d %d %d)\n", flicker_r, flicker_g, flicker_b);
       }
-      else
-        ESP_LOGE(TAG, "WARNING: slowp bonus has incomplete member \"flicker\" ... using white\n");
+      json_parse_end(&jctx);  // done with json
     }
-
-
-    if(abs(flicker_count) > NEO_SLOWP_FLICKERS) flicker_count = NEO_SLOWP_FLICKERS;  //boundary check
-    flicker_count = abs(flicker_count);  // legacy
-
   }
-  randomSeed(analogRead(0));  // different each time through
+  else
+    flicker_count = 0;
+
+  /*
+   * boundary check and legacy where negative was ok
+   */
+  if(abs(flicker_count) > NEO_SLOWP_FLICKERS) flicker_count = NEO_SLOWP_FLICKERS;  //boundary check
+  flicker_count = abs(flicker_count);  // legacy
+
+  /*
+   * calculate where to put the flickers based on a random number
+   *
+   * esp_random() returns uin32_t; slowp_flickers[] contains step number
+   * in the sequence where to substitute a flicker.  The step numbers are
+   * between 0 and NEO_SLOWP_POINTS.  So, divide by the difference to pull
+   * the randoms into the right range.
+   */
+  static uint32_t scale = UINT32_MAX/NEO_SLOWP_POINTS;
   for(uint8_t j = 0; j < flicker_count; j++)  {
-    slowp_flickers[j] = random(0, NEO_SLOWP_POINTS);
+    slowp_flickers[j] = esp_random()/scale;
     if(slowp_flickers[j] == (int16_t)0)
       slowp_flickers[j] = 1;  // stay away from the turn-arounds
     else if(slowp_flickers[j] == (int16_t)(NEO_SLOWP_POINTS-1))
@@ -670,10 +691,10 @@ void neo_slowp_start(bool clear)  {
   /*
    * clear and write the starting value
    */
-  pixels->clear();
-  for(int i=0; i < pixels->numPixels(); i++)  // For each pixel...
-      pixels->setPixelColor(i, neo_convert_color(r, g, b));
-  pixels->show();   // Send the updated pixel colors to the hardware.
+  pixels_clear();
+  for(int i=0; i < pixels_numPixels(); i++)  // For each pixel...
+      pixels_setPixelColor(i, neo_convert_color(r, g, b));
+  pixels_show();   // Send the updated pixel colors to the hardware.
 
   current_millis = millis();
 
@@ -762,10 +783,10 @@ void neo_slowp_write(void) {
 
     }
   }
-  for(int i=0; i < pixels->numPixels(); i++)  // For each pixel...
-      pixels->setPixelColor(i, neo_convert_color(r, g, b));
+  for(int i=0; i < pixels_numPixels(); i++)  // For each pixel...
+      pixels_setPixelColor(i, neo_convert_color(r, g, b));
 
-  pixels->show();   // Send the updated pixel colors to the hardware.
+  pixels_show();   // Send the updated pixel colors to the hardware.
 
 #ifdef DEBUG_HACK
   ESP_LOGD(TAG, "neo_slowp_write: Showed %d  %d  %d\n", slowp_r, slowp_g, slowp_b);
@@ -843,7 +864,7 @@ void neo_pong_start(bool clear)  {
     }
   }
 
-  p_num_pixels = pixels->numPixels();
+  p_num_pixels = pixels_numPixels();
 
   /*
    * calculate delta time in mS based on the first
@@ -871,11 +892,11 @@ void neo_pong_start(bool clear)  {
   /*
    * clear and set the first point here
    */
-  pixels->clear();
-  pixels->setPixelColor(slowp_idx, neo_convert_color( neo_check_range(slowp_r),
+  pixels_clear();
+  pixels_setPixelColor(slowp_idx, neo_convert_color( neo_check_range(slowp_r),
                                                       neo_check_range(slowp_g),
                                                       neo_check_range(slowp_b)));  // turn on the next one
-  pixels->show();
+  pixels_show();
 
   current_millis = millis();
 
@@ -939,11 +960,11 @@ void neo_pong_write(void) {
   /*
    * send the next point in the sequence to the strand
    */
-  pixels->clear();  // first turn them all off
-  pixels->setPixelColor(slowp_idx, neo_convert_color( neo_check_range(slowp_r),
+  pixels_clear();  // first turn them all off
+  pixels_setPixelColor(slowp_idx, neo_convert_color( neo_check_range(slowp_r),
                                                       neo_check_range(slowp_g),
                                                       neo_check_range(slowp_b)));  // turn on the next one
-  pixels->show();   // Send the updated pixel colors to the hardware.
+  pixels_show();   // Send the updated pixel colors to the hardware.
 
   if(pong_repeats == (int16_t)(-1))  // not counting keep going
     neo_state = NEO_SEQ_WAIT;
@@ -962,8 +983,8 @@ void neo_pong_write(void) {
  */
 long firstPixelHue = 0;
 void neo_rainbow_start(bool clear)  {
-  pixels->clear();
-  pixels->show();
+  pixels_clear();
+  pixels_show();
 
   firstPixelHue = 0;
 
@@ -993,8 +1014,8 @@ void neo_rainbow_wait(void)  {
  * advance and write a pixel
  */
 void neo_rainbow_write(void) {
-  pixels->rainbow(firstPixelHue);
-  pixels->show();
+  pixels_rainbow(firstPixelHue);
+  pixels_show();
 
   firstPixelHue += 256;
 
@@ -1006,8 +1027,8 @@ void neo_rainbow_write(void) {
 }
 
 void neo_rainbow_stopping(void)  {
-  pixels->clear(); // Set all pixel colors to 'off'
-  pixels->show();   // Send the updated pixel colors to the hardware.
+  pixels_clear(); // Set all pixel colors to 'off'
+  pixels_show();   // Send the updated pixel colors to the hardware.
 
   seq_index = -1; // so it doesn't match
 

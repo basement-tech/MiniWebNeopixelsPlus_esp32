@@ -88,6 +88,7 @@ esp_err_t pixels_setPixelColor(uint32_t i, uint8_t r, uint8_t g, uint8_t b, uint
         strand.pixels[i].r = r;
         strand.pixels[i].g = g;
         strand.pixels[i].b = b;
+        strand.pixels[i].w = w;
     }
     return(ESP_OK);
 }

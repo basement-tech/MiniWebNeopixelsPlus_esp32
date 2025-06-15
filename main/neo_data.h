@@ -125,7 +125,7 @@ int8_t neo_load_sequence(const char *file);
 int8_t neo_set_sequence(const char *label, const char *strategy);
 seq_strategy_t neo_set_strategy(const char *sstrategy);
 void neo_cycle_stop(void);
-void neo_n_blinks(uint8_t r, uint8_t g, uint8_t b, int8_t reps, int32_t t);
+void neo_n_blinks(uint8_t r, uint8_t g, uint8_t b, uint8_t w, int8_t reps, int32_t t);
 void neo_set_gamma_color(bool gamma_enable);
 
 /*
