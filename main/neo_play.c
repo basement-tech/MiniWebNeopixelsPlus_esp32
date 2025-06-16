@@ -6,11 +6,12 @@
 #include <sys/param.h>
 #include <ctype.h>
 #include <fcntl.h>
-#include "esp_random.h"
+#include "esp_random.h"  // encryption grade random number generator
 #include "esp_vfs.h"  //resolves read, close
 #include "esp_littlefs.h"
 #include "esp_log.h"
-#include "esp_timer.h"
+#include "esp_timer.h"  // high res timer
+#include "driver/gptimer.h"  // general purpose timer
 #include "json_parser.h"
 
 #include "neo_system.h"
@@ -42,6 +43,43 @@ int32_t current_index = 0;   // index into the pattern array
 uint64_t millis(void)  {
   return(esp_timer_get_time()/1000);
 }
+
+/*
+ * define the general purpose timer for running the state machine
+ */
+static bool neo_timer_on_alarm_cb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx)  {
+  neo_cycle_next();
+  return(true);
+}
+#define INTR_SQWAVE_FREQ   1000000  // timer frequency 1MHz, 1 tick=1us
+void neo_timer_setup(void)  {
+    ESP_LOGI(TAG, "Create state machine timer handle");
+    gptimer_handle_t gptimer = NULL;
+    gptimer_config_t timer_config = {
+        .clk_src = GPTIMER_CLK_SRC_DEFAULT,
+        .direction = GPTIMER_COUNT_UP,
+        .resolution_hz = INTR_SQWAVE_FREQ,
+    };
+    ESP_ERROR_CHECK(gptimer_new_timer(&timer_config, &gptimer));
+
+    gptimer_event_callbacks_t cbs = {
+        .on_alarm = neo_timer_on_alarm_cb,
+    };
+    ESP_ERROR_CHECK(gptimer_register_event_callbacks(gptimer, &cbs, NULL));
+
+    ESP_LOGI(TAG, "Enable state machine timer with frequency of %d Hz", INTR_SQWAVE_FREQ);
+    ESP_ERROR_CHECK(gptimer_enable(gptimer));
+
+    ESP_LOGI(TAG, "Start state machine timer, period is %d uS", NEO_UPDATE_INTERVAL);
+    gptimer_alarm_config_t alarm_config1 = {
+        .reload_count = 0,
+        .alarm_count = NEO_UPDATE_INTERVAL, // period
+        .flags.auto_reload_on_alarm = true,
+    };
+    ESP_ERROR_CHECK(gptimer_set_alarm_action(gptimer, &alarm_config1));
+    ESP_ERROR_CHECK(gptimer_start(gptimer));
+}
+
 
 /*
  * return the index in neo_sequences[] that matches
@@ -360,6 +398,8 @@ void neo_init(void)  {
   pixels_clear(); // Set all pixel colors to 'off'
   pixels_show();   // Send the updated pixel colors to the hardware.
   neo_state = NEO_SEQ_STOPPED;
+
+  neo_timer_setup();  // start the state machine timer
 }
 
 /*

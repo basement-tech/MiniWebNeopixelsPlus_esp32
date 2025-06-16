@@ -33,6 +33,11 @@
  * joltwallet_littlefs - littleFS embedded filesystem
  * espressif_mdns - mdns for hostname access via .local
  * 
+ * Timers
+ * ------
+ * https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/gptimer.html
+ * https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/esp_timer.html
+ * 
  * Todo:
  * o Implement multifile upload
  * 
