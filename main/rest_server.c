@@ -28,6 +28,7 @@
 #include "esp_log.h"
 #include "esp_vfs.h"
 #include "cJSON.h"
+#include "json_parser.h"
 
 
 #include "esp_littlefs.h"
@@ -681,6 +682,10 @@ esp_err_t list_files_handler(httpd_req_t *req) {
  * and "file" fields.
  */
 esp_err_t button_post_handler(httpd_req_t *req)  {
+
+    jparse_ctx_t jctx;  // for json parsing
+    char jbuf[MAX_FILENAME > MAX_NEO_SEQUENCE ? MAX_FILENAME : MAX_NEO_SEQUENCE];
+
     int remaining = 0;
     uint8_t timeouts = NUM_TIMEOUTS;
 
@@ -727,17 +732,32 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
 
     if(err == ESP_OK)  {
         ESP_LOGI(REST_TAG, "button post sent:\n%s", buf);  // raw post body
-        /*
-         * parse the json post and copy the fields to the IPC place
-         * where the neopixel process will look at it
-         */
-        if(xSemaphoreTake(xneoMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
-            ESP_LOGE(REST_TAG, "Failed to take mutex on initial sequence set ... no change");
+
+        if(json_parse_start(&jctx, buf, strlen(buf)) != OS_SUCCESS)  {
+            ESP_LOGE(REST_TAG, "ERROR: Deserialization of button body failed");
+        }
         else  {
-            strncpy(neo_mutex_data.sequence, "DUMMY", MAX_NEO_SEQUENCE);
-            ESP_LOGI(REST_TAG, "%s to be sent as initial sequence", neo_mutex_data.sequence);
-            neo_mutex_data.file[0] = '\0';  // default sequence has to be a built-in
-            xSemaphoreGive(xneoMutex);
+            json_obj_get_string(&jctx, "sequence", jbuf, sizeof(jbuf));  // used to point to place in sequence array
+            strncpy(neo_mutex_data.sequence, jbuf, sizeof(neo_mutex_data.sequence));
+        
+            /*
+            * parse the json post and copy the fields to the IPC place
+            * where the neopixel process will look at it
+            */
+            if(xSemaphoreTake(xneoMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
+                ESP_LOGE(REST_TAG, "Failed to take mutex on initial sequence set ... no change");
+            else  {
+                json_obj_get_string(&jctx, "sequence", jbuf, sizeof(jbuf));  // used to point to place in sequence array
+                strncpy(neo_mutex_data.sequence, jbuf, sizeof(neo_mutex_data.sequence));
+                ESP_LOGI(REST_TAG, "Sending sequence %s", neo_mutex_data.sequence);
+
+                json_obj_get_string(&jctx, "file", jbuf, sizeof(jbuf));
+                strncpy(neo_mutex_data.file, jbuf, sizeof(neo_mutex_data.file));
+                ESP_LOGI(REST_TAG, "Sending filename %s", neo_mutex_data.file);
+
+                xSemaphoreGive(xneoMutex);
+            }
+            json_parse_end(&jctx);
         }
     }
     else

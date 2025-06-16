@@ -8,11 +8,16 @@
 #include "driver/rmt_tx.h"
 #include "led_strip_encoder.h"
 
+/*
+ * define a structure that will work with the neo_pixel 
+ * component example from espressif.
+ * The order is what the led encoder expects and does not inclue
+ * white at this first writing.
+ */
 typedef struct {
-        uint8_t r;
         uint8_t g;
+        uint8_t r;
         uint8_t b;
-        uint8_t w; // not tested
 } pixel_t;
 typedef struct {
     uint16_t numpixels;
@@ -28,7 +33,6 @@ uint16_t pixels_numPixels(void);
 esp_err_t pixels_alloc(void);
 esp_err_t pixels_init(void);
 esp_err_t pixels_setPixelColorRGB(uint32_t i, uint8_t r, uint8_t g, uint8_t b, uint8_t w);
-esp_err_t pixels_setPixelColorS(uint32_t i, pixel_t pixel);
 esp_err_t pixels_show(void);
 uint32_t pixels_Color(uint8_t r, uint8_t g, uint8_t b);
 uint32_t pixels_gamma32(uint32_t color);

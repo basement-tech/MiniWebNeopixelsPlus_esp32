@@ -244,9 +244,10 @@ static void neopixel_process(void *pvParameters)  {
     /*
      * TODO
      * temporary test of file loading
-     */
+
     if(neo_load_sequence("neo_user_1.json") != 0)
         ESP_LOGE(NEO_TAG, "Error loading test sequence file");
+     */
     
     pixels_init();
     pixels_setcount(count);
@@ -273,7 +274,7 @@ static void neopixel_process(void *pvParameters)  {
             b = 50;
         }
         for(uint16_t i = 0; i < count; i++)
-            pixels_setPixelColorRGB(i, g, r, b, 0);
+            pixels_setPixelColorRGB(i, r, g, b, 0);
         pixels_show();
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }

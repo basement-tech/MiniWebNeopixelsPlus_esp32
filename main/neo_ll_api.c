@@ -91,19 +91,6 @@ esp_err_t pixels_setPixelColorRGB(uint32_t i, uint8_t r, uint8_t g, uint8_t b, u
         strand.pixels[i].r = r;
         strand.pixels[i].g = g;
         strand.pixels[i].b = b;
-        strand.pixels[i].w = w;
-    }
-    return(ESP_OK);
-}
-
-/*
- * same as pixels_setPixelColor() except accepts pixel_t as color spec
- */
-esp_err_t pixels_setPixelColorS(uint32_t i, pixel_t pixel)  {
-    if(strand.pixels == NULL)
-        return(ESP_ERR_NO_MEM);
-    else {
-        memcpy(&(strand.pixels[i]), &pixel, sizeof(pixel));
     }
     return(ESP_OK);
 }
@@ -117,7 +104,6 @@ esp_err_t pixels_clear(void)  {
         strand.pixels[i].r = 0;
         strand.pixels[i].g = 0;
         strand.pixels[i].b = 0;
-        strand.pixels[i].w = 0;
     }
     return(ESP_OK);
 }
