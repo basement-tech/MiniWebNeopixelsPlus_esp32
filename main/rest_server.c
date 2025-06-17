@@ -765,6 +765,14 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
     else
         ESP_LOGE(REST_TAG, "Error reading body of button POST");
 
+    /*
+     * send the response
+     * TODO: alternatively send a 405 status on error w/ text
+     */
+    httpd_resp_set_status(req, "201 Created");
+    httpd_resp_set_type(req, "text/plain");  // Or "application/json", etc.
+    const char *resp_str = "Button Processed";
+    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
     return(ESP_OK);
 }
 

@@ -47,7 +47,7 @@ uint64_t millis(void)  {
 /*
  * define the general purpose timer for running the state machine
  */
-volatile uint8_t seq_upd_count = 0;
+volatile uint32_t seq_upd_count = 0;
 volatile bool seq_upd_flag = false;
 volatile bool neo_cycle_next_flag = false;
 static bool neo_timer_on_alarm_cb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx)  {
@@ -245,15 +245,21 @@ int8_t neo_load_sequence(const char *file)  {
 
     ESP_LOGI(TAG, "Loading filename %s ...\n", file);
 
-    int fd = open(filepath, O_RDONLY, 0);
-    if (fd == -1) {
+    /*
+     * switching to fopen(), fread() in hopes that the 
+     * buffering will be more thread-safe.
+     * Not sure it helped, but I'll leave it since it functions
+     * properly.
+     */
+    FILE *fp = fopen(filepath, "r");
+    if (fp == NULL) {
         ESP_LOGE(TAG, "Failed to open file : %s", filepath);
         return -1;
     }
     else  {
-      int read_bytes = read(fd, buf, sizeof(buf));
+      int read_bytes = fread(buf, 1, sizeof(buf), fp);
       buf[read_bytes] = '\0';  // terminate the char string
-      close(fd);
+      fclose(fp);
       ESP_LOGI(TAG, "Raw file contents:\n%s\n", buf);
 
       /*
@@ -459,12 +465,17 @@ void neo_points_wait(void)  {
 }
 
 void neo_points_stopping(void)  {
+   /*
+    * move to top to avoid potential collision with late
+    * coming meo_cycle_next()
+    */
+  neo_state = NEO_SEQ_STOPPED;
+
   pixels_clear(); // Set all pixel colors to 'off'
   pixels_show();   // Send the updated pixel colors to the hardware.
   current_index = 0;
   seq_index = -1; // so it doesn't match
 
-  neo_state = NEO_SEQ_STOPPED;
 }
 
 // end of SEQ_STRAT_POINTS callbacks
@@ -1154,7 +1165,7 @@ void neo_cycle_next(void)  {
  */
 void neo_cycle_stop(void)  {
   neo_state = NEO_SEQ_STOPPING;
-  seq_index = -1;  // so it doesn't match
+  //seq_index = -1;  // so it doesn't match ... move to _stopping()
 }
 
 /*
@@ -1176,6 +1187,8 @@ int8_t neo_new_sequence(void)  {
     if(neo_mutex_data.new_data == true)  {
       memcpy(&l_neo, &neo_mutex_data, sizeof(neo_mutex_data_t));
       neo_mutex_data.new_data = false;
+      // only uncomment the following msg statement if you slow down the update rate
+      ESP_LOGI(TAG, "neo_new_sequence: new data received and successful xneoMutex take");
     }
     xSemaphoreGive(xneoMutex);  // be done with it ASAP
   }
@@ -1185,7 +1198,7 @@ int8_t neo_new_sequence(void)  {
     * process the button that was pressed based on the seq string
     */
     if(l_neo.sequence[0] != '\0')  {
-      ESP_LOGI(TAG, "Setting sequence to %s", l_neo.sequence);
+      ESP_LOGI(TAG, "neo_new_sequence:  %s", l_neo.sequence);
 
       /*
         * was it the stop button

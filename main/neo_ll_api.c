@@ -30,6 +30,8 @@ rmt_transmit_config_t tx_config = {
 };
 
 static neo_strand_t strand;  // pointer to strand to be allocated later
+static SemaphoreHandle_t strand_busy;  // protect the local pixel color array
+static SemaphoreHandle_t RMT_busy;  // protect the write operation
 
 esp_err_t pixels_init(void)  {
     ESP_LOGI(TAG, "Create RMT TX channel");
