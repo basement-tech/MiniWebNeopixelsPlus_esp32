@@ -1,5 +1,7 @@
 
 #include <string.h>
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 
 #include "neo_ll_api.h"
 
@@ -106,9 +108,12 @@ esp_err_t pixels_setPixelColorRGB(uint32_t i, uint8_t r, uint8_t g, uint8_t b, u
     if(strand.pixels == NULL)
         return(ESP_ERR_NO_MEM);
     else {
-        strand.pixels[i].r = r;
-        strand.pixels[i].g = g;
-        strand.pixels[i].b = b;
+        if(xSemaphoreTake(strand_busy, 10/portTICK_PERIOD_MS) == pdTRUE)  {
+            strand.pixels[i].r = r;
+            strand.pixels[i].g = g;
+            strand.pixels[i].b = b;
+            xSemaphoreGive(strand_busy);
+        }
     }
     return(ESP_OK);
 }
@@ -118,10 +123,13 @@ esp_err_t pixels_setPixelColorRGB(uint32_t i, uint8_t r, uint8_t g, uint8_t b, u
  * (have to pixels_show() to physically realize it)
  */
 esp_err_t pixels_clear(void)  {
-    for(int i = 0; i < strand.numpixels; i++)  {
-        strand.pixels[i].r = 0;
-        strand.pixels[i].g = 0;
-        strand.pixels[i].b = 0;
+    if(xSemaphoreTake(strand_busy, 10/portTICK_PERIOD_MS) == pdTRUE)  {
+        for(int i = 0; i < strand.numpixels; i++)  {
+            strand.pixels[i].r = 0;
+            strand.pixels[i].g = 0;
+            strand.pixels[i].b = 0;
+        }
+        xSemaphoreGive(strand_busy);
     }
     return(ESP_OK);
 }
@@ -131,8 +139,11 @@ esp_err_t pixels_clear(void)  {
  * effecting its playout
  */
 esp_err_t pixels_show(void)  {
-    ESP_ERROR_CHECK(rmt_transmit(led_chan, led_encoder, (const void *)(strand.pixels), (sizeof(pixel_t) * strand.numpixels), &tx_config));
-    ESP_ERROR_CHECK(rmt_tx_wait_all_done(led_chan, portMAX_DELAY));
+    if(xSemaphoreTake(RMT_busy, 10/portTICK_PERIOD_MS) == pdTRUE)  {
+        ESP_ERROR_CHECK(rmt_transmit(led_chan, led_encoder, (const void *)(strand.pixels), (sizeof(pixel_t) * strand.numpixels), &tx_config));
+        ESP_ERROR_CHECK(rmt_tx_wait_all_done(led_chan, portMAX_DELAY));
+        xSemaphoreGive(RMT_busy);
+    }
 
     return(ESP_OK);
 }
