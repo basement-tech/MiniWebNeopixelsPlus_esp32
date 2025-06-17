@@ -47,8 +47,16 @@ uint64_t millis(void)  {
 /*
  * define the general purpose timer for running the state machine
  */
+volatile uint8_t seq_upd_count = 0;
+volatile bool seq_upd_flag = false;
+volatile bool neo_cycle_next_flag = false;
 static bool neo_timer_on_alarm_cb(gptimer_handle_t timer, const gptimer_alarm_event_data_t *edata, void *user_ctx)  {
-  neo_cycle_next();
+  neo_cycle_next_flag = true;
+  if(seq_upd_count++ >= NEO_NEW_SEQ_DIV)  {
+    seq_upd_count = 0;
+    seq_upd_flag = true;
+  }
+
   return(true);
 }
 #define INTR_SQWAVE_FREQ   1000000  // timer frequency 1MHz, 1 tick=1us
@@ -113,6 +121,7 @@ int8_t neo_set_sequence(const char *label, const char *strategy)  {
    * attempt to set the sequence
    */
   new_index = neo_find_sequence(label);
+  ESP_LOGI(TAG, "neo_find_sequence returned new_index = %d", new_index);
   if((new_index >= 0) && (new_index != seq_index))  {
     seq_index = new_index;  // set the sequence index that is to be played
     ret = NEO_SUCCESS; // success
@@ -126,7 +135,7 @@ int8_t neo_set_sequence(const char *label, const char *strategy)  {
    * the initialized value
    */
   if(strategy[0] == '\0')  {
-    ESP_LOGD(TAG, "neo_set_sequence: using built in strategy %s for seq_index %d\n", neo_sequences[seq_index].strategy,seq_index);
+    ESP_LOGI(TAG, "neo_set_sequence: using built in strategy %s for seq_index %d\n", neo_sequences[seq_index].strategy,seq_index);
     if(ret == NEO_SUCCESS)  {
       if((new_strat = neo_set_strategy(neo_sequences[seq_index].strategy)) == SEQ_STRAT_UNDEFINED)
         ret = NEO_STRAT_ERR;
@@ -147,10 +156,12 @@ int8_t neo_set_sequence(const char *label, const char *strategy)  {
   */
   if(ret == NEO_SUCCESS)  {
     current_index = 0;  // reset the pixel count
-    neo_state = NEO_SEQ_START;  // cause the state machine to start at the start
     current_strategy = new_strat;
-    ESP_LOGD(TAG, "neo_set_sequence: set sequence to %d and strategy to %d\n", seq_index, current_strategy);
+    ESP_LOGI(TAG, "neo_set_sequence: set sequence to %d and strategy to %d\n", seq_index, current_strategy);
+    neo_state = NEO_SEQ_START;  // cause the state machine to start at the start
   }
+  else
+    ESP_LOGE(TAG, "Error setting new sequence %s", label);
 
   return(ret);
 }
@@ -398,6 +409,7 @@ void neo_init(void)  {
   pixels_clear(); // Set all pixel colors to 'off'
   pixels_show();   // Send the updated pixel colors to the hardware.
   neo_state = NEO_SEQ_STOPPED;
+
 
   neo_timer_setup();  // start the state machine timer
 }

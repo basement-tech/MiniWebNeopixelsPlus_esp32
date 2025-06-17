@@ -260,10 +260,21 @@ static void neopixel_process(void *pvParameters)  {
     pixels_alloc();
     neo_init();
 
+    while(1)  {
+        if(neo_cycle_next_flag == true)  {
+            neo_cycle_next_flag = false;
+            neo_cycle_next();
+        }
+        if(seq_upd_flag == true)  {
+            seq_upd_flag = false;
+            neo_new_sequence();
+        }
+    }
+
     /*
      * TODO
      * temporary test of neo_pixel activity
-     */
+
     while(1)  {
 
         if(on == true)  {
@@ -283,6 +294,7 @@ static void neopixel_process(void *pvParameters)  {
         pixels_show();
         vTaskDelay(1000 / portTICK_PERIOD_MS);
     }
+*/
 
 }
 

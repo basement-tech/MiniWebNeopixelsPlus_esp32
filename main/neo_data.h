@@ -12,7 +12,7 @@
 
 
 #define NEO_MAX_SEQ_FILE_SIZE 1024 // maximum size of a sequence file
-#define NEO_SEQ_STRATEGIES 6
+#define NEO_SEQ_STRATEGIES 5      // number of strategies defined (i.e. size of array of strategy callbacks)
 #define MAX_USER_SEQ       5      // maximum number of user buttons/files
 #define MAX_SEQUENCES      10     // number of sequences to allocate
 #define MAX_NUM_SEQ_POINTS 256    // maximum number of points per sequence
@@ -27,6 +27,8 @@
 #define NEO_FLICKER_MIN    0      // value for dim flickers
 
 #define NEO_UPDATE_INTERVAL 2000  // neopixel strand update rate in uS
+#define NEO_NEW_SEQ_DIV     100   // number of NEO_UPDATE_INTERVAL's to wait before checking for new sequence
+                                  // e.g. 100*2000 = 200 mS   ; counter is uint8_t
 
 /*
  * return error codes for reading a user sequence file
@@ -121,6 +123,7 @@ typedef struct {
 void neo_cycle_next(void);
 void neo_init(void);
 int8_t neo_is_user(const char *label);
+int8_t neo_new_sequence(void);
 int8_t neo_load_sequence(const char *file);
 int8_t neo_set_sequence(const char *label, const char *strategy);
 seq_strategy_t neo_set_strategy(const char *sstrategy);
@@ -134,6 +137,8 @@ void neo_set_gamma_color(bool gamma_enable);
 extern neo_data_t neo_sequences[MAX_SEQUENCES];  // sequence specifications
 extern int8_t seq_index;  // which sequence is being played out
 extern int8_t strategy_idx; // which strategy should be used to play a user file
+extern volatile bool seq_upd_flag;  // time to check if a new sequence was requested
+extern volatile bool neo_cycle_next_flag;  // move to next point?
 
 
 #endif
