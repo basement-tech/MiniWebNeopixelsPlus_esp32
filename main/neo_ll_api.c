@@ -43,6 +43,22 @@ esp_err_t pixels_init(void)  {
     ESP_LOGI(TAG, "Enable RMT TX channel");
     ESP_ERROR_CHECK(rmt_enable(led_chan));
 
+    strand_busy = xSemaphoreCreateMutex();
+    if(strand_busy == NULL)  {
+        ESP_LOGE(TAG, "Error creating strand_busy");
+    }
+    else{
+        ESP_LOGI(TAG, "strand_busy created successfully");
+    }
+
+    RMT_busy = xSemaphoreCreateMutex();
+    if(RMT_busy == NULL)  {
+        ESP_LOGE(TAG, "Error creating RMT_busy");
+    }
+    else{
+        ESP_LOGI(TAG, "RMT_busy created successfully");
+    }
+
     strand.numpixels = 0;
     strand.pixels = NULL;
 
