@@ -90,7 +90,7 @@ typedef enum {
   SEQ_STRAT_SINGLE,   // single shot : play the sequence once and STOP
   SEQ_STRAT_CHASE,    // attributes of a chase sequence are specified
   SEQ_STRAT_PONG,     // attributes of single moving pixel are specified
-  SEQ_STRAT_RAINBOW,  // attributes of a dynamic rainbow pattern are specified
+//  SEQ_STRAT_RAINBOW,  // attributes of a dynamic rainbow pattern are specified
   SEQ_STRAT_SLOWP,    // slow pulse - calculated sequence
   SEQ_STRAT_UNDEFINED
 }  seq_strategy_t;

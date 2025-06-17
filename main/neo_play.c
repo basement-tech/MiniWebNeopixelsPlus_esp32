@@ -160,8 +160,6 @@ int8_t neo_set_sequence(const char *label, const char *strategy)  {
     ESP_LOGI(TAG, "neo_set_sequence: set sequence to %d and strategy to %d\n", seq_index, current_strategy);
     neo_state = NEO_SEQ_START;  // cause the state machine to start at the start
   }
-  else
-    ESP_LOGE(TAG, "Error setting new sequence %s", label);
 
   return(ret);
 }
