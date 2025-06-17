@@ -731,7 +731,7 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
     }
 
     if(err == ESP_OK)  {
-        ESP_LOGI(REST_TAG, "button post sent:\n%s", buf);  // raw post body
+        ESP_LOGI(REST_TAG, "button post sent: >%s<", buf);  // raw post body
 
         if(json_parse_start(&jctx, buf, strlen(buf)) != OS_SUCCESS)  {
             ESP_LOGE(REST_TAG, "ERROR: Deserialization of button body failed");
@@ -754,6 +754,8 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
                 json_obj_get_string(&jctx, "file", jbuf, sizeof(jbuf));
                 strncpy(neo_mutex_data.file, jbuf, sizeof(neo_mutex_data.file));
                 ESP_LOGI(REST_TAG, "Sending filename %s", neo_mutex_data.file);
+
+                neo_mutex_data.new_data = true;
 
                 xSemaphoreGive(xneoMutex);
             }

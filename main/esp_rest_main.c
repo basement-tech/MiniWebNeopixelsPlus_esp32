@@ -243,22 +243,25 @@ static void neopixel_process(void *pvParameters)  {
         strncpy(neo_mutex_data.sequence, pmon_config->neodefault, MAX_NEO_SEQUENCE);
         ESP_LOGI(NEO_TAG, "%s to be sent as initial sequence", neo_mutex_data.sequence);
         neo_mutex_data.file[0] = '\0';  // default sequence has to be a built-in
+        neo_mutex_data.new_data = false;
         xSemaphoreGive(xneoMutex);
     }
-
-    /*
-     * TODO
-     * temporary test of file loading
-
-    if(neo_load_sequence("neo_user_1.json") != 0)
-        ESP_LOGE(NEO_TAG, "Error loading test sequence file");
-     */
     
     pixels_init();
     pixels_setcount(count);
     ESP_LOGI(NEO_TAG, "Allocating array for %d pixels", count);
     pixels_alloc();
     neo_init();
+
+    /*
+     * kick-off the first sequence
+     */
+    if(xSemaphoreTake(xneoMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
+        ESP_LOGE(NEO_TAG, "Failed to take mutex on initial sequence set ... no change");
+    else  {
+        neo_mutex_data.new_data = true;
+        xSemaphoreGive(xneoMutex);
+    }
 
     while(1)  {
         if(neo_cycle_next_flag == true)  {

@@ -1166,17 +1166,24 @@ int8_t neo_new_sequence(void)  {
   int8_t neoerr = NEO_SUCCESS;
   neo_mutex_data_t l_neo;  // local copy so as not to hold the mutex
 
+  l_neo.new_data = false;
+
   /*
    * try to grab the semaphore to check if a new sequence was requesed
    * (just poll, don't wait ... you'll get it the next time around)
    */
   if(xSemaphoreTake(xneoMutex, 0) == pdTRUE)  {
-    memcpy(&l_neo, &neo_mutex_data, sizeof(neo_mutex_data_t));
-    xSemaphoreGive(xneoMutex);
+    if(neo_mutex_data.new_data == true)  {
+      memcpy(&l_neo, &neo_mutex_data, sizeof(neo_mutex_data_t));
+      neo_mutex_data.new_data = false;
+    }
+    xSemaphoreGive(xneoMutex);  // be done with it ASAP
+  }
 
+  if(l_neo.new_data == true)  {
     /*
-     * process the button that was pressed based on the seq string
-     */
+    * process the button that was pressed based on the seq string
+    */
     if(l_neo.sequence[0] != '\0')  {
       ESP_LOGI(TAG, "Setting sequence to %s", l_neo.sequence);
 

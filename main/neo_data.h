@@ -55,6 +55,7 @@
 typedef struct {
     char sequence[MAX_NEO_SEQUENCE];
     char file[MAX_FILENAME];
+    bool new_data;
 }  neo_mutex_data_t;
 
 /*
