@@ -300,14 +300,14 @@ static void neopixel_process(void *pvParameters)  {
         xSemaphoreGive(xneoMutex);
     }
     
-    pixels_init();
-    pixels_setcount(count);
+    pixels_init();  // set up the low level neo_pixel RMT engine
+    pixels_setcount(count);  // set the number of pixels in the strand
     ESP_LOGI(NEO_TAG, "Allocating array for %d pixels", count);
-    pixels_alloc();
-    neo_init();
+    pixels_alloc();  // allocate neo_pixel color array based on number of pixels
+    neo_init();  // initialize strand parameters and ready the sequence state machine
 
     /*
-     * kick-off the first sequence
+     * kick-off the first/default sequence (based on eeprom parameter)
      */
     if(xSemaphoreTake(xneoMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
         ESP_LOGE(NEO_TAG, "Failed to take mutex on initial sequence set ... no change");
@@ -330,35 +330,11 @@ static void neopixel_process(void *pvParameters)  {
 
         /*
          * check to see of a new sequence was requested
+         * TODO: need to propagate the error back to client
          */
-        neo_new_sequence();
+        if(neo_new_sequence() != NEO_SUCCESS)
+            neo_cycle_stop();
     }
-
-    /*
-     * TODO
-     * temporary test of neo_pixel activity
-
-    while(1)  {
-
-        if(on == true)  {
-            on = false;
-            r = 50;
-            g = 0;
-            b = 0;
-        }
-        else  {
-            on = true;
-            r = 0;
-            g = 0;
-            b = 50;
-        }
-        for(uint16_t i = 0; i < count; i++)
-            pixels_setPixelColorRGB(i, r, g, b, 0);
-        pixels_show();
-        vTaskDelay(1000 / portTICK_PERIOD_MS);
-    }
-*/
-
 }
 
 void app_main(void)
@@ -407,6 +383,5 @@ void app_main(void)
      */
     ESP_LOGI(TAG, "Starting neopixel process from main() ...");
     xTaskCreate(neopixel_process, "neopixel_process", 4096, NULL, 10, NULL);
-    //xTaskCreatePinnedToCore(neopixel_process, "neopixel_process", 4096, NULL, 10, NULL, 1);
 
 }
