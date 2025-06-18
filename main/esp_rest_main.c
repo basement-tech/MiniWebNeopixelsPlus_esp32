@@ -318,7 +318,7 @@ static void neopixel_process(void *pvParameters)  {
 
     while(1)  {
         /*
-         * wait at most 200 mS for the cycle next flag.  After the timeout,
+         * wait at most e.g. 200 mS for the cycle next flag.  After the timeout,
          * check to see if a new sequence was requested.  If a sequence is 
          * running, this might be very often.  If not, it will be at the timeout
          * interval.
