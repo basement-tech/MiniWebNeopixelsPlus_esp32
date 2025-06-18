@@ -26,7 +26,7 @@
 #define NEO_FLICKER_MAX    255    // value for bright flickers
 #define NEO_FLICKER_MIN    0      // value for dim flickers
 
-#define NEO_UPDATE_INTERVAL 2000  // neopixel strand update rate in uS
+#define NEO_UPDATE_INTERVAL 2000  // neopixel strand update rate in uS i.e. speed of state machine updates uS
 #define NEO_NEW_SEQ_DIV     1000   // number of NEO_UPDATE_INTERVAL's to wait before checking for new sequence
                                   // e.g. 100*2000 = 200 mS   ; counter is uint32_t
 

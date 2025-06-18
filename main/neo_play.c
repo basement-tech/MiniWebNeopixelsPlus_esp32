@@ -420,8 +420,16 @@ void neo_init(void)  {
 
 /*
  * TODO: figure out a better way to do this
+ * __asm__ __volatile__("" ::: "memory") is an assembly
+ * language directive to keep the empty function from being
+ * optimized in any way:
+ * __asm__ or asm: GCC keyword for inline assembly
+ * __volatile__: Prevents the compiler from optimizing the statement away
+ * "": Empty assembly instruction — this means no actual machine instruction is generated
+ * ::: "memory": Declares a "memory clobber", which tells the compiler
  */
-void noop(void) {}
+//void noop(void) {vTaskDelay(10/portTICK_PERIOD_MS);}
+void noop(void) {__asm__ __volatile__("" ::: "memory");}
 void start_noop(bool clear) {}
 
 
@@ -1156,6 +1164,7 @@ void neo_cycle_next(void)  {
       break;
 
     default:
+      ESP_LOGD(TAG, "Invalid State");  //thread safety test
       break;
   }
 }
