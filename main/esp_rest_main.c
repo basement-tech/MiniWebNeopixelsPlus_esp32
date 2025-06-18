@@ -33,6 +33,14 @@
  * joltwallet_littlefs - littleFS embedded filesystem
  * espressif_mdns - mdns for hostname access via .local
  * 
+ * Important esp-idf configuration items to set
+ * --------------------------------------------
+ * wifi ssid
+ * wifi passwd
+ * FREERTOS frequency to 1000 (from 100)
+ * filesystem type to LittleFS
+ * 
+ * 
  * Timers
  * ------
  * https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/peripherals/gptimer.html
@@ -61,7 +69,8 @@
 #include "esp_log.h"
 #include "mdns.h"
 #include "lwip/apps/netbiosns.h"
-#include "protocol_examples_common.h"
+//#include "protocol_examples_common.h"
+#include "station_example.h"
 
 #include "neo_system.h"
 #include "bt_eepromlib.h"
@@ -369,7 +378,10 @@ void app_main(void)
     netbiosns_set_name(CONFIG_EXAMPLE_MDNS_HOST_NAME);
 
     ESP_LOGI(TAG, "Initializing wifi ...");
-    ESP_ERROR_CHECK(example_connect());
+    if(wifi_init_sta(CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD) == ESP_OK)
+        ESP_LOGI(TAG, "wifi connected successfully");
+    else
+        ESP_LOGE(TAG, "wifi couldn't connect to %s", CONFIG_ESP_WIFI_SSID);
 
     ESP_LOGI(TAG, "Initializing local filesystem ...");
     ESP_ERROR_CHECK(init_fs());
