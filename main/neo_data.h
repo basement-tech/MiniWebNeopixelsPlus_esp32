@@ -26,9 +26,8 @@
 #define NEO_FLICKER_MAX    255    // value for bright flickers
 #define NEO_FLICKER_MIN    0      // value for dim flickers
 
-#define NEO_UPDATE_INTERVAL 2000  // neopixel strand update rate in uS i.e. speed of state machine updates uS
-#define NEO_NEW_SEQ_DIV     1000   // number of NEO_UPDATE_INTERVAL's to wait before checking for new sequence
-                                  // e.g. 100*2000 = 200 mS   ; counter is uint32_t
+#define NEO_UPDATE_INTERVAL   2000  // neopixel strand update rate in uS i.e. speed of state machine updates uS
+#define NEO_CHK_NEWS_INTERVAL 200/portTICK_PERIOD_MS   // timeout for state machine update semaphore, becomes check for new sequence interval (mS)
 
 /*
  * return error codes for reading a user sequence file
@@ -63,6 +62,9 @@ typedef struct {
  */
 extern SemaphoreHandle_t xneoMutex;  // used to protect communication to neo_play
 extern neo_mutex_data_t neo_mutex_data;  // data to be sent to neo_play process from webserver
+
+extern SemaphoreHandle_t xneo_cycle_next_flag;  // neo state machine cycle timer
+extern SemaphoreHandle_t xseq_upd_flag;  // new sequence requested
 
 /*
  * struct for individual points in the pattern
@@ -138,8 +140,5 @@ void neo_set_gamma_color(bool gamma_enable);
 extern neo_data_t neo_sequences[MAX_SEQUENCES];  // sequence specifications
 extern int8_t seq_index;  // which sequence is being played out
 extern int8_t strategy_idx; // which strategy should be used to play a user file
-extern volatile bool seq_upd_flag;  // time to check if a new sequence was requested
-extern volatile bool neo_cycle_next_flag;  // move to next point?
-
 
 #endif

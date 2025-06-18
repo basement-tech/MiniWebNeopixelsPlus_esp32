@@ -256,6 +256,9 @@ static void gpio_init(void)  {
 SemaphoreHandle_t xneoMutex;  // used to protect communication to neo_play
 neo_mutex_data_t neo_mutex_data;  // data to be sent to neo_play process from webserver
 
+SemaphoreHandle_t xneo_cycle_next_flag;  // neo state machine cycle timer
+SemaphoreHandle_t xseq_upd_flag;  // new sequence requested
+
 #define NEO_TAG "neopixel_process"
 static void neopixel_process(void *pvParameters)  {
     uint16_t count = atoi(pmon_config->neocount);
@@ -263,6 +266,20 @@ static void neopixel_process(void *pvParameters)  {
     uint8_t r, g, b;
 
     gpio_init();  // for debugging
+
+    if((xneo_cycle_next_flag = xSemaphoreCreateBinary()) == NULL)
+        ESP_LOGE(NEO_TAG, "Error creating xneo_cycle_next_flag semaphore");
+    else  {
+        ESP_LOGI(NEO_TAG, "xneo_cycle_next_flag semaphore created successfully");
+        xSemaphoreGive(xneo_cycle_next_flag);  // make it available
+    }
+
+    if((xseq_upd_flag = xSemaphoreCreateBinary()) == NULL)
+        ESP_LOGE(NEO_TAG, "Error creating xseq_upd_flag semaphore");
+    else  {
+        ESP_LOGI(NEO_TAG, "xseq_upd_flag semaphore created successfully");
+        xSemaphoreGive(xneo_cycle_next_flag);  // make it available
+    }
 
     xneoMutex = xSemaphoreCreateMutex();
 
@@ -300,19 +317,21 @@ static void neopixel_process(void *pvParameters)  {
     }
 
     while(1)  {
-        if(neo_cycle_next_flag == true)  {
-            gpio_set_level(GPIO_OUTPUT_IO_1, 1);
-            neo_cycle_next_flag = false;
-            neo_cycle_next();
-        }
-        else
-            gpio_set_level(GPIO_OUTPUT_IO_1, 0);
+        /*
+         * wait at most 200 mS for the cycle next flag.  After the timeout,
+         * check to see if a new sequence was requested.  If a sequence is 
+         * running, this might be very often.  If not, it will be at the timeout
+         * interval.
+         */
+        xSemaphoreTake(xneo_cycle_next_flag, NEO_CHK_NEWS_INTERVAL);  // wait for the signal from timer
+        gpio_set_level(GPIO_OUTPUT_IO_1, 1);
+        neo_cycle_next();
+        gpio_set_level(GPIO_OUTPUT_IO_1, 0);
 
-        if(seq_upd_flag == true)  {
-            seq_upd_flag = false;
-            neo_new_sequence();
-        }
-        //vTaskDelay(1 / portTICK_PERIOD_MS);
+        /*
+         * check to see of a new sequence was requested
+         */
+        neo_new_sequence();
     }
 
     /*
