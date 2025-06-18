@@ -312,7 +312,7 @@ int8_t neo_load_sequence(const char *file)  {
            * reserialize bonus for later use
            * Note: printf() is already in use to the memory footprint is blown already.
            */
-          snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "{\"bonus\": %s}", bonus);  // save BONUS
+          snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "%s", bonus);  // save BONUS
           ESP_LOGI(TAG, "Reserialized bonus: %s", neo_sequences[seq_idx].bonus);
 
           /*
