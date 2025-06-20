@@ -271,8 +271,6 @@ SemaphoreHandle_t xseq_upd_flag;  // new sequence requested
 #define NEO_TAG "neopixel_process"
 static void neopixel_process(void *pvParameters)  {
     uint16_t count = atoi(pmon_config->neocount);
-    bool on = false;
-    uint8_t r, g, b;
 
     gpio_init();  // for debugging
 

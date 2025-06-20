@@ -481,7 +481,7 @@ void eeprom_user_input(bool out)  {
 
     CLI_PRINTF("\n");
     dispall_eeprom_parms();
-    CLI_PRINTF("Press any key to accept, or reset to correct (no change after 10 sec countdown)");
+    CLI_PRINTF("Press any key to accept, or reset to correct (no change after 10 sec countdown)\n");
     prompt_countdown(&save);
 
     if(save == true)  {
