@@ -362,6 +362,9 @@ void app_main(void)
     eeprom_user_input(out);  // get the user input based on whether the user hit a key
     pmon_config = get_mon_config_ptr();
     
+    /*
+     * setup wifi networking and mdns
+     */
     ESP_LOGI(TAG, "Initializing NVS ...");
     ESP_ERROR_CHECK(nvs_flash_init());
 
@@ -386,12 +389,14 @@ void app_main(void)
     ESP_LOGI(TAG, "Initializing local filesystem ...");
     ESP_ERROR_CHECK(init_fs());
 
-    
+    /*
+     * start the webserver
+     */
     ESP_LOGI(TAG, "Starting webserver ...");
     ESP_ERROR_CHECK(start_rest_server(CONFIG_EXAMPLE_WEB_MOUNT_POINT));
 
     /*
-     * create a task to play out the neopixel example
+     * start the neopixel engine in a separate task
      */
     ESP_LOGI(TAG, "Starting neopixel process from main() ...");
     xTaskCreate(neopixel_process, "neopixel_process", 4096, NULL, 10, NULL);
