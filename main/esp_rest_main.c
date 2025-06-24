@@ -379,7 +379,9 @@ void app_main(void)
     netbiosns_set_name(CONFIG_EXAMPLE_MDNS_HOST_NAME);
 
     ESP_LOGI(TAG, "Initializing wifi ...");
-    if(wifi_init_sta(CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD) == ESP_OK)
+    
+    if(wifi_init_sta(CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD, 
+                    (strcmp("true", pmon_config->dhcp_enable) ? false : true)) == ESP_OK)
         ESP_LOGI(TAG, "wifi connected successfully");
     else
         ESP_LOGE(TAG, "wifi couldn't connect to %s", CONFIG_ESP_WIFI_SSID);

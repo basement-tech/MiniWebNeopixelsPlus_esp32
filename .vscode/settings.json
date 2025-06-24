@@ -20,6 +20,7 @@
         "*.inc": "c",
         "fcntl.h": "c",
         "esp_vfs.h": "c",
-        "esp_vfs_fat.h": "c"
+        "esp_vfs_fat.h": "c",
+        "bt_eepromlib.h": "c"
     }
 }

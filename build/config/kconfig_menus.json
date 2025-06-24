@@ -5096,6 +5096,86 @@
                 "type": "string"
             },
             {
+                "children": [],
+                "depends_on": null,
+                "help": "Set static IP address.",
+                "id": "EXAMPLE_STATIC_IP_ADDR",
+                "name": "EXAMPLE_STATIC_IP_ADDR",
+                "range": null,
+                "title": "Static IP address",
+                "type": "string"
+            },
+            {
+                "children": [],
+                "depends_on": null,
+                "help": "Set static netmask address.",
+                "id": "EXAMPLE_STATIC_NETMASK_ADDR",
+                "name": "EXAMPLE_STATIC_NETMASK_ADDR",
+                "range": null,
+                "title": "Static netmask address",
+                "type": "string"
+            },
+            {
+                "children": [],
+                "depends_on": null,
+                "help": "Set static gateway address.",
+                "id": "EXAMPLE_STATIC_GW_ADDR",
+                "name": "EXAMPLE_STATIC_GW_ADDR",
+                "range": null,
+                "title": "Static gateway address",
+                "type": "string"
+            },
+            {
+                "children": [
+                    {
+                        "children": [],
+                        "depends_on": "<choice EXAMPLE_STATIC_DNS_SERVER>",
+                        "help": "Set DNS server the same as gateway address",
+                        "id": "EXAMPLE_STATIC_DNS_AUTO",
+                        "name": "EXAMPLE_STATIC_DNS_AUTO",
+                        "range": null,
+                        "title": "Use gateway address as DNS server",
+                        "type": "bool"
+                    },
+                    {
+                        "children": [],
+                        "depends_on": "<choice EXAMPLE_STATIC_DNS_SERVER>",
+                        "help": "Set DNS server with you want",
+                        "id": "EXAMPLE_STATIC_DNS_MANUAL",
+                        "name": "EXAMPLE_STATIC_DNS_MANUAL",
+                        "range": null,
+                        "title": "Set manual value as DNS server",
+                        "type": "bool"
+                    }
+                ],
+                "depends_on": null,
+                "help": "Select auto to make gateway address as DNS server or manual to input your DNS server",
+                "id": "wifi-station-configuration-choose-dns-server",
+                "name": "EXAMPLE_STATIC_DNS_SERVER",
+                "title": "Choose DNS server",
+                "type": "choice"
+            },
+            {
+                "children": [],
+                "depends_on": "EXAMPLE_STATIC_DNS_MANUAL",
+                "help": "Set main DNS server address.",
+                "id": "EXAMPLE_STATIC_DNS_SERVER_MAIN",
+                "name": "EXAMPLE_STATIC_DNS_SERVER_MAIN",
+                "range": null,
+                "title": "Main DNS server address",
+                "type": "string"
+            },
+            {
+                "children": [],
+                "depends_on": "EXAMPLE_STATIC_DNS_MANUAL",
+                "help": "Set backup DNS server address. It can be same with the main DNS server address or leave empty.",
+                "id": "EXAMPLE_STATIC_DNS_SERVER_BACKUP",
+                "name": "EXAMPLE_STATIC_DNS_SERVER_BACKUP",
+                "range": null,
+                "title": "Backup DNS server address",
+                "type": "string"
+            },
+            {
                 "children": [
                     {
                         "children": [],
