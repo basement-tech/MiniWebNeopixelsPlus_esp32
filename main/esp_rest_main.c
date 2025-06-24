@@ -91,6 +91,7 @@
 static const char *TAG = "esp_rest_main";
 
 net_config_t *pmon_config;
+esp_netif_ip_info_t ip;  // needs to be global because pointer is passed around and expected to be persistent
 
 esp_err_t start_rest_server(const char *base_path);
 
@@ -379,9 +380,22 @@ void app_main(void)
     netbiosns_set_name(CONFIG_EXAMPLE_MDNS_HOST_NAME);
 
     ESP_LOGI(TAG, "Initializing wifi ...");
-    
+
+#ifdef TEMP_INFO
+    typedef struct {
+    esp_ip4_addr_t ip;      /**< Interface IPV4 address */
+    esp_ip4_addr_t netmask; /**< Interface IPV4 netmask */
+    esp_ip4_addr_t gw;      /**< Interface IPV4 gateway address */
+} esp_netif_ip_info_t;
+#endif
+
+    /*
+     * currently just using the menuConfig values and using the value
+     * of the pointer to do the switching
+     * TODO: look at dhcp_enable to fill in/not the structure and send
+     */
     if(wifi_init_sta(CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD, 
-                    (strcmp("true", pmon_config->dhcp_enable) ? false : true)) == ESP_OK)
+                    (strcmp("true", pmon_config->dhcp_enable) ? NULL : &ip)) == ESP_OK)
         ESP_LOGI(TAG, "wifi connected successfully");
     else
         ESP_LOGE(TAG, "wifi couldn't connect to %s", CONFIG_ESP_WIFI_SSID);

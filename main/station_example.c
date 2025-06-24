@@ -71,7 +71,7 @@
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
-static bool l_static_ip = false;
+static esp_netif_ip_info_t *l_static_ip;
 
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP
@@ -98,7 +98,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
-        if(l_static_ip == true)
+        if(l_static_ip != NULL)
             example_set_static_ip((esp_netif_t *)arg);
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
@@ -152,11 +152,11 @@ static void example_set_static_ip(esp_netif_t *netif)
     ESP_ERROR_CHECK(example_set_dns_server(netif, ipaddr_addr(EXAMPLE_BACKUP_DNS_SERVER), ESP_NETIF_DNS_BACKUP));
 }
 
-esp_err_t wifi_init_sta(char *ssid, char *passwd, bool static_ip)
+esp_err_t wifi_init_sta(char *ssid, char *passwd, esp_netif_ip_info_t *ip)
 {
     esp_err_t err = ESP_OK;
 
-    l_static_ip = static_ip;
+    l_static_ip = ip;  // needed for retry/reconnect
 
     s_wifi_event_group = xEventGroupCreate();
 
