@@ -560,8 +560,8 @@ int lisdigit(char in)  {
 
 /*
  * convert a string based ip4 representation of an ip address to four octets
- * octets[0] is the left-most part of the address:
- * octet[0].octet[1].octet[2].octet[3]
+ *
+ * octet[3].octet[2].octet[1].octet[0]
  * 
  * return value:
  * 0  : no errors
@@ -623,7 +623,7 @@ uint32_t eeprom_stack_ip(uint8_t octets[])  {
   uint32_t ip32 = 0x0;
   uint32_t shifted_octet = 0x0;
 
-  for(uint8_t i = 0, bits = 24; i <= 3; i++, bits -= 8)  {
+  for(int8_t i = 3, bits = 24; i >= 0; i--, bits -= 8)  {
     shifted_octet = 0x0;
     shifted_octet = (octets[i] & 0xff) << bits;
     ip32 |= shifted_octet;

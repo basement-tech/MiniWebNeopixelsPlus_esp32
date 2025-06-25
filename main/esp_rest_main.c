@@ -388,7 +388,10 @@ void app_main(void)
     esp_ip4_addr_t gw;      /**< Interface IPV4 gateway address */
 } esp_netif_ip_info_t;
 #endif
-
+    /*
+     * convert the string based fixed ip address parameter
+     * to the stacked 32-bit version that the espressif netif requires.
+     */
     uint8_t octets[4] = {0, 0, 0, 0};
     uint32_t ip32_addr = 0;
     int ret = 0;
@@ -397,6 +400,9 @@ void app_main(void)
     ESP_LOGI(TAG, "Fixed address as string parameter = %s", pmon_config->ipaddr);
     ip32_addr = eeprom_stack_ip(octets);
     ESP_LOGI(TAG, "32 bit representation of static ip = %lx", ip32_addr);
+
+    ip32_addr = ipaddr_addr(pmon_config->ipaddr);
+    ESP_LOGI(TAG, "espressif ip conversion result %lx", ip32_addr);
 
 
     /*
