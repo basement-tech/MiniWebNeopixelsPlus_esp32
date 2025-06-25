@@ -91,7 +91,7 @@
 static const char *TAG = "esp_rest_main";
 
 net_config_t *pmon_config;
-esp_netif_ip_info_t ip;  // needs to be global because pointer is passed around and expected to be persistent
+ 
 
 esp_err_t start_rest_server(const char *base_path);
 
@@ -333,7 +333,7 @@ static void neopixel_process(void *pvParameters)  {
          */
         xSemaphoreTake(xneo_cycle_next_flag, NEO_CHK_NEWS_INTERVAL);  // wait for the signal from timer
         gpio_set_level(GPIO_OUTPUT_IO_1, 1);
-        neo_cycle_next();
+        neo_cycle_next();  // cycle the neopixel state machine, noop if not running
         gpio_set_level(GPIO_OUTPUT_IO_1, 0);
 
         /*
@@ -344,6 +344,53 @@ static void neopixel_process(void *pvParameters)  {
             neo_cycle_stop();
     }
 }
+
+/*
+ * start the wifi station - helper to unclutter main()
+ */
+
+void init_wifi(void)  {
+
+    esp_netif_ip_info_t ip;  // potential static ip address
+
+    /*
+     * convert the string based fixed ip address parameter
+     * to the stacked 32-bit version that the espressif netif requires.
+     */
+    uint32_t ip32_addr = 0;
+
+    /*
+     * if DHCP is disabled, convert the string-based static IP address
+     * and set it where the wifi init can see it.
+     * 
+     * if there is an error converting the IP address, 
+     * use the values that are compiled in via menuConfig.
+     */
+    if(strcmp("false", pmon_config->dhcp_enable) == 0)  {
+        if((ip32_addr = ipaddr_addr(pmon_config->ipaddr)) == IPADDR_NONE)  {
+            ESP_LOGE(TAG, "Error converting IP address %s from eeprom", pmon_config->ipaddr);
+            ip.ip.addr = ipaddr_addr(CONFIG_EXAMPLE_STATIC_IP_ADDR);
+            ip.gw.addr = ipaddr_addr(CONFIG_EXAMPLE_STATIC_GW_ADDR);
+            ip.netmask.addr = ipaddr_addr(CONFIG_EXAMPLE_STATIC_NETMASK_ADDR);
+        }
+        else  {
+            ESP_LOGI(TAG, "DHCP disabled, setting static IP address: %s (0x%lx)", pmon_config->ipaddr, ip32_addr);
+            ip.ip.addr = ip32_addr;
+            ip.gw.addr = ipaddr_addr(CONFIG_EXAMPLE_STATIC_GW_ADDR);
+            ip.netmask.addr = ipaddr_addr(CONFIG_EXAMPLE_STATIC_NETMASK_ADDR);
+        }
+        set_static_ip_address_data(ip);
+    }
+
+
+    if(wifi_init_sta(CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD, 
+                    (strcmp("true", pmon_config->dhcp_enable) ? false : true)) == ESP_OK)
+        ESP_LOGI(TAG, "wifi connected successfully");
+    else
+        ESP_LOGE(TAG, "wifi couldn't connect to %s", CONFIG_ESP_WIFI_SSID);
+
+}
+
 
 void app_main(void)
 {
@@ -380,41 +427,7 @@ void app_main(void)
     netbiosns_set_name(CONFIG_EXAMPLE_MDNS_HOST_NAME);
 
     ESP_LOGI(TAG, "Initializing wifi ...");
-
-#ifdef TEMP_INFO
-    typedef struct {
-    esp_ip4_addr_t ip;      /**< Interface IPV4 address */
-    esp_ip4_addr_t netmask; /**< Interface IPV4 netmask */
-    esp_ip4_addr_t gw;      /**< Interface IPV4 gateway address */
-} esp_netif_ip_info_t;
-#endif
-    /*
-     * convert the string based fixed ip address parameter
-     * to the stacked 32-bit version that the espressif netif requires.
-     */
-    uint8_t octets[4] = {0, 0, 0, 0};
-    uint32_t ip32_addr = 0;
-    int ret = 0;
-    if((ret = eeprom_convert_ip(pmon_config->ipaddr, octets)) < 0)
-        ESP_LOGE(TAG, "Error %d converting static IP address >%s< to octets", ret, pmon_config->ipaddr);
-    ESP_LOGI(TAG, "Fixed address as string parameter = %s", pmon_config->ipaddr);
-    ip32_addr = eeprom_stack_ip(octets);
-    ESP_LOGI(TAG, "32 bit representation of static ip = %lx", ip32_addr);
-
-    ip32_addr = ipaddr_addr(pmon_config->ipaddr);
-    ESP_LOGI(TAG, "espressif ip conversion result %lx", ip32_addr);
-
-
-    /*
-     * currently just using the menuConfig values and using the value
-     * of the pointer to do the switching
-     * TODO: look at dhcp_enable to fill in/not the structure and send
-     */
-    if(wifi_init_sta(CONFIG_ESP_WIFI_SSID, CONFIG_ESP_WIFI_PASSWORD, 
-                    (strcmp("true", pmon_config->dhcp_enable) ? NULL : &ip)) == ESP_OK)
-        ESP_LOGI(TAG, "wifi connected successfully");
-    else
-        ESP_LOGE(TAG, "wifi couldn't connect to %s", CONFIG_ESP_WIFI_SSID);
+    init_wifi();
 
     ESP_LOGI(TAG, "Initializing local filesystem ...");
     ESP_ERROR_CHECK(init_fs());

@@ -71,7 +71,8 @@
 
 /* FreeRTOS event group to signal when we are connected*/
 static EventGroupHandle_t s_wifi_event_group;
-static esp_netif_ip_info_t *l_static_ip;
+esp_netif_ip_info_t gStaticIP;  // potential static ip address, if dhcp not enabled
+static bool DHCPEnable = true;  // is dhcp active, if not set the static addr
 
 /* The event group allows multiple bits for each event, but we only care about two events:
  * - we are connected to the AP with an IP
@@ -98,7 +99,7 @@ static void event_handler(void* arg, esp_event_base_t event_base,
     if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_START) {
         esp_wifi_connect();
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_CONNECTED) {
-        if(l_static_ip != NULL)
+        if(DHCPEnable == false)
             example_set_static_ip((esp_netif_t *)arg);
     } else if (event_base == WIFI_EVENT && event_id == WIFI_EVENT_STA_DISCONNECTED) {
         if (s_retry_num < EXAMPLE_ESP_MAXIMUM_RETRY) {
@@ -128,6 +129,10 @@ static esp_err_t example_set_dns_server(esp_netif_t *netif, uint32_t addr, esp_n
     return ESP_OK;
 }
 
+void set_static_ip_address_data(esp_netif_ip_info_t ip)  {
+    memcpy(&gStaticIP, &ip, sizeof(gStaticIP));
+}
+
 /*
  * set a static address after allowing the connection
  * to come up with the default (dhcp active)
@@ -138,12 +143,14 @@ static void example_set_static_ip(esp_netif_t *netif)
         ESP_LOGE(TAG, "Failed to stop dhcp client");
         return;
     }
+#ifdef CUT
     esp_netif_ip_info_t ip;
     memset(&ip, 0 , sizeof(esp_netif_ip_info_t));
     ip.ip.addr = ipaddr_addr(EXAMPLE_STATIC_IP_ADDR);
     ip.netmask.addr = ipaddr_addr(EXAMPLE_STATIC_NETMASK_ADDR);
     ip.gw.addr = ipaddr_addr(EXAMPLE_STATIC_GW_ADDR);
-    if (esp_netif_set_ip_info(netif, &ip) != ESP_OK) {
+#endif
+    if (esp_netif_set_ip_info(netif, &gStaticIP) != ESP_OK) {
         ESP_LOGE(TAG, "Failed to set ip info");
         return;
     }
@@ -152,11 +159,11 @@ static void example_set_static_ip(esp_netif_t *netif)
     ESP_ERROR_CHECK(example_set_dns_server(netif, ipaddr_addr(EXAMPLE_BACKUP_DNS_SERVER), ESP_NETIF_DNS_BACKUP));
 }
 
-esp_err_t wifi_init_sta(char *ssid, char *passwd, esp_netif_ip_info_t *ip)
+esp_err_t wifi_init_sta(char *ssid, char *passwd, bool dhcp_enable)
 {
     esp_err_t err = ESP_OK;
 
-    l_static_ip = ip;  // needed for retry/reconnect
+    DHCPEnable = dhcp_enable;
 
     s_wifi_event_group = xEventGroupCreate();
 
