@@ -553,13 +553,24 @@ void eeprom_user_input(bool out)  {
  *          -1 if any error is encountered
  */
 int lisdigit(char in)  {
-  if((in < '9') && (in > '0'))
+  if((in <= '9') && (in >= '0'))
     return(1);
   return(0);
 }
 
+/*
+ * convert a string based ip4 representation of an ip address to four octets
+ * octets[0] is the left-most part of the address:
+ * octet[0].octet[1].octet[2].octet[3]
+ * 
+ * return value:
+ * 0  : no errors
+ * -1 : range error after conversion
+ * -2 : non-numeric digit encountered
+ * -3 : temp buffer overflow
+ */
 int8_t eeprom_convert_ip(char *sipaddr, uint8_t octets[])  {
-  int8_t ret = 0;
+  int8_t ret = 0;  // start with no errors
   int8_t converts = 0;  // number of dots found as error check
   int32_t value = 0;  // temp in case out of bounds
 
@@ -570,9 +581,9 @@ int8_t eeprom_convert_ip(char *sipaddr, uint8_t octets[])  {
   for(int i = 0; ((i <= 3) && (ret == 0)); i++)  {
     while((*sipaddr != '.') && (*sipaddr != '\0') && (ret == 0))  {
       if(lisdigit(*sipaddr) == 0)
-        ret = -1;
+        ret = -2;
       else if(--nbuf <= 0)
-        ret = -1;
+        ret = -3;
       else
         *plbuf++ = *sipaddr++;  // find the next delimiter
     }
@@ -606,6 +617,19 @@ int8_t eeprom_convert_ip(char *sipaddr, uint8_t octets[])  {
     }
 
   return(ret);
+}
+
+uint32_t eeprom_stack_ip(uint8_t octets[])  {
+  uint32_t ip32 = 0x0;
+  uint32_t shifted_octet = 0x0;
+
+  for(uint8_t i = 0, bits = 24; i <= 3; i++, bits -= 8)  {
+    shifted_octet = 0x0;
+    shifted_octet = (octets[i] & 0xff) << bits;
+    ip32 |= shifted_octet;
+  }
+
+  return(ip32);
 }
 
 /*

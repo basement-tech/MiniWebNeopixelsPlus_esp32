@@ -389,6 +389,16 @@ void app_main(void)
 } esp_netif_ip_info_t;
 #endif
 
+    uint8_t octets[4] = {0, 0, 0, 0};
+    uint32_t ip32_addr = 0;
+    int ret = 0;
+    if((ret = eeprom_convert_ip(pmon_config->ipaddr, octets)) < 0)
+        ESP_LOGE(TAG, "Error %d converting static IP address >%s< to octets", ret, pmon_config->ipaddr);
+    ESP_LOGI(TAG, "Fixed address as string parameter = %s", pmon_config->ipaddr);
+    ip32_addr = eeprom_stack_ip(octets);
+    ESP_LOGI(TAG, "32 bit representation of static ip = %lx", ip32_addr);
+
+
     /*
      * currently just using the menuConfig values and using the value
      * of the pointer to do the switching
