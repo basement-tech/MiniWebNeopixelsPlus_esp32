@@ -83,13 +83,15 @@ struct eeprom_in  {
  * attempt is made to limp along with defaults.
  * 
  */
-#define EEPROM_ITEMS 13
+#define EEPROM_ITEMS 15
 struct eeprom_in eeprom_input[EEPROM_ITEMS] = {
   {"",                                           "Validation",    "",                                       mon_config.valid,            sizeof(mon_config.valid)},
   {"DHCP Enable (true, false)",                  "WIFI_DHCP",     "false",                                  mon_config.dhcp_enable,      sizeof(mon_config.dhcp_enable)},
   {"Enter WIFI SSID",                            "WIFI_SSID",     "my_ssid",                                mon_config.wlan_ssid,        sizeof(mon_config.wlan_ssid)},
   {"Enter WIFI Password",                        "WIFI_Password", "my_passwd",                              mon_config.wlan_pass,        sizeof(mon_config.wlan_pass)},
   {"Enter Fixed IP Addr",                        "Fixed_IP_Addr", "192.168.1.37",                           mon_config.ipaddr,           sizeof(mon_config.ipaddr)},
+  {"Enter GW IP Addr",                           "GW_IP_Addr",    "192.168.1.1",                            mon_config.gwaddr,           sizeof(mon_config.gwaddr)},
+  {"Enter Netmask",                              "Netmask",       "255.255.255.1",                          mon_config.netmask,          sizeof(mon_config.netmask)},
   {"WiFi timeout (# of 500 mS tries)",           "WIFI_timeout",  "10",                                     mon_config.wifitries,        sizeof(mon_config.wifitries)},
   {"Enter GMT offset (POSIX string)",            "GMT_offset",    "CST6CDT,M3.2.0/2:00:00,M11.1.0/2:00:00", mon_config.tz_offset_gmt,    sizeof(mon_config.tz_offset_gmt)},
   {"Enter debug level (-1(none) -> 4(verbose))", "debug_level",   "4",                                      mon_config.debug_level,      sizeof(mon_config.debug_level)},
@@ -115,14 +117,16 @@ void init_eeprom_input()  {
     eeprom_input[2].value = mon_config.wlan_ssid;
     eeprom_input[3].value = mon_config.wlan_pass;
     eeprom_input[4].value = mon_config.ipaddr;
-    eeprom_input[5].value = mon_config.wifitries;
-    eeprom_input[6].value = mon_config.tz_offset_gmt;
-    eeprom_input[7].value = mon_config.debug_level;
-    eeprom_input[8].value = mon_config.neocount;
-    eeprom_input[9].value = mon_config.neogamma;
-    eeprom_input[10].value = mon_config.neodefault;
-    eeprom_input[11].value = mon_config.reformat;
-    eeprom_input[12].value = mon_config.servo_auth;
+    eeprom_input[5].value = mon_config.gwaddr;
+    eeprom_input[6].value = mon_config.netmask;
+    eeprom_input[7].value = mon_config.wifitries;
+    eeprom_input[8].value = mon_config.tz_offset_gmt;
+    eeprom_input[9].value = mon_config.debug_level;
+    eeprom_input[10].value = mon_config.neocount;
+    eeprom_input[11].value = mon_config.neogamma;
+    eeprom_input[12].value = mon_config.neodefault;
+    eeprom_input[13].value = mon_config.reformat;
+    eeprom_input[14].value = mon_config.servo_auth;
 }
 
 /*

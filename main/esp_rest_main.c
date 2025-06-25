@@ -367,17 +367,34 @@ void init_wifi(void)  {
      * use the values that are compiled in via menuConfig.
      */
     if(strcmp("false", pmon_config->dhcp_enable) == 0)  {
+        // static ip address
         if((ip32_addr = ipaddr_addr(pmon_config->ipaddr)) == IPADDR_NONE)  {
             ESP_LOGE(TAG, "Error converting IP address %s from eeprom", pmon_config->ipaddr);
             ip.ip.addr = ipaddr_addr(CONFIG_EXAMPLE_STATIC_IP_ADDR);
-            ip.gw.addr = ipaddr_addr(CONFIG_EXAMPLE_STATIC_GW_ADDR);
-            ip.netmask.addr = ipaddr_addr(CONFIG_EXAMPLE_STATIC_NETMASK_ADDR);
         }
         else  {
             ESP_LOGI(TAG, "DHCP disabled, setting static IP address: %s (0x%lx)", pmon_config->ipaddr, ip32_addr);
             ip.ip.addr = ip32_addr;
+        }
+
+        // static gateway address
+        if((ip32_addr = ipaddr_addr(pmon_config->gwaddr)) == IPADDR_NONE)  {
+            ESP_LOGE(TAG, "Error converting GW address %s from eeprom", pmon_config->gwaddr);
             ip.gw.addr = ipaddr_addr(CONFIG_EXAMPLE_STATIC_GW_ADDR);
+        }
+        else  {
+            ESP_LOGI(TAG, "DHCP disabled, setting static GW address: %s (0x%lx)", pmon_config->gwaddr, ip32_addr);
+            ip.gw.addr = ip32_addr;
+        }
+
+        // static netmask
+        if((ip32_addr = ipaddr_addr(pmon_config->netmask)) == IPADDR_NONE)  {
+            ESP_LOGE(TAG, "Error converting Netmask %s from eeprom", pmon_config->netmask);
             ip.netmask.addr = ipaddr_addr(CONFIG_EXAMPLE_STATIC_NETMASK_ADDR);
+        }
+        else  {
+            ESP_LOGI(TAG, "DHCP disabled, setting static Netmask: %s (0x%lx)", pmon_config->netmask, ip32_addr);
+            ip.netmask.addr = ip32_addr;
         }
         set_static_ip_address_data(ip);
     }

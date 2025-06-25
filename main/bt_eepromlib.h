@@ -39,7 +39,7 @@
  * net_config struct below.
  */
 #define MAX_VERSION_STRING_LEN 32
-#define EEPROM_VALID  "valid_v0.8.2"
+#define EEPROM_VALID  "valid_v0.8.3"
 
 /*
  * map of the parameters stored in EEPROM
@@ -53,6 +53,8 @@ char dhcp_enable[8];     // enable/disable dhcp
 char wlan_ssid[64];      // wifi ssid
 char wlan_pass[64];      // wifi password
 char ipaddr[64];         // fixed ip address if desired/set
+char gwaddr[64];         // fixed ip address if desired/set
+char netmask[64];        // fixed ip address if desired/set
 char wifitries[8];       // wifi connection attempts
 char tz_offset_gmt[64];  // POSIX standard time zone string
 char debug_level[4];     // display messages at different levels of detail (-1 to n)
