@@ -21,6 +21,7 @@
         "fcntl.h": "c",
         "esp_vfs.h": "c",
         "esp_vfs_fat.h": "c",
-        "bt_eepromlib.h": "c"
+        "bt_eepromlib.h": "c",
+        "cstdint": "c"
     }
 }

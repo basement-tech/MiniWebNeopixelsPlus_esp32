@@ -1,4 +1,4 @@
-idf_component_register(SRCS "station_example.c" "esp_rest_main.c"
+idf_component_register(SRCS "rainbow.c" "station_example.c" "esp_rest_main.c"
                             "rest_server.c"
                             "bt_eepromlib.c"
                             "led_strip_encoder.c"
