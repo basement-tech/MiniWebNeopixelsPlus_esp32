@@ -267,7 +267,7 @@ SemaphoreHandle_t xneoMutex;  // used to protect communication to neo_play
 neo_mutex_data_t neo_mutex_data;  // data to be sent to neo_play process from webserver
 
 SemaphoreHandle_t xneo_cycle_next_flag;  // neo state machine cycle timer
-SemaphoreHandle_t xseq_upd_flag;  // new sequence requested
+//SemaphoreHandle_t xseq_upd_flag;  // new sequence requested
 
 #define NEO_TAG "neopixel_process"
 static void neopixel_process(void *pvParameters)  {
@@ -275,6 +275,12 @@ static void neopixel_process(void *pvParameters)  {
 
     gpio_init();  // for debugging
 
+    /*
+     * create the binary semaphore that will
+     * signal (ultimately) the state machine to cycle
+     * (usually to move to the next pixel color in the sequence)
+     * it is "given" by a timer that runs in neo_play.c.
+     */
     if((xneo_cycle_next_flag = xSemaphoreCreateBinary()) == NULL)
         ESP_LOGE(NEO_TAG, "Error creating xneo_cycle_next_flag semaphore");
     else  {
@@ -282,13 +288,22 @@ static void neopixel_process(void *pvParameters)  {
         xSemaphoreGive(xneo_cycle_next_flag);  // make it available
     }
 
+    /*
+     *  I think this one was replaced in favor of a flag in the
+     *  new sequence data structure ... TODO: delete if so
+     
     if((xseq_upd_flag = xSemaphoreCreateBinary()) == NULL)
         ESP_LOGE(NEO_TAG, "Error creating xseq_upd_flag semaphore");
     else  {
         ESP_LOGI(NEO_TAG, "xseq_upd_flag semaphore created successfully");
         xSemaphoreGive(xneo_cycle_next_flag);  // make it available
     }
+        */
 
+    /*
+     * create the binary mutex that will protect
+     * the new sequence request data structure
+     */
     xneoMutex = xSemaphoreCreateMutex();
 
     if(xneoMutex == NULL)  {
@@ -329,7 +344,7 @@ static void neopixel_process(void *pvParameters)  {
          * wait at most e.g. 200 mS for the cycle next flag.  After the timeout,
          * check to see if a new sequence was requested.  If a sequence is 
          * running, this might be very often.  If not, it will be at the timeout
-         * interval.
+         * interval and prevent the rtos from starving and panicing.
          */
         xSemaphoreTake(xneo_cycle_next_flag, NEO_CHK_NEWS_INTERVAL);  // wait for the signal from timer
         gpio_set_level(GPIO_OUTPUT_IO_1, 1);

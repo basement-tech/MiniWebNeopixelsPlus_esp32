@@ -769,10 +769,18 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
      * send the response
      * TODO: alternatively send a 405 status on error w/ text
      */
-    httpd_resp_set_status(req, "201 Created");
-    httpd_resp_set_type(req, "text/plain");  // Or "application/json", etc.
-    const char *resp_str = "Button Processed";
-    httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    if(err == ESP_OK)  {
+        httpd_resp_set_status(req, "201 Created");
+        httpd_resp_set_type(req, "text/plain");  // Or "application/json", etc.
+        const char *resp_str = "Button Processed";
+        httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    }
+    else  {
+        httpd_resp_set_status(req, "405 Error");
+        httpd_resp_set_type(req, "text/plain");  // Or "application/json", etc.
+        const char *resp_str = "Error Processing Button";
+        httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+    }
     return(ESP_OK);
 }
 
