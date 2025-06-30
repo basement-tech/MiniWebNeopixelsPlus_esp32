@@ -270,6 +270,7 @@ SemaphoreHandle_t xneo_cycle_next_flag;  // neo state machine cycle timer
 //SemaphoreHandle_t xseq_upd_flag;  // new sequence requested
 
 #define NEO_TAG "neopixel_process"
+#define NEO_TASK_HANDLE_NAME "neopixel_process"
 static void neopixel_process(void *pvParameters)  {
     uint16_t count = atoi(pmon_config->neocount);
 
@@ -424,6 +425,12 @@ void init_wifi(void)  {
 }
 
 
+/*
+ * FReeRTOS Note:
+ * configUSE_TRACE_FACILITY must be defined as 1 for vTaskGetInfo() function to be available. 
+ * See the configuration section (menuConfig in esp-idf) for more information.
+ * 
+ */
 void app_main(void)
 {
     bool out = false;
@@ -473,7 +480,22 @@ void app_main(void)
     /*
      * start the neopixel engine in a separate task
      */
+    TaskHandle_t xNeoTaskHandle;
+    TaskStatus_t xTaskDetails;
     ESP_LOGI(TAG, "Starting neopixel process from main() ...");
-    xTaskCreate(neopixel_process, "neopixel_process", 4096, NULL, 10, NULL);
+    xTaskCreate(neopixel_process, NEO_TASK_HANDLE_NAME, 4096, NULL, 10, NULL);
+
+    xNeoTaskHandle = xTaskGetHandle(NEO_TASK_HANDLE_NAME);
+    // Use the handle to obtain further information about the task.
+    vTaskGetInfo( xNeoTaskHandle,
+                &xTaskDetails,
+                pdTRUE, // Include the high water mark in xTaskDetails.
+                eInvalid ); // Include the task state in xTaskDetails.
+
+    ESP_LOGI(TAG, "neopixel process started as \"%s\":", xTaskDetails.pcTaskName);
+    ESP_LOGI(TAG, "  Task Number: %d", xTaskDetails.xTaskNumber);
+    ESP_LOGI(TAG, "  Current State: %d", xTaskDetails.eCurrentState);
+    ESP_LOGI(TAG, "  Current Priority: %d", xTaskDetails.uxCurrentPriority);
+    ESP_LOGI(TAG, "  Base Priority: %d", xTaskDetails.uxBasePriority);
 
 }
