@@ -41,8 +41,16 @@
 /*
  * local function declarations
  */
-static esp_err_t rest_response_handler  (rest_resp_queue_t *msg);
+static esp_err_t rest_response_handler  (rest_resp_queue_t msg);
 
+
+/*
+ * asynchronous handler of error code to web client responses
+ */
+SemaphoreHandle_t xrespMutex;  // mutex to protect response data
+SemaphoreHandle_t xrespSemaphore;  // semephore to signal execution of this handler
+
+rest_resp_queue_t rest_resp_pending;  // place to hold the pending transaction
 
 /*
  * URI's that this server can handle
@@ -703,6 +711,8 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
     remaining = req->content_len;  // number of bytes in total from the browser
     ESP_LOGI(REST_TAG, "Total size of content = %d", remaining);
 
+    char msgtxt[MAX_RESP_MSGTXT];  // for response text
+
     /*
      * read the body of the POST into the scratch buffer
      */
@@ -768,43 +778,51 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
                 xSemaphoreGive(xneoMutex);
             }
             json_parse_end(&jctx);
+
+            /*
+             * prime the response structure
+             * TODO: make this handle more than one pending response
+             */
+            if(xSemaphoreTake(xrespMutex, 1/portTICK_PERIOD_MS) == pdFALSE)  // attempt to get the data mutex
+                ESP_LOGE(REST_TAG, "Failed to take mutex to process response request");
+            else  {
+                rest_resp_pending.err = ESP_ERR_NOT_SUPPORTED;  // non-success error code
+                rest_resp_pending.msgtxt[0] = '\0';
+                xSemaphoreGive(xrespMutex);
+            }
         }
     }
     else
         ESP_LOGE(REST_TAG, "Error reading body of button POST");
 
-#ifdef LOCAL_SEND_RESP
-    /*
-     * the response is handled by a separate response handling process
-     */
-    /*
-     * send the response
-     * TODO: alternatively send a 405 status on error w/ text
-     */
+    if(err == ESP_OK)   {
+        ESP_LOGI(REST_TAG, "button handler waiting for response ...");
+        xSemaphoreTake(xrespSemaphore, portMAX_DELAY);  // *BLOCK* waiting for a response to be requested
+        ESP_LOGI(REST_TAG, "Took xrespSemaphore, count = %d", uxSemaphoreGetCount(xrespSemaphore));
+        if(xSemaphoreTake(xrespMutex, 1/portTICK_PERIOD_MS) == pdFALSE)  // attempt to get the data mutex
+            ESP_LOGE(REST_TAG, "Failed to take mutex to process response request");
+        else  {
+            err = rest_resp_pending.err;  // copy local
+            strncpy(msgtxt, rest_resp_pending.msgtxt, sizeof(msgtxt));
+            xSemaphoreGive(xrespMutex);
+        }
+    }
     if(err == ESP_OK)  {
         httpd_resp_set_status(req, "201 Created");
         httpd_resp_set_type(req, "text/plain");  // Or "application/json", etc.
-        const char *resp_str = "Button Processed";
-        httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+        httpd_resp_send(req, msgtxt, HTTPD_RESP_USE_STRLEN);
+        ESP_LOGI(REST_TAG, "rest_resp_handler sent 201 response");
     }
     else  {
         httpd_resp_set_status(req, "405 Error");
         httpd_resp_set_type(req, "text/plain");  // Or "application/json", etc.
-        const char *resp_str = "Error Processing Button";
-        httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
+        httpd_resp_send(req, msgtxt, HTTPD_RESP_USE_STRLEN);
+        ESP_LOGI(REST_TAG, "rest_resp_handler sent 405 response");
     }
-#endif
     return(ESP_OK);
 }
 
 
-/*
- * asynchronous handler of error code to web client responses
- */
-SemaphoreHandle_t xrespMutex;  // mutex to protect response data
-SemaphoreHandle_t xrespSemaphore;  // semephore to signal execution of this handler
-
-rest_resp_queue_t rest_resp_pending;  // place to hold the pending transaction
 
 /*
  * initialize the process which handles responses back from
@@ -816,14 +834,14 @@ rest_resp_queue_t rest_resp_pending;  // place to hold the pending transaction
  * a response.
  * 
  */
-void rest_init_resp_process(void *pvParameters)  {
+void rest_init_resp_process(void)  {
     rest_resp_queue_t lrest_resp_pending;  // copy local to preserver responsiveness
 
     /*
      * initialize the global data to no response pending
      * (this is the global structure)
      */
-    rest_resp_pending.req = NULL;
+    //rest_resp_pending.req = NULL;
     rest_resp_pending.transaction = -1;
     rest_resp_pending.err = ESP_OK;
 
@@ -872,6 +890,7 @@ void rest_init_resp_process(void *pvParameters)  {
         ESP_LOGI(REST_TAG, "response handler started as \"%s (%d)\":", xTaskDetails.pcTaskName, xTaskDetails.xTaskNumber);
     }
 
+    #ifdef MOVED_THIS_TO_BUTTON
     /*
      * block waiting for a c-language function (e.g. neo_process)
      * to request that a response be sent to a web client.
@@ -890,10 +909,11 @@ void rest_init_resp_process(void *pvParameters)  {
             memcpy(&lrest_resp_pending, &rest_resp_pending, sizeof(rest_resp_pending));  // copy local
             xSemaphoreGive(xrespMutex);
         }
-        rest_response_handler(&lrest_resp_pending);
+        rest_response_handler(lrest_resp_pending);
         xSemaphoreGive(xrespSemaphore);  // reset
         xSemaphoreTake(xrespSemaphore, 0);  // set up blocking
     }
+    #endif
 }
 
 /*
@@ -912,23 +932,23 @@ void rest_response_setGo(esp_err_t err, char *msgtxt)  {
     xSemaphoreGive(xrespSemaphore);  // Go
 }
 
-esp_err_t rest_response_handler  (rest_resp_queue_t *msg)  {
+esp_err_t rest_response_handler  (rest_resp_queue_t msg)  {
     /*
      * send the response
      * TODO: alternatively send a 405 status on error w/ text
      */
-    if(msg->err == ESP_OK)  {
-        httpd_resp_set_status(msg->req, "201 Created");
-        httpd_resp_set_type(msg->req, "text/plain");  // Or "application/json", etc.
-        const char *resp_str = msg->msgtxt;
-        httpd_resp_send(msg->req, resp_str, HTTPD_RESP_USE_STRLEN);
+    if(msg.err == ESP_OK)  {
+        httpd_resp_set_status(&(msg.req), "201 Created");
+        httpd_resp_set_type(&(msg.req), "text/plain");  // Or "application/json", etc.
+        const char *resp_str = msg.msgtxt;
+        httpd_resp_send(&(msg.req), resp_str, HTTPD_RESP_USE_STRLEN);
         ESP_LOGI(REST_TAG, "rest_resp_handler sent 201 response");
     }
     else  {
-        httpd_resp_set_status(msg->req, "405 Error");
-        httpd_resp_set_type(msg->req, "text/plain");  // Or "application/json", etc.
-        const char *resp_str = msg->msgtxt;
-        httpd_resp_send(msg->req, resp_str, HTTPD_RESP_USE_STRLEN);
+        httpd_resp_set_status(&(msg.req), "405 Error");
+        httpd_resp_set_type(&(msg.req), "text/plain");  // Or "application/json", etc.
+        const char *resp_str = msg.msgtxt;
+        httpd_resp_send(&(msg.req), resp_str, HTTPD_RESP_USE_STRLEN);
         ESP_LOGI(REST_TAG, "rest_resp_handler sent 405 response");
     }
     return(ESP_OK);

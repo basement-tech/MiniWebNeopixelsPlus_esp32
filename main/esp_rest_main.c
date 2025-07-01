@@ -496,8 +496,8 @@ void app_main(void)
     /*
      * start the request response handler
      */
-    ESP_LOGI(TAG, "Starting response handler process from main() ...");
-    xTaskCreate(rest_init_resp_process, RESP_TASK_HANDLE_NAME, 4096, NULL, 10, NULL);
+    ESP_LOGI(TAG, "Initializing response handling ...");
+    rest_init_resp_process();
 
     /*
      * start the neopixel engine in a separate task
