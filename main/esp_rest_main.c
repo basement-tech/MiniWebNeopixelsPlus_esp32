@@ -496,8 +496,8 @@ void app_main(void)
     /*
      * start the request response handler
      */
-    ESP_LOGI(TAG, "Initializing response handling ...");
-    rest_init_resp_process();
+    ESP_LOGI(TAG, "Initializing response handling structures and semaphores...");
+    rest_init_resp_data();
 
     /*
      * start the neopixel engine in a separate task

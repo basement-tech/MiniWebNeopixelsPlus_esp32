@@ -38,11 +38,6 @@
 #include "rest_server.h"
 #include "neo_data.h"
 
-/*
- * local function declarations
- */
-static esp_err_t rest_response_handler  (rest_resp_queue_t msg);
-
 
 /*
  * asynchronous handler of error code to web client responses
@@ -825,7 +820,7 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
 
 
 /*
- * initialize the process which handles responses back from
+ * initialize the data and protection which handle responses back from
  * c-language actions in in response to web client handlers
  * (note: html/js may be waiting for a response)
  * 
@@ -834,8 +829,7 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
  * a response.
  * 
  */
-void rest_init_resp_process(void)  {
-    rest_resp_queue_t lrest_resp_pending;  // copy local to preserver responsiveness
+void rest_init_resp_data(void)  {
 
     /*
      * initialize the global data to no response pending
@@ -873,53 +867,12 @@ void rest_init_resp_process(void)  {
     }
     xSemaphoreGive(xrespSemaphore);  // initialize
     xSemaphoreTake(xrespSemaphore, 0);  // set up for blocking below
-
-
-    /*
-     * get the process information for debugging
-     */
-    TaskHandle_t xTaskHandle;
-    TaskStatus_t xTaskDetails;
-    xTaskHandle = xTaskGetCurrentTaskHandle();
-    if(xTaskHandle != NULL)  {
-        vTaskGetInfo( xTaskHandle,
-                    &xTaskDetails,
-                    pdTRUE, // Include the high water mark in xTaskDetails.
-                    eInvalid ); // Include the task state in xTaskDetails.
-
-        ESP_LOGI(REST_TAG, "response handler started as \"%s (%d)\":", xTaskDetails.pcTaskName, xTaskDetails.xTaskNumber);
-    }
-
-    #ifdef MOVED_THIS_TO_BUTTON
-    /*
-     * block waiting for a c-language function (e.g. neo_process)
-     * to request that a response be sent to a web client.
-     * e.g. neopixel sequence button pressed on web UI
-     * 
-     * once received, copy the response request data local and 
-     * call the handler.
-     */
-    while(1)  {
-        ESP_LOGI(REST_TAG, "\"%s (%d)\" waiting for response request ...", xTaskDetails.pcTaskName, xTaskDetails.xTaskNumber);
-        xSemaphoreTake(xrespSemaphore, portMAX_DELAY);  // block waiting for a response to be requested
-        ESP_LOGI(REST_TAG, "Took xrespSemaphore, count = %d", uxSemaphoreGetCount(xrespSemaphore));
-        if(xSemaphoreTake(xrespMutex, 1/portTICK_PERIOD_MS) == pdFALSE)  // attempt to get the data mutex
-            ESP_LOGE(REST_TAG, "Failed to take mutex to process response request");
-        else  {
-            memcpy(&lrest_resp_pending, &rest_resp_pending, sizeof(rest_resp_pending));  // copy local
-            xSemaphoreGive(xrespMutex);
-        }
-        rest_response_handler(lrest_resp_pending);
-        xSemaphoreGive(xrespSemaphore);  // reset
-        xSemaphoreTake(xrespSemaphore, 0);  // set up blocking
-    }
-    #endif
 }
 
 /*
  * set the value of the response in the global structure
  * and give the signalling semaphore to that the response
- * process notices.
+ * process/function notices.
  */
 void rest_response_setGo(esp_err_t err, char *msgtxt)  {
     if(xSemaphoreTake(xrespMutex, 1/portTICK_PERIOD_MS) == pdFALSE)  // attempt to get the data mutex
@@ -930,28 +883,6 @@ void rest_response_setGo(esp_err_t err, char *msgtxt)  {
         xSemaphoreGive(xrespMutex);
     }
     xSemaphoreGive(xrespSemaphore);  // Go
-}
-
-esp_err_t rest_response_handler  (rest_resp_queue_t msg)  {
-    /*
-     * send the response
-     * TODO: alternatively send a 405 status on error w/ text
-     */
-    if(msg.err == ESP_OK)  {
-        httpd_resp_set_status(&(msg.req), "201 Created");
-        httpd_resp_set_type(&(msg.req), "text/plain");  // Or "application/json", etc.
-        const char *resp_str = msg.msgtxt;
-        httpd_resp_send(&(msg.req), resp_str, HTTPD_RESP_USE_STRLEN);
-        ESP_LOGI(REST_TAG, "rest_resp_handler sent 201 response");
-    }
-    else  {
-        httpd_resp_set_status(&(msg.req), "405 Error");
-        httpd_resp_set_type(&(msg.req), "text/plain");  // Or "application/json", etc.
-        const char *resp_str = msg.msgtxt;
-        httpd_resp_send(&(msg.req), resp_str, HTTPD_RESP_USE_STRLEN);
-        ESP_LOGI(REST_TAG, "rest_resp_handler sent 405 response");
-    }
-    return(ESP_OK);
 }
 
 

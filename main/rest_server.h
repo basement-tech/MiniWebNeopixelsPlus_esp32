@@ -11,13 +11,12 @@
  */
 #define MAX_RESP_MSGTXT 32  // max length of response message text
 typedef struct {
-    httpd_req_t req;
     int32_t transaction;
     char msgtxt[MAX_RESP_MSGTXT];
     esp_err_t err;
 } rest_resp_queue_t;
 
-void rest_init_resp_process(void);
+void rest_init_resp_data(void);
 void rest_response_setGo(esp_err_t err, char *msgtxt);
 
 
