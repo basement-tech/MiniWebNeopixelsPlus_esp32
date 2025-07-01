@@ -763,6 +763,7 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
                 ESP_LOGI(REST_TAG, "Sending filename %s", neo_mutex_data.file);
 
                 neo_mutex_data.new_data = true;
+                neo_mutex_data.resp_reqd = true;
 
                 xSemaphoreGive(xneoMutex);
             }

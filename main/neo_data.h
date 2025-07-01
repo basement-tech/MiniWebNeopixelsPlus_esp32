@@ -43,6 +43,7 @@
  * NOTE: need to maintain success codes as positive
  * so that tests can use >= NEO_SUCCESS or < 0 work.
  */
+#define   NEO_NOR_SUCCESS         2  // new sequence change successful, no web response
 #define   NEO_NEW_SUCCESS         1  // new sequence change successful
 #define   NEO_SUCCESS             0  // success
 #define   NEO_DESERR             -1  // deserialization error

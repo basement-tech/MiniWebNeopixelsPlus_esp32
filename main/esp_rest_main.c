@@ -345,6 +345,7 @@ static void neopixel_process(void *pvParameters)  {
         ESP_LOGE(NEO_TAG, "Failed to take mutex on initial sequence set ... no change");
     else  {
         neo_mutex_data.new_data = true;
+        neo_mutex_data.resp_reqd = false;  // since not called from webserver
         xSemaphoreGive(xneoMutex);
     }
 
@@ -362,14 +363,16 @@ static void neopixel_process(void *pvParameters)  {
 
         /*
          * check to see of a new sequence was requested
-         * TODO: need to propagate the error back to client
+         * NOTE: a sequence triggered from a c function
+         * (e.g. setting the initial sequence at startup)
+         * will return NEO_NOR_SUCCESS and not require/trigger
+         * a response to the web client.  Same for NEO_SUCCESS, which
+         * indicates sequence not changed, but no errors.
          */
         err = neo_new_sequence();
-        if(err != NEO_SUCCESS)  // stop or not new, ignored
-            rest_response_setGo(ESP_OK, "no change");
-        else if(err != NEO_NEW_SUCCESS)  // new sequence started
+        if(err == NEO_NEW_SUCCESS)  // new sequence started
             rest_response_setGo(ESP_OK, "sequence change successful");
-        else  {
+        else if(err < NEO_SUCCESS)  {
             neo_cycle_stop();  // error, stop
             rest_response_setGo(ESP_ERR_NOT_SUPPORTED, "error processing button");
         }

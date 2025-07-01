@@ -1238,6 +1238,8 @@ int8_t neo_new_sequence(void)  {
       ESP_LOGI(TAG, "ERROR: \"sequence\" not found in json data");
     }
   }
+  if((neoerr >= NEO_SUCCESS) && (l_neo.resp_reqd == false))
+    neoerr = NEO_NOR_SUCCESS;
   return(neoerr);
 }
 
