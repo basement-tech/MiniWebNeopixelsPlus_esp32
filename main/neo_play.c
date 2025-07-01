@@ -120,6 +120,7 @@ int8_t neo_set_sequence(const char *label, const char *strategy)  {
      * is this a new sequence from the one running?
      */
     if(new_index != seq_index)  {
+      ret = NEO_NEW_SUCCESS;
       seq_index = new_index;  // set the sequence index that is to be played
 
       /*
@@ -145,7 +146,7 @@ int8_t neo_set_sequence(const char *label, const char *strategy)  {
       /*
        * if all above was successful, set up the globals and start the sequence
        */
-      if(ret == NEO_SUCCESS)  {
+      if(ret == NEO_NEW_SUCCESS)  {
         current_index = 0;  // reset the pixel count
         current_strategy = new_strat;
         ESP_LOGI(TAG, "neo_set_sequence: set sequence to %d and strategy to %d\n", seq_index, current_strategy);
@@ -1208,15 +1209,17 @@ int8_t neo_new_sequence(void)  {
       /*
         * was it the stop button
         */
-      if(strcmp(l_neo.sequence, "STOP") == 0)
+      if(strcmp(l_neo.sequence, "STOP") == 0)  {
         neo_cycle_stop();
+        neoerr = NEO_SUCCESS;  // successful new (pseudo) sequence
+      }
 
       /*
         * if not STOP, see if it was a USER defined sequence
         * if so, load the file and set the sequence and strategy
         */
       else if((neo_is_user(l_neo.sequence)) == NEO_SUCCESS)  {
-        if((neoerr = neo_load_sequence(l_neo.file)) != NEO_SUCCESS)
+        if((neoerr = neo_load_sequence(l_neo.file)) < NEO_SUCCESS)
           ESP_LOGE(TAG, "Error loading sequence file after proper detection");
       }
 
@@ -1226,7 +1229,7 @@ int8_t neo_new_sequence(void)  {
         * strategies are hardcoded for built in sequences.
         */
       else  {
-        if((neoerr = neo_set_sequence(l_neo.sequence, "")) != NEO_SUCCESS)
+        if((neoerr = neo_set_sequence(l_neo.sequence, "")) < NEO_SUCCESS)
           ESP_LOGI(TAG, "ERROR: Error setting sequence after proper detection");
       }
     }

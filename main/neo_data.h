@@ -37,24 +37,32 @@
 #define   NEO_EMPTY               0
 #define   NEO_STALE              -1
 
-#define   NEO_SUCCESS             0
-#define   NEO_DESERR             -1
-#define   NEO_NOPLACE            -2
-#define   NEO_SEQ_ERR            -3
-#define   NEO_STRAT_ERR          -4
-#define   NEO_FILE_LOAD_NOTUSER  -5
-#define   NEO_FILE_LOAD_NOFILE   -6
-#define   NEO_FILE_LOAD_DESERR   -7
-#define   NEO_FILE_LOAD_NOPLACE  -8
+/*
+ * neopixel engine (i.e. neo_play) error codes
+ * 
+ * NOTE: need to maintain success codes as positive
+ * so that tests can use >= NEO_SUCCESS or < 0 work.
+ */
+#define   NEO_NEW_SUCCESS         1  // new sequence change successful
+#define   NEO_SUCCESS             0  // success
+#define   NEO_DESERR             -1  // deserialization error
+#define   NEO_NOPLACE            -2  // no sequence placeholder
+#define   NEO_SEQ_ERR            -3  // error executing sequence
+#define   NEO_STRAT_ERR          -4  // bad strategy specified
+#define   NEO_FILE_LOAD_NOTUSER  -5  // attempt to load file in nonuser space
+#define   NEO_FILE_LOAD_NOFILE   -6  // requested sequence file doesn't exist
+#define   NEO_FILE_LOAD_DESERR   -7  // deserialization of file error
+#define   NEO_FILE_LOAD_NOPLACE  -8  // no placeholder for file load
 #define   NEO_FILE_LOAD_OTHER    -9
 
 /*
  * data for commnication to the neo_play related process
  */
 typedef struct {
-    char sequence[MAX_NEO_SEQUENCE];
-    char file[MAX_FILENAME];
-    bool new_data;
+    char sequence[MAX_NEO_SEQUENCE];  // identifier of requested sequence
+    char file[MAX_FILENAME];  // filename if user sequence
+    bool new_data;   // true if new sequence request has been made
+    bool resp_reqd;  // is a web client response required
 }  neo_mutex_data_t;
 
 /*

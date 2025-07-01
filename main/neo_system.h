@@ -20,4 +20,7 @@ static inline void cli_printf(const char *format, ...) {
 
 #include "lwip/ip_addr.h"
 
+#define NEO_TASK_HANDLE_NAME "neo_process"
+#define RESP_TASK_HANDLE_NAME "resp_process"
+
 #endif
