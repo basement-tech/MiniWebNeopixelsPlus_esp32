@@ -738,20 +738,23 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
             buf[received] = '\0';  // safety to make string functions work ... should be one beyond real data
             remaining -= received;  // subtract the amount that was read ... read the balance below (if any)
         }
-        else
+        else  {
             err = ESP_ERR_TIMEOUT;
+            ESP_LOGD(REST_TAG, "Timed out waiting reading button data from server");
+        }
     }
 
+    /*
+     * parse the json that the html/js sent
+     */
     if(err == ESP_OK)  {
         ESP_LOGI(REST_TAG, "button post sent: >%s<", buf);  // raw post body
 
         if(json_parse_start(&jctx, buf, strlen(buf)) != OS_SUCCESS)  {
+            err = ESP_ERR_INVALID_ARG;
             ESP_LOGE(REST_TAG, "ERROR: Deserialization of button body failed");
         }
         else  {
-            json_obj_get_string(&jctx, "sequence", jbuf, sizeof(jbuf));  // used to point to place in sequence array
-            strncpy(neo_mutex_data.sequence, jbuf, sizeof(neo_mutex_data.sequence));
-        
             /*
             * parse the json post and copy the fields to the IPC place
             * where the neopixel process will look at it
@@ -759,16 +762,29 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
             if(xSemaphoreTake(xneoMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
                 ESP_LOGE(REST_TAG, "Failed to take mutex on initial sequence set ... no change");
             else  {
-                json_obj_get_string(&jctx, "sequence", jbuf, sizeof(jbuf));  // used to point to place in sequence array
-                strncpy(neo_mutex_data.sequence, jbuf, sizeof(neo_mutex_data.sequence));
-                ESP_LOGI(REST_TAG, "Sending sequence %s", neo_mutex_data.sequence);
+                err = ESP_OK;
+                if(json_obj_get_string(&jctx, "sequence", jbuf, sizeof(jbuf)) == OS_SUCCESS)  {  // used to point to place in sequence array
+                    strncpy(neo_mutex_data.sequence, jbuf, sizeof(neo_mutex_data.sequence));
+                    ESP_LOGI(REST_TAG, "Sending sequence %s", neo_mutex_data.sequence);
+                }
+                else  {
+                    err = ESP_ERR_INVALID_ARG;
+                    ESP_LOGD(REST_TAG, "Error reading \"sequence\" in data from html/js");
+                }
 
-                json_obj_get_string(&jctx, "file", jbuf, sizeof(jbuf));
-                strncpy(neo_mutex_data.file, jbuf, sizeof(neo_mutex_data.file));
-                ESP_LOGI(REST_TAG, "Sending filename %s", neo_mutex_data.file);
+                if(json_obj_get_string(&jctx, "file", jbuf, sizeof(jbuf)) == OS_SUCCESS)  {
+                    strncpy(neo_mutex_data.file, jbuf, sizeof(neo_mutex_data.file));
+                    ESP_LOGI(REST_TAG, "Sending filename %s", neo_mutex_data.file);
+                }
+                else  {
+                    err = ESP_ERR_INVALID_ARG;
+                    ESP_LOGD(REST_TAG, "Error in \"file\" in data from html/js");
+                }
 
-                neo_mutex_data.new_data = true;
-                neo_mutex_data.resp_reqd = true;
+                if(err == ESP_OK)  {
+                    neo_mutex_data.new_data = true;
+                    neo_mutex_data.resp_reqd = true;
+                }
 
                 xSemaphoreGive(xneoMutex);
             }
@@ -781,15 +797,21 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
             if(xSemaphoreTake(xrespMutex, 1/portTICK_PERIOD_MS) == pdFALSE)  // attempt to get the data mutex
                 ESP_LOGE(REST_TAG, "Failed to take mutex to process response request");
             else  {
-                rest_resp_pending.err = ESP_ERR_NOT_SUPPORTED;  // non-success error code
+                rest_resp_pending.err = ESP_ERR_NOT_SUPPORTED;  // random non-success error code
                 rest_resp_pending.msgtxt[0] = '\0';
                 xSemaphoreGive(xrespMutex);
             }
         }
     }
-    else
-        ESP_LOGE(REST_TAG, "Error reading body of button POST");
 
+    /*
+     * if the button processing (not the execution of the button's request)
+     * was successful, wait for the return error code from executing
+     * the buttons request and send the appropriate http response
+     * to the web client
+     * 
+     * NOTE: err is repurposed to hold the return error code
+     */
     if(err == ESP_OK)   {
         ESP_LOGI(REST_TAG, "button handler waiting for response ...");
         xSemaphoreTake(xrespSemaphore, portMAX_DELAY);  // *BLOCK* waiting for a response to be requested
@@ -802,6 +824,10 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
             xSemaphoreGive(xrespMutex);
         }
     }
+
+    /*
+     * send the http response
+     */
     if(err == ESP_OK)  {
         httpd_resp_set_status(req, "201 Created");
         httpd_resp_set_type(req, "text/plain");  // Or "application/json", etc.
@@ -814,7 +840,7 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
         httpd_resp_send(req, msgtxt, HTTPD_RESP_USE_STRLEN);
         ESP_LOGI(REST_TAG, "rest_resp_handler sent 405 response");
     }
-    return(ESP_OK);
+    return(err);
 }
 
 

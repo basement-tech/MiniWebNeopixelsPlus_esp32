@@ -1183,7 +1183,7 @@ int8_t neo_new_sequence(void)  {
   int8_t neoerr = NEO_SUCCESS;
   neo_mutex_data_t l_neo;  // local copy so as not to hold the mutex
 
-  l_neo.new_data = false;
+  l_neo.new_data = false;  // was a new request made
 
   /*
    * try to grab the semaphore to check if a new sequence was requesed
@@ -1210,8 +1210,12 @@ int8_t neo_new_sequence(void)  {
         * was it the stop button
         */
       if(strcmp(l_neo.sequence, "STOP") == 0)  {
-        neo_cycle_stop();
-        neoerr = NEO_SUCCESS;  // successful new (pseudo) sequence
+        if((neo_state != NEO_SEQ_STOPPED) && (neo_state != NEO_SEQ_STOPPING))  {
+          neoerr = NEO_NEW_SUCCESS;
+          neo_cycle_stop();
+        }
+        else
+          neoerr = NEO_SUCCESS;  // no change
       }
 
       /*
