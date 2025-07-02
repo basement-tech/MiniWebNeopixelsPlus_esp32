@@ -690,6 +690,12 @@ esp_err_t list_files_handler(httpd_req_t *req) {
  * handle a sequence button being pressed on the browser UI
  * expecting a json formatted string containing "sequence"
  * and "file" fields.
+ * 
+ * NOTE: It seems (observed) that the web server queues button presses and
+ * therefore there will not be multiple instances of this handler
+ * messing with data structures at the same time and therefore doesn't need
+ * to be protected against by a mutex or other.  (had one, never triggered, deleted)
+ * 
  */
 esp_err_t button_post_handler(httpd_req_t *req)  {
 
