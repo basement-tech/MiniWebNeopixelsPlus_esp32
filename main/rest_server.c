@@ -840,7 +840,7 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
         httpd_resp_send(req, msgtxt, HTTPD_RESP_USE_STRLEN);
         ESP_LOGI(REST_TAG, "rest_resp_handler sent 405 response");
     }
-    return(err);
+    return(ESP_OK);
 }
 
 

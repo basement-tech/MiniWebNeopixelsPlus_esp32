@@ -153,6 +153,8 @@ int8_t neo_set_sequence(const char *label, const char *strategy)  {
         neo_state = NEO_SEQ_START;  // cause the state machine to start at the start
       }
     }
+    else
+      ret = NEO_OLD_SUCCESS; 
   }
   else
     ESP_LOGE(TAG, "neo_set_sequence: Invalid sequence label");
@@ -188,7 +190,7 @@ int8_t neo_is_user(const char *label)  {
 #define B_RESERVE 14  // reserves space for the json tag, etc
 int8_t neo_load_sequence(const char *file)  {
 
-  int8_t ret = 0;
+  int8_t ret = NEO_SUCCESS;
 
   struct stat file_stat;
   char buf[NEO_MAX_SEQ_FILE_SIZE];  // buffer in which to read the file contents
@@ -211,10 +213,10 @@ int8_t neo_load_sequence(const char *file)  {
   size_t total = 0, used = 0;
   if(esp_littlefs_info(LITTLE_FS_PARTITION_LABEL, &total, &used) != ESP_OK)  {
     ESP_LOGE(TAG, "Failed to get LittleFS partition information (%s)", esp_err_to_name(ret));
-    return(-1);
+    return(NEO_FILE_LOAD_OTHER);
   } 
   else {
-    ret = 0;
+    ret = NEO_SUCCESS;
     ESP_LOGI(TAG, "Filesystem Partition size: total: %d, used: %d", total, used);
   }
 
@@ -249,7 +251,7 @@ int8_t neo_load_sequence(const char *file)  {
     FILE *fp = fopen(filepath, "r");
     if (fp == NULL) {
         ESP_LOGE(TAG, "Failed to open file : %s", filepath);
-        return -1;
+        return NEO_FILE_LOAD_OTHER;
     }
     else  {
       int read_bytes = fread(buf, 1, sizeof(buf), fp);
@@ -1215,7 +1217,7 @@ int8_t neo_new_sequence(void)  {
           neo_cycle_stop();
         }
         else
-          neoerr = NEO_SUCCESS;  // no change
+          neoerr = NEO_OLD_SUCCESS;  // no change
       }
 
       /*
