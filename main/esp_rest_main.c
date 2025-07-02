@@ -79,10 +79,17 @@
  * Todo:
  * o Implement multifile upload
  * o handle multiple sequence responses in a queue
+ * o rainbow sequence: finish port from adafruit, including 32bit stacked colors
+ * o check all esp-idf ESP_ERROR_CHECK() fatal errors for sanity, possible change
+ * o gamma32 : decide whether to implement or not, do it
+ * o tie in all eeprom parameters
+ * o softAP for configuration on hardware button
+ * o decide whether to eliminate other fs options
+ * o OTA : decide whether to implement, do it
  * 
  * 
  *
- * djz 2025
+ * (c)djz 2025
  * 
  */
 #include <stdio.h>
