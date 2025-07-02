@@ -792,21 +792,21 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
                     neo_mutex_data.resp_reqd = true;
                 }
 
-                xSemaphoreGive(xneoMutex);
+                /*
+                * prime the response structure
+                * TODO: make this handle more than one pending response
+                */
+                if(xSemaphoreTake(xrespMutex, 1/portTICK_PERIOD_MS) == pdFALSE)  // attempt to get the data mutex
+                    ESP_LOGE(REST_TAG, "Failed to take mutex to process response request");
+                else  {
+                    rest_resp_pending.err = ESP_ERR_NOT_SUPPORTED;  // random non-success error code
+                    rest_resp_pending.msgtxt[0] = '\0';
+                    xSemaphoreGive(xrespMutex);
+                }
+
+                xSemaphoreGive(xneoMutex);  // launch the sequence
             }
             json_parse_end(&jctx);
-
-            /*
-             * prime the response structure
-             * TODO: make this handle more than one pending response
-             */
-            if(xSemaphoreTake(xrespMutex, 1/portTICK_PERIOD_MS) == pdFALSE)  // attempt to get the data mutex
-                ESP_LOGE(REST_TAG, "Failed to take mutex to process response request");
-            else  {
-                rest_resp_pending.err = ESP_ERR_NOT_SUPPORTED;  // random non-success error code
-                rest_resp_pending.msgtxt[0] = '\0';
-                xSemaphoreGive(xrespMutex);
-            }
         }
     }
 
