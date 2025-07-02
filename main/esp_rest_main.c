@@ -11,6 +11,26 @@
  * software is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
  * CONDITIONS OF ANY KIND, either express or implied.
  * 
+ * 
+ * Web Server <-> neopixel engine data flow
+ * ----------------------------------------
+ * 
+ *    Client               Webserver                Data Structure                   NeoPixel Process
+ *    ------               ---------                ---------------                  ----------------
+ * <Seq Button>    ->   button_handler() -> neo_mutex_data_t neo_mutex_data     ->   neo_new_sequence()
+ *                                           SemaphoreHandle_t xneoMutex               (neo_play.c)
+ *                                                  (neo_data.c/h)
+ *                         (blocks)
+ *                                                     (data)
+ *                                       <- rest_resp_queue_t rest_resp_pending 
+ *                                            SemaphoreHandle_t xrespMutex
+ *                                                  (rest_server.c)
+ * 201 or 405          button_handler()                                         <-  rest_response_setGo()
+ *                                                    (signal)                        (rest_server.c)
+ *                                       <- SemaphoreHandle_t xrespSemaphore
+ *                                                 (rest_server.c)
+ * 
+ * 
  * Web Server
  * ----------
  * 
@@ -22,8 +42,10 @@
  * 
  * Configuration
  * -------------
- * Trying to preserve the use of esp-idf's Menuconfig functionality.
+ * Trying to preserve the use of esp-idf's Menuconfig functionality
+ * for compiled in options and defaults.
  * i.e all default configuration is done through the interface in esp-idf.
+ * command line eeprom parameters are set for user settings like number of neopixels.
  * 
  * Components/Libraries
  * --------------------
@@ -32,6 +54,14 @@
  * espressif_jsmn - espressif_json_parser is built on this
  * joltwallet_littlefs - littleFS embedded filesystem
  * espressif_mdns - mdns for hostname access via .local
+ * From the build process:
+ * NOTICE: Processing 6 dependencies:
+ * NOTICE: [1/6] espressif/jsmn (1.1.0)
+ * NOTICE: [2/6] espressif/json_parser (1.0.3)
+ * NOTICE: [3/6] espressif/mdns (1.8.2)
+ * NOTICE: [4/6] joltwallet/littlefs (1.19.1)
+ * NOTICE: [5/6] protocol_examples_common (*) (C:\Users\djzma\esp\v5.4.1\esp-idf\examples\common_components\protocol_examples_common)
+ * NOTICE: [6/6] idf (5.4.1)
  * 
  * Important esp-idf configuration items to set
  * --------------------------------------------
@@ -39,7 +69,7 @@
  * wifi passwd
  * FREERTOS frequency to 1000 (from 100)
  * filesystem type to LittleFS
- * 
+ * FreeRTOS item to expose process information
  * 
  * Timers
  * ------
@@ -48,6 +78,7 @@
  * 
  * Todo:
  * o Implement multifile upload
+ * o handle multiple sequence responses in a queue
  * 
  * 
  *
