@@ -29,7 +29,21 @@
  *                                                    (signal)                        (rest_server.c)
  *                                       <- SemaphoreHandle_t xrespSemaphore
  *                                                 (rest_server.c)
- * 
+ * Notes:
+ * - this is a bit tighter coupling than I would have liked
+ * - i implemented a mutex to insure that the button_handler() could
+ *   only be executed one button at a time; it was never triggered,
+ *   so I deleted it.
+ * - I couldn't find a way to save the button push webserver context
+ *   so that I could later associate a response with a button fetch request,
+ *   but there must be a way.  Perhaps something in the header.
+ * - based on above, it seems that the webserver queues button presses
+ *   from the client, but eventually sends them all
+ * - the client does seem to require a response to each fetch, otherwise
+ *   it stays in "pending" state forever
+ * - in testing, blocking the button_handler() did not trigger any
+ *   starvation panics or other misbehavior
+ *
  * 
  * Web Server
  * ----------
@@ -78,7 +92,7 @@
  * 
  * Todo:
  * o Implement multifile upload
- * o handle multiple sequence responses in a queue
+ * o handle multiple sequence responses in a queue ... is there an index in the fetch header?
  * o rainbow sequence: finish port from adafruit, including 32bit stacked colors
  * o check all esp-idf ESP_ERROR_CHECK() fatal errors for sanity, possible change
  * o gamma32 : decide whether to implement or not, do it
