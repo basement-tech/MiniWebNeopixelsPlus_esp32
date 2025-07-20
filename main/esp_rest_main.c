@@ -121,7 +121,6 @@
 #include "esp_log.h"
 #include "mdns.h"
 #include "lwip/apps/netbiosns.h"
-//#include "protocol_examples_common.h"
 #include "station_example.h"
 
 #include "neo_system.h"
@@ -129,6 +128,11 @@
 #include "rest_server.h"
 #include "neo_ll_api.h"
 #include "neo_data.h"
+
+#include "driver/i2c_types.h"
+#include "driver/i2c_master.h"
+#include "esp_log.h"
+#include "servo_defs.h"
 
 
 #if CONFIG_EXAMPLE_WEB_DEPLOY_SD
@@ -434,6 +438,55 @@ static void neopixel_process(void *pvParameters)  {
 }
 
 /*
+ * top level process to manage servo communication
+ * SAMPLE/TEST FUNCTION FOR NOW
+ */
+static void servo_process(void *pvParameters)  {
+   ESP_LOGI(TAG, "Initializing servo subsystem...");
+   if(servo_init() != ESP_OK)
+        ESP_LOGE(TAG, "Error initializing servos");
+
+   int32_t angle = 0;
+   uint8_t ch = 0;
+    /*
+     * +/- 45 test
+     */
+    while(1)  {
+            //servo_move_real_pre(ch, servo_defs[ch].mina, false);  // absolute move to ccw
+      servo_rest(ch);  // back to middle
+      ESP_LOGI(TAG, "top rest move resulted in %ld deg", servo_get_angle(ch));
+
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+      /*
+       * make 45 +1 deg relative moves
+       */
+      ESP_LOGI(TAG, "make 45 +1 moves...");
+      for(int i = 0; i < 45; i++)  {
+        servo_move_real_pre(ch, 1, true);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+      }
+      ESP_LOGI(TAG, "at end if 45 +1 moves %ld deg", servo_get_angle(ch));
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+      servo_rest(ch);  // back to middle
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+            /*
+       * make 45 +1 deg relative moves
+       */
+      ESP_LOGI(TAG, "make 45 -1 moves...");
+      for(int i = 0; i < 45; i++)  {
+        servo_move_real_pre(ch, -1, true);
+        vTaskDelay(10 / portTICK_PERIOD_MS);
+      }
+      ESP_LOGI(TAG, "at end if 45 -1 moves %ld deg", servo_get_angle(ch));
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+
+    }
+}
+
+/*
  * start the wifi station - helper to unclutter main()
  */
 
@@ -558,4 +611,10 @@ void app_main(void)
      */
     ESP_LOGI(TAG, "Starting neopixel process from main() ...");
     xTaskCreate(neopixel_process, NEO_TASK_HANDLE_NAME, 4096, NULL, 10, NULL);
+
+    /*
+     * start the servo move engine in a separate task
+     */
+    ESP_LOGI(TAG, "Starting servo process from main() ...");
+    xTaskCreate(servo_process, SERVO_TASK_HANDLE_NAME, 4096, NULL, 10, NULL);
 }

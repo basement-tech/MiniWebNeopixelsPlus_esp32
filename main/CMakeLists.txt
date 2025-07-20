@@ -6,6 +6,8 @@ idf_component_register(SRCS "rainbow.c" "station_example.c" "esp_rest_main.c"
                             "neo_play.c"
                             "neo_data.c"
                             "station_example.c"
+                            "servo_defs.c"
+                            "pca9685.c"
                     INCLUDE_DIRS ".")
 
 #if(CONFIG_EXAMPLE_WEB_DEPLOY_SF)

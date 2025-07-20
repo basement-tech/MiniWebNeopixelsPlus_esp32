@@ -22,5 +22,6 @@ static inline void cli_printf(const char *format, ...) {
 
 #define NEO_TASK_HANDLE_NAME "neo_process"
 #define RESP_TASK_HANDLE_NAME "resp_process"
+#define SERVO_TASK_HANDLE_NAME "servo_process"
 
 #endif
