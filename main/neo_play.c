@@ -1102,6 +1102,23 @@ void neo_rainbow_stopping(void)  {
 #endif // RAINBOW_PORTED
 
 /*
+ * SEQ_STRAT_BWISE
+ * read a file containing bit pattern, addressing of individual
+ * pixels in the strand using a single R, G, B value set, and 
+ * play it out
+ */
+
+/*
+ * open the sequence file and read its contents into a 
+ * a malloc'ed buffer for use by the sequence
+ */
+void neo_bitwise_start(bool clear)  {
+
+}
+
+
+
+/*
  * function calls by strategy for each state in the playback machine
  * TODO: delete the 'x' before the labels after implementing a strategy
  */
@@ -1113,6 +1130,7 @@ seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
   { SEQ_STRAT_PONG,      "pong",           neo_pong_start,    neo_slowp_wait,    neo_pong_write,      neo_points_stopping,      noop},
 //  { SEQ_STRAT_RAINBOW,   "rainbow",       neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
   { SEQ_STRAT_SLOWP,     "slowp",          neo_slowp_start,   neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
+  { SEQ_STRAT_BWISE,     "bitwise",        neo_bitwise_start,   neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
 };
 
 
