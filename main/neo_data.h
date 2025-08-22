@@ -87,11 +87,19 @@ typedef struct {
   int32_t ms_after_last;  // wait this many mS after last change to play
 } neo_seq_point_t;
 
+/*
+ * structure into which user sequences are read and
+ * built-in sequences are built
+ * NOTE: typically either the point[] array is used for OG 
+ * sequence support or the alt_points pointer is used for malloc'ed
+ * (e.g. BITWISE) strategies.
+ */
 typedef struct  {
   const char *label;
   char strategy[MAX_NEO_STRATEGY];
   char bonus[MAX_NEO_BONUS];
   neo_seq_point_t point[MAX_NUM_SEQ_POINTS];
+  void *alt_points;
 } neo_data_t;
 
 /*

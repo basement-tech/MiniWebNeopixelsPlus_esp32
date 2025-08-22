@@ -176,6 +176,19 @@ int8_t neo_is_user(const char *label)  {
 }
 
 /*
+ * test if the strategy is of the type where the memory
+ * for points will be malloc'ed and the alt_points pointer used
+ */
+int8_t neo_is_seq_malloc(seq_strategy_t sequence)  {
+  int8_t ret = NEO_FILE_LOAD_NOTUSER;
+
+  if(sequence == SEQ_STRAT_BWISE)
+    ret = NEO_SUCCESS;
+
+  return(ret);
+}
+
+/*
  * look for a label matching the argument, label,
  * and load a sequence from file of the same name.
  * NOTE: currently the requested sequence placeholder of the name
@@ -254,24 +267,27 @@ int8_t neo_load_sequence(const char *file)  {
         return NEO_FILE_LOAD_OTHER;
     }
     else  {
+      /*
+       * read the file contents into buf and close the file
+       */
       int read_bytes = fread(buf, 1, sizeof(buf), fp);
       buf[read_bytes] = '\0';  // terminate the char string
       fclose(fp);
       ESP_LOGI(TAG, "Raw file contents:\n%s\n", buf);
 
       /*
-      * deserialize the json contents of the file which
-      * is now in buf  -> JsonDocument jsonDoc
-      */
+       * deserialize the json contents of the file which
+       * is now in buf  -> JsonDocument jsonDoc
+       */
       if(json_parse_start(&jctx, buf, strlen(buf)) != OS_SUCCESS)  {
         ESP_LOGE(TAG, "ERROR: Deserialization of file %s failed ... no change in sequence\n", file);
         ret = NEO_FILE_LOAD_DESERR;
       }
 
       /*
-      * jsonDoc contains an array of points as JsonObjects
-      * parse it into the place indicated by the "label" in the file contents.
-      */
+       * jsonDoc contains an array of points as JsonObjects
+       * parse it into the place indicated by the "label" in the file contents.
+       */
       else  {
         json_obj_get_string(&jctx, "label", label, sizeof(label));  // used to point to place in sequence array
         json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));  // copied to the sequence array
@@ -279,77 +295,85 @@ int8_t neo_load_sequence(const char *file)  {
 
         json_obj_get_array(&jctx, "points", &count);  // down one level into the array of points
 
-        if(count > MAX_NUM_SEQ_POINTS)  {
-          ESP_LOGI(TAG, "Too many points in sequence file ... truncating");
-          count = MAX_NUM_SEQ_POINTS;
-        }
-
-        ESP_LOGD(TAG, "For sequence \"%s\" : \n", label);
-
         /*
-         * find the place in neo_sequences[] where the file contents should be copied/stored
+         * branch at this point: either OG/preallocated memory for points or
+         * malloc'ed and bitwise points
          */
-        int8_t seq_idx = neo_find_sequence(label);  // use LABEL
-
-
-
-        /*
-        * iterate over the points in the array
-        * this syntax was introduced in C++11 and is equivalent to:
-        * for (size_t i = 0; i < points.size(); i++) {
-        *   JsonObject obj = points[i];
-        */
-        if(seq_idx < 0)  {
-          ret = NEO_FILE_LOAD_NOPLACE;
-          ESP_LOGE(TAG, "ERROR: neo_load_sequence: no placeholder for %s in sequence array\n", label);
+        if(neo_is_seq_malloc(neo_set_strategy(strategy)) == NEO_SUCCESS)  {
+          ESP_LOGI(TAG, "sequence demands malloc'ed memory");
         }
-
-        /*
-        * if the label was found, load the points from the json file
-        * into the neo_sequences[] array to be played out
-        *
-        * TODO: super-verbose for now for debugging
-        */
         else  {
-          /*
-           * reserialize bonus for later use
-           * Note: printf() is already in use to the memory footprint is blown already.
-           */
-          snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "%s", bonus);  // save BONUS
-          ESP_LOGI(TAG, "Reserialized bonus: %s", neo_sequences[seq_idx].bonus);
+          ESP_LOGI(TAG, "sequence uses OG points structure");
+
+          if(count > MAX_NUM_SEQ_POINTS)  {
+            ESP_LOGI(TAG, "Too many points in sequence file ... truncating");
+            count = MAX_NUM_SEQ_POINTS;
+          }
+
+          ESP_LOGD(TAG, "For sequence \"%s\" : \n", label);
 
           /*
-           * save the strategy in the sequence array
-           * NOTE: this will be more meaningful when the functionality
-           * to detect if a file is alreadly loaded/don't reload is implemented
-           * NOTE: neo_set_sequence(label, strategy) sets the active strategy (below).
-           */
-          strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));  // save STRATEGY
+          * find the place in neo_sequences[] where the file contents should be copied/stored
+          */
+          int8_t seq_idx = neo_find_sequence(label);  // use LABEL
+
+
 
           /*
-           * move the color data into the sequence array
-           */
-          for(uint16_t i = 0; i < count; i++)  {
-            json_arr_get_object(&jctx, i); // index into the array, set jctx
-            json_obj_get_int(&jctx, "r", &r);
-            json_obj_get_int(&jctx, "g", &g);
-            json_obj_get_int(&jctx, "b", &b);
-            json_obj_get_int(&jctx, "t", &t);
-            ESP_LOGD(TAG, "colors = %d %d %d %d  interval = %d", r, g, b, w, t);
-            neo_sequences[seq_idx].point[i].red = r;
-            neo_sequences[seq_idx].point[i].green = g;
-            neo_sequences[seq_idx].point[i].blue = b;
-            neo_sequences[seq_idx].point[i].white = w;
-            neo_sequences[seq_idx].point[i].ms_after_last = t;
-            json_arr_leave_object(&jctx);
+          * iterate over the points in the array
+          */
+          if(seq_idx < 0)  {
+            ret = NEO_FILE_LOAD_NOPLACE;
+            ESP_LOGE(TAG, "ERROR: neo_load_sequence: no placeholder for %s in sequence array\n", label);
           }
 
           /*
-           * launch the newly loaded sequence
-           */
-          ret = neo_set_sequence(label, strategy);  // LAUNCH
+          * if the label was found, load the points from the json file
+          * into the neo_sequences[] array to be played out
+          *
+          * TODO: super-verbose for now for debugging
+          */
+          else  {
+            /*
+            * reserialize bonus for later use
+            * Note: printf() is already in use to the memory footprint is blown already.
+            */
+            snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "%s", bonus);  // save BONUS
+            ESP_LOGI(TAG, "Reserialized bonus: %s", neo_sequences[seq_idx].bonus);
+
+            /*
+            * save the strategy in the sequence array
+            * NOTE: this will be more meaningful when the functionality
+            * to detect if a file is alreadly loaded/don't reload is implemented
+            * NOTE: neo_set_sequence(label, strategy) sets the active strategy (below).
+            */
+            strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));  // save STRATEGY
+
+            /*
+            * move the color data into the sequence array
+            */
+            for(uint16_t i = 0; i < count; i++)  {
+              json_arr_get_object(&jctx, i); // index into the array, set jctx
+              json_obj_get_int(&jctx, "r", &r);
+              json_obj_get_int(&jctx, "g", &g);
+              json_obj_get_int(&jctx, "b", &b);
+              json_obj_get_int(&jctx, "t", &t);
+              ESP_LOGD(TAG, "colors = %d %d %d %d  interval = %d", r, g, b, w, t);
+              neo_sequences[seq_idx].point[i].red = r;
+              neo_sequences[seq_idx].point[i].green = g;
+              neo_sequences[seq_idx].point[i].blue = b;
+              neo_sequences[seq_idx].point[i].white = w;
+              neo_sequences[seq_idx].point[i].ms_after_last = t;
+              json_arr_leave_object(&jctx);
+            }
+
+            /*
+            * launch the newly loaded sequence
+            */
+            ret = neo_set_sequence(label, strategy);  // LAUNCH
+          }
+          json_obj_leave_array(&jctx);  // pop back out of the array
         }
-        json_obj_leave_array(&jctx);  // pop back out of the array
       }
       json_parse_end(&jctx);  // done with json
     }

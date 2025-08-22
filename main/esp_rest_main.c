@@ -422,7 +422,7 @@ static void neopixel_process(void *pvParameters)  {
          * NOTE: a sequence triggered from a c function
          * (e.g. setting the initial sequence at startup)
          * will return NEO_NOR_SUCCESS and not require/trigger
-         * a response to the web client.  NEO_SUCCES indicates that
+         * a response to the web client.  NEO_SUCCESS indicates that
          * a button was not pressed (just polling).
          */
         err = neo_new_sequence();
