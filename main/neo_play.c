@@ -25,6 +25,7 @@
 /*
  * housekeeping for the sequence state machine
  */
+seq_callbacks_t seq_callbacks[];
 #define NEO_SEQ_START    0
 #define NEO_SEQ_WAIT     1
 #define NEO_SEQ_WRITE    2
@@ -395,24 +396,12 @@ int8_t neo_load_sequence(const char *file)  {
             
           }
           else  {
-            jctx = parse_pts_OG(&jctx, seq_idx, count);
             /*
              * move the color data into the sequence array
-             
-            for(uint16_t i = 0; i < count; i++)  {
-              json_arr_get_object(&jctx, i); // index into the array, set jctx
-              json_obj_get_int(&jctx, "r", &r);
-              json_obj_get_int(&jctx, "g", &g);
-              json_obj_get_int(&jctx, "b", &b);
-              json_obj_get_int(&jctx, "t", &t);
-              ESP_LOGD(TAG, "colors = %d %d %d %d  interval = %d", r, g, b, w, t);
-              neo_sequences[seq_idx].point[i].red = r;
-              neo_sequences[seq_idx].point[i].green = g;
-              neo_sequences[seq_idx].point[i].blue = b;
-              neo_sequences[seq_idx].point[i].white = w;
-              neo_sequences[seq_idx].point[i].ms_after_last = t;
-              json_arr_leave_object(&jctx);
-            }*/
+             */
+//            jctx = parse_pts_OG(&jctx, seq_idx, count);
+            jctx = seq_callbacks[neo_set_strategy(strategy)].parse_pts(&jctx, seq_idx, count);
+
           }
 
           /*
