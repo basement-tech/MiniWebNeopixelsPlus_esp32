@@ -191,9 +191,36 @@ int8_t neo_is_seq_malloc(seq_strategy_t sequence)  {
 /*
  * selection of functions for copying points from the user json
  * file to memory for playback.  malloc() memory if needed.
+ * 
+ * arguments:
+ *   jparse_ctx_t jctx  : pointer to points in the json heirarchy (from)
+ *   uint8_t seq_idx    : place in the sequence array to put the data (to)
+ *   int count          : how many points
  */
-void parse_pts(jparse_ctx_t jctx, seq_strategy_t strategy)  {
-  // dummy
+jparse_ctx_t parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, int count)  {
+
+  int r = 0;
+  int g = 0;
+  int b = 0;
+  int w = 0;
+  int t = 0;
+
+  for(uint16_t i = 0; i < count; i++)  {
+    json_arr_get_object(pjctx, i); // index into the array, set jctx
+    json_obj_get_int(pjctx, "r", &r);
+    json_obj_get_int(pjctx, "g", &g);
+    json_obj_get_int(pjctx, "b", &b);
+    json_obj_get_int(pjctx, "t", &t);
+    ESP_LOGD(TAG, "colors = %d %d %d %d  interval = %d", r, g, b, w, t);
+    neo_sequences[seq_idx].point[i].red = r;
+    neo_sequences[seq_idx].point[i].green = g;
+    neo_sequences[seq_idx].point[i].blue = b;
+    neo_sequences[seq_idx].point[i].white = w;
+    neo_sequences[seq_idx].point[i].ms_after_last = t;
+    json_arr_leave_object(pjctx);
+  }
+
+  return(*pjctx);
 }
 
 /*
@@ -368,9 +395,10 @@ int8_t neo_load_sequence(const char *file)  {
             
           }
           else  {
+            jctx = parse_pts_OG(&jctx, seq_idx, count);
             /*
              * move the color data into the sequence array
-             */
+             
             for(uint16_t i = 0; i < count; i++)  {
               json_arr_get_object(&jctx, i); // index into the array, set jctx
               json_obj_get_int(&jctx, "r", &r);
@@ -384,13 +412,14 @@ int8_t neo_load_sequence(const char *file)  {
               neo_sequences[seq_idx].point[i].white = w;
               neo_sequences[seq_idx].point[i].ms_after_last = t;
               json_arr_leave_object(&jctx);
-            }
-
-            /*
-            * launch the newly loaded sequence
-            */
-            ret = neo_set_sequence(label, strategy);  // LAUNCH
+            }*/
           }
+
+          /*
+           * launch the newly loaded sequence
+           */
+          ret = neo_set_sequence(label, strategy);  // LAUNCH
+
           json_obj_leave_array(&jctx);  // pop back out of the array
         }
       }
@@ -1167,13 +1196,13 @@ void neo_bitwise_start(bool clear)  {
  */
 seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
 //  strategy              label                start                wait              write                stopping             stopped
-  { SEQ_STRAT_POINTS,    "points",    parse_pts,     neo_points_start,   neo_points_wait,   neo_points_write,    neo_points_stopping,      noop},
-  { SEQ_STRAT_SINGLE,    "single",    parse_pts,     neo_single_start,   neo_points_wait,   neo_single_write,    neo_points_stopping,      noop},
-  { SEQ_STRAT_CHASE,     "xchase",    parse_pts,      start_noop,           noop,               noop,                 noop,               noop},
-  { SEQ_STRAT_PONG,      "pong",      parse_pts,     neo_pong_start,     neo_slowp_wait,    neo_pong_write,      neo_points_stopping,      noop},
-//  { SEQ_STRAT_RAINBOW,   "rainbow", parse_pts,      neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
-  { SEQ_STRAT_SLOWP,     "slowp",     parse_pts,     neo_slowp_start,    neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
-  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts,     neo_bitwise_start,  neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
+  { SEQ_STRAT_POINTS,    "points",    parse_pts_OG,     neo_points_start,   neo_points_wait,   neo_points_write,    neo_points_stopping,      noop},
+  { SEQ_STRAT_SINGLE,    "single",    parse_pts_OG,     neo_single_start,   neo_points_wait,   neo_single_write,    neo_points_stopping,      noop},
+  { SEQ_STRAT_CHASE,     "xchase",    parse_pts_OG,      start_noop,           noop,               noop,                 noop,               noop},
+  { SEQ_STRAT_PONG,      "pong",      parse_pts_OG,     neo_pong_start,     neo_slowp_wait,    neo_pong_write,      neo_points_stopping,      noop},
+//  { SEQ_STRAT_RAINBOW,   "rainbow", parse_pts_OG,      neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
+  { SEQ_STRAT_SLOWP,     "slowp",     parse_pts_OG,     neo_slowp_start,    neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
+  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_OG,     neo_bitwise_start,  neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
 };
 
 

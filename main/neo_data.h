@@ -156,7 +156,7 @@ typedef enum {
 typedef struct {
   seq_strategy_t strategy;
   const char *label;
-  void (*parse_pts)(jparse_ctx_t jctx, seq_strategy_t strategy);
+  jparse_ctx_t (*parse_pts)(jparse_ctx_t *pjctx, uint8_t seq_idx, int count);
   void (*start)(bool clear);
   void (*wait)(void);
   void (*write)(void);
