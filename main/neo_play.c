@@ -189,6 +189,14 @@ int8_t neo_is_seq_malloc(seq_strategy_t sequence)  {
 }
 
 /*
+ * selection of functions for copying points from the user json
+ * file to memory for playback.  malloc() memory if needed.
+ */
+void parse_pts(jparse_ctx_t jctx, seq_strategy_t strategy)  {
+  // dummy
+}
+
+/*
  * look for a label matching the argument, label,
  * and load a sequence from file of the same name.
  * NOTE: currently the requested sequence placeholder of the name
@@ -213,6 +221,8 @@ int8_t neo_load_sequence(const char *file)  {
   char label[MAX_NUM_LABEL];
   char strategy[MAX_NEO_STRATEGY];
   char bonus[MAX_NEO_BONUS-B_RESERVE];
+  char depth[MAX_DEPTH_C_STR];
+
   int count; // for counting points in a sequence
   int r = 0;
   int g = 0;
@@ -291,18 +301,12 @@ int8_t neo_load_sequence(const char *file)  {
       else  {
         json_obj_get_string(&jctx, "label", label, sizeof(label));  // used to point to place in sequence array
         json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));  // copied to the sequence array
+        json_obj_get_string(&jctx, "depth", depth, sizeof(depth));  // used for calculation
         json_obj_get_object_str(&jctx, "bonus", bonus, sizeof(bonus));  // reserialized for later use
 
         json_obj_get_array(&jctx, "points", &count);  // down one level into the array of points
 
-        /*
-         * branch at this point: either OG/preallocated memory for points or
-         * malloc'ed and bitwise points
-         */
-        if(neo_is_seq_malloc(neo_set_strategy(strategy)) == NEO_SUCCESS)  {
-          ESP_LOGI(TAG, "sequence demands malloc'ed memory");
-        }
-        else  {
+
           ESP_LOGI(TAG, "sequence uses OG points structure");
 
           if(count > MAX_NUM_SEQ_POINTS)  {
@@ -317,41 +321,56 @@ int8_t neo_load_sequence(const char *file)  {
           */
           int8_t seq_idx = neo_find_sequence(label);  // use LABEL
 
+        /*
+         * iterate over the points in the array
+         */
+        if(seq_idx < 0)  {
+          ret = NEO_FILE_LOAD_NOPLACE;
+          ESP_LOGE(TAG, "ERROR: neo_load_sequence: no placeholder for %s in sequence array\n", label);
+        }
 
+        /*
+         * if the label was found, load the points from the json file
+         * into the neo_sequences[] array to be played out
+         *
+         * TODO: super-verbose for now for debugging
+         */
+        else  {
+          /*
+           * reserialize bonus for later use
+           * Note: printf() is already in use to the memory footprint is blown already.
+           */
+          snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "%s", bonus);  // save BONUS
+          ESP_LOGI(TAG, "Reserialized bonus: %s", neo_sequences[seq_idx].bonus);
 
           /*
-          * iterate over the points in the array
-          */
-          if(seq_idx < 0)  {
-            ret = NEO_FILE_LOAD_NOPLACE;
-            ESP_LOGE(TAG, "ERROR: neo_load_sequence: no placeholder for %s in sequence array\n", label);
+           * save the strategy in the sequence array
+           * NOTE: this will be more meaningful when the functionality
+           * to detect if a file is alreadly loaded/don't reload is implemented
+           * NOTE: neo_set_sequence(label, strategy) sets the active strategy (below).
+           */
+          strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));  // save STRATEGY
+
+          /*
+           * branch at this point: either OG/preallocated memory for points or
+           * malloc'ed and bitwise points
+           * 
+           * json_obj_get_array(&jctx, "points", &count) returns the number of elements in the json array.
+           *   use it in the size of buffer to allocate using mallow()
+           * 
+           * NOTE: can't just juse the size of the array because the depth (i.e. number of rows per point)
+           * is variable.  The addressing will be overlayed with data in memory.
+           */
+          if(neo_is_seq_malloc(neo_set_strategy(strategy)) == NEO_SUCCESS)  {
+            ESP_LOGI(TAG, "sequence demands malloc'ed memory");
+  
+            malloc(count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * NEO_NUM_COLORS) * atoi(depth) + sizeof(uint32_t)));
+            
           }
-
-          /*
-          * if the label was found, load the points from the json file
-          * into the neo_sequences[] array to be played out
-          *
-          * TODO: super-verbose for now for debugging
-          */
           else  {
             /*
-            * reserialize bonus for later use
-            * Note: printf() is already in use to the memory footprint is blown already.
-            */
-            snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "%s", bonus);  // save BONUS
-            ESP_LOGI(TAG, "Reserialized bonus: %s", neo_sequences[seq_idx].bonus);
-
-            /*
-            * save the strategy in the sequence array
-            * NOTE: this will be more meaningful when the functionality
-            * to detect if a file is alreadly loaded/don't reload is implemented
-            * NOTE: neo_set_sequence(label, strategy) sets the active strategy (below).
-            */
-            strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));  // save STRATEGY
-
-            /*
-            * move the color data into the sequence array
-            */
+             * move the color data into the sequence array
+             */
             for(uint16_t i = 0; i < count; i++)  {
               json_arr_get_object(&jctx, i); // index into the array, set jctx
               json_obj_get_int(&jctx, "r", &r);
@@ -1148,13 +1167,13 @@ void neo_bitwise_start(bool clear)  {
  */
 seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
 //  strategy              label                start                wait              write                stopping             stopped
-  { SEQ_STRAT_POINTS,    "points",         neo_points_start,  neo_points_wait,   neo_points_write,    neo_points_stopping,      noop},
-  { SEQ_STRAT_SINGLE,    "single",         neo_single_start,  neo_points_wait,   neo_single_write,    neo_points_stopping,      noop},
-  { SEQ_STRAT_CHASE,     "xchase",          start_noop,           noop,               noop,                 noop,               noop},
-  { SEQ_STRAT_PONG,      "pong",           neo_pong_start,    neo_slowp_wait,    neo_pong_write,      neo_points_stopping,      noop},
-//  { SEQ_STRAT_RAINBOW,   "rainbow",       neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
-  { SEQ_STRAT_SLOWP,     "slowp",          neo_slowp_start,   neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
-  { SEQ_STRAT_BWISE,     "bitwise",        neo_bitwise_start,   neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
+  { SEQ_STRAT_POINTS,    "points",    parse_pts,     neo_points_start,   neo_points_wait,   neo_points_write,    neo_points_stopping,      noop},
+  { SEQ_STRAT_SINGLE,    "single",    parse_pts,     neo_single_start,   neo_points_wait,   neo_single_write,    neo_points_stopping,      noop},
+  { SEQ_STRAT_CHASE,     "xchase",    parse_pts,      start_noop,           noop,               noop,                 noop,               noop},
+  { SEQ_STRAT_PONG,      "pong",      parse_pts,     neo_pong_start,     neo_slowp_wait,    neo_pong_write,      neo_points_stopping,      noop},
+//  { SEQ_STRAT_RAINBOW,   "rainbow", parse_pts,      neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
+  { SEQ_STRAT_SLOWP,     "slowp",     parse_pts,     neo_slowp_start,    neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
+  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts,     neo_bitwise_start,  neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
 };
 
 

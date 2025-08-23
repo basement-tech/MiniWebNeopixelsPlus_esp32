@@ -9,6 +9,7 @@
 #include <stdbool.h>
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#include "json_parser.h"
 
 
 #define NEO_MAX_SEQ_FILE_SIZE 1024 // maximum size of a sequence file
@@ -18,13 +19,15 @@
 #define MAX_NUM_SEQ_POINTS 256    // maximum number of points per sequence
 #define MAX_FILENAME       128    // length of filename (without base)
 #define MAX_NUM_LABEL      32     // max number of chars in label
-#define MAX_NEO_BONUS      128     // max chars  in strategy bonus
+#define MAX_NEO_BONUS      128    // max chars  in strategy bonus
+#define MAX_DEPTH_C_STR    8      // max chars in json depth field
 #define MAX_NEO_STRATEGY   16     // max chars in a strategy string
 #define MAX_NEO_SEQUENCE   32     // max chars in a sequence string
 #define NEO_SLOWP_POINTS   1024   // number of points (smoothness) in SLOWP sequence
 #define NEO_SLOWP_FLICKERS 100    // max number of slowp random flickers
 #define NEO_FLICKER_MAX    255    // value for bright flickers
 #define NEO_FLICKER_MIN    0      // value for dim flickers
+#define NEO_NUM_COLORS     4      // how many colors in data (not necessarily implemented)
 
 #define NEO_UPDATE_INTERVAL   2000  // neopixel strand update rate in uS i.e. speed of state machine updates uS
 #define NEO_CHK_NEWS_INTERVAL 200/portTICK_PERIOD_MS   // timeout for state machine update semaphore, becomes check for new sequence interval (mS)
@@ -77,7 +80,7 @@ extern SemaphoreHandle_t xneo_cycle_next_flag;  // neo state machine cycle timer
 extern SemaphoreHandle_t xseq_upd_flag;  // new sequence requested
 
 /*
- * struct for individual points in the pattern
+ * struct for individual points in the pattern (OG)
  */
 typedef struct {
   uint8_t red;
@@ -86,6 +89,34 @@ typedef struct {
   uint8_t white;  // not always used
   int32_t ms_after_last;  // wait this many mS after last change to play
 } neo_seq_point_t;
+
+/*
+ * struct for individual points in the pattern (OG)
+ *
+ * data is stacked like this in memory:
+ * [led_red_0-15 led_green_0-15 led_blue_0-15 led_red_16-31 led_green_16-31 ...], ms_after_last
+ * will be addressed as:
+ *   points[ipoint].color[0, 1, 2, 3]
+ *   points[ipoint].ms_after_last
+ * 
+ * will be malloc'ed as:
+ * #define PIXELS_PER_JSON_ROW  16  (i.e. stored as uint16_t per color)
+ * "depth" from json file is the number of rows per point
+ * num_colors = 4
+ * size = point_count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * num_colors) * "depth") + sizeof(ms_after_last))
+ */
+#define PIXELS_PER_JSON_ROW  16  //   i.e. sizeof(uint16_t)
+typedef struct {
+  uint16_t red;
+  uint16_t green;
+  uint16_t blue;
+  uint16_t white;  // not always used
+} neo_seq_cpoint_t;
+
+typedef struct {
+  uint16_t bitmap[NEO_NUM_COLORS];  // array on groups of 16 pixels per color
+  int32_t ms_after_last;  // wait this many mS after last change to play
+} neo_seq_bpoint_t;
 
 /*
  * structure into which user sequences are read and
@@ -125,6 +156,7 @@ typedef enum {
 typedef struct {
   seq_strategy_t strategy;
   const char *label;
+  void (*parse_pts)(jparse_ctx_t jctx, seq_strategy_t strategy);
   void (*start)(bool clear);
   void (*wait)(void);
   void (*write)(void);
