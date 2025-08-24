@@ -1,5 +1,5 @@
 {
-    "label" : "BITWISE",
+    "label" : "USER-5",
     "strategy" : "bitwise",
     "bonus" : { "depth" : "2", "brightness" : {"r": 255,  "g": 0, "b": 0, "w": 0}},
     "points" : [

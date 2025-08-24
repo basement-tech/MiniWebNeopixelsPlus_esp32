@@ -248,12 +248,22 @@ jparse_ctx_t parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void 
  */
 jparse_ctx_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void *bonus)  {
 
+  uint8_t idepth = 0;  // depth counter as integer
   char color_str[16];
+  char *jcolors[4] = {
+    "r",
+    "g",
+    "b",
+    "w",
+    "t"
+  };
+
   int r = 0;
   int g = 0;
   int b = 0;
   int w = 0;
   int t = 0;
+  int cbits = 0;  // number of rows of "bits" in the json
 
   jparse_ctx_t bjctx;  // for locally parsing the bonus string
   char depth[MAX_DEPTH_C_STR];  // how many pixels/pixels/row
@@ -268,6 +278,7 @@ jparse_ctx_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void 
   }
   else  {
     json_obj_get_string(&bjctx, "depth", depth, sizeof(depth));  // used to point to place in sequence array
+    idepth = atoi(depth);  // as integer
     json_obj_get_object(&bjctx, "brightness");  // reserialized for later use
     json_obj_get_string(&bjctx, "r", color_str, sizeof(color_str));
     r = atoi(color_str);
@@ -290,25 +301,44 @@ jparse_ctx_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void 
    * NOTE: can't just use the size of the array because the depth (i.e. number of rows per point)
    * is variable.  The addressing will be overlayed with data in memory.
    */
-  int32_t msize = count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * NEO_NUM_COLORS) * atoi(depth) + sizeof(uint32_t));
+  int32_t msize = count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * NEO_NUM_COLORS) * idepth + sizeof(uint32_t));
   ESP_LOGI(TAG, "parse_pts_BW(): sequence demands malloc'ed memory of size %ld", msize);
 
   neo_sequences[seq_idx].alt_points = malloc(msize);
+/*
+typedef struct {
+  uint16_t bitmap[NEO_NUM_COLORS];  // array on groups of 16 pixels per color
+  int32_t ms_after_last;  // wait this many mS after last change to play
+} neo_seq_bpoint_t;
+ */
+  uint16_t *bpoint = neo_sequences[seq_idx].alt_points;  // shorthand and mapping
+  for(int p = 0; p < count; p++) {  //points
+    ESP_LOGI(TAG, "For point %d", p);
+    for(int r = 0; r < idepth; r++)  {  //rows
+      ESP_LOGI(TAG, "Row %d", r);
+      /*
+      * pull the data from the json data
+      */
+      json_obj_get_array(pjctx, "bits", &cbits);
+      json_arr_get_object(pjctx, r); // index into the array, set pjctx
 
-  for(uint16_t i = 0; i < count; i++)  {
-    json_arr_get_object(pjctx, i); // index into the array, set jctx
-    json_obj_get_int(pjctx, "r", &r);
-    json_obj_get_int(pjctx, "g", &g);
-    json_obj_get_int(pjctx, "b", &b);
-    json_obj_get_int(pjctx, "t", &t);
-    ESP_LOGD(TAG, "colors = %d %d %d %d  interval = %d", r, g, b, w, t);
-    neo_sequences[seq_idx].point[i].red = r;
-    neo_sequences[seq_idx].point[i].green = g;
-    neo_sequences[seq_idx].point[i].blue = b;
-    neo_sequences[seq_idx].point[i].white = w;
-    neo_sequences[seq_idx].point[i].ms_after_last = t;
-    json_arr_leave_object(pjctx);
+      for(int c = 0; c < NEO_NUM_COLORS; c++)  {  //colors
+        json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str));
+        ESP_LOGI(TAG, "  %s: 0x%x", jcolors[c], atoi(color_str));
+        *(bpoint  += (r * sizeof(neo_seq_cpoint_t)) + (c * sizeof(uint16_t))) = atoi(color_str);
+      }
+    }
+    json_obj_leave_array(pjctx);  // pop
+    // read the time interval
   }
+  json_arr_leave_object(pjctx);
+
+  ESP_LOGI(TAG, "bitwise data in memory:");
+  for(int i = 0; i < (msize/2); i++)
+    ESP_LOGI(TAG, "%d:0x%x", i, bpoint[i]);
+
+  if(neo_sequences[seq_idx].alt_points != NULL)
+    free(neo_sequences[seq_idx].alt_points);
 
   return(*pjctx);
 }
@@ -416,8 +446,6 @@ int8_t neo_load_sequence(const char *file)  {
         json_obj_get_object_str(&jctx, "bonus", bonus, sizeof(bonus));  // reserialized for later use
 
         json_obj_get_array(&jctx, "points", &count);  // down one level into the array of points
-
-        ESP_LOGI(TAG, "sequence uses OG points structure");
 
         if(count > MAX_NUM_SEQ_POINTS)  {
           ESP_LOGI(TAG, "Too many points in sequence file ... truncating");
@@ -1248,13 +1276,13 @@ void neo_bitwise_start(bool clear)  {
  */
 seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
 //  strategy              label                start                wait              write                stopping             stopped
-  { SEQ_STRAT_POINTS,    "points",    parse_pts_OG,     neo_points_start,   neo_points_wait,   neo_points_write,    neo_points_stopping,      noop},
-  { SEQ_STRAT_SINGLE,    "single",    parse_pts_OG,     neo_single_start,   neo_points_wait,   neo_single_write,    neo_points_stopping,      noop},
+  { SEQ_STRAT_POINTS,    "points",    parse_pts_OG,     neo_points_start,   neo_points_wait,   neo_points_write,    neo_points_stopping,     noop},
+  { SEQ_STRAT_SINGLE,    "single",    parse_pts_OG,     neo_single_start,   neo_points_wait,   neo_single_write,    neo_points_stopping,     noop},
   { SEQ_STRAT_CHASE,     "xchase",    parse_pts_OG,      start_noop,           noop,               noop,                 noop,               noop},
-  { SEQ_STRAT_PONG,      "pong",      parse_pts_OG,     neo_pong_start,     neo_slowp_wait,    neo_pong_write,      neo_points_stopping,      noop},
+  { SEQ_STRAT_PONG,      "pong",      parse_pts_OG,     neo_pong_start,     neo_slowp_wait,    neo_pong_write,      neo_points_stopping,     noop},
 //  { SEQ_STRAT_RAINBOW,   "rainbow", parse_pts_OG,      neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
-  { SEQ_STRAT_SLOWP,     "slowp",     parse_pts_OG,     neo_slowp_start,    neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
-  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_OG,     neo_bitwise_start,  neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,      noop},
+  { SEQ_STRAT_SLOWP,     "slowp",     parse_pts_OG,     neo_slowp_start,    neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,     noop},
+  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_BW,        start_noop,           noop,                noop     ,        noop,                noop},
 };
 
 

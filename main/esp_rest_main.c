@@ -621,6 +621,6 @@ void app_main(void)
     /*
      * start the servo move engine in a separate task
      */
-    ESP_LOGI(TAG, "Starting servo process from main() ...");
-    xTaskCreate(servo_process, SERVO_TASK_HANDLE_NAME, 4096, NULL, 10, NULL);
+    //ESP_LOGI(TAG, "Starting servo process from main() ...");
+    //xTaskCreate(servo_process, SERVO_TASK_HANDLE_NAME, 4096, NULL, 10, NULL);
 }
