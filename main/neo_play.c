@@ -290,9 +290,10 @@ jparse_ctx_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void 
    * NOTE: can't just use the size of the array because the depth (i.e. number of rows per point)
    * is variable.  The addressing will be overlayed with data in memory.
    */
-  ESP_LOGI(TAG, "sequence demands malloc'ed memory");
+  int32_t msize = count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * NEO_NUM_COLORS) * atoi(depth) + sizeof(uint32_t));
+  ESP_LOGI(TAG, "parse_pts_BW(): sequence demands malloc'ed memory of size %ld", msize);
 
-  malloc(count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * NEO_NUM_COLORS) * atoi(depth) + sizeof(uint32_t)));
+  neo_sequences[seq_idx].alt_points = malloc(msize);
 
   for(uint16_t i = 0; i < count; i++)  {
     json_arr_get_object(pjctx, i); // index into the array, set jctx

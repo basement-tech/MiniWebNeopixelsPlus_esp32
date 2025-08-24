@@ -47,7 +47,8 @@ neo_data_t neo_sequences[MAX_SEQUENCES] = {
     { 8,   0, 0, 0, 50 },
     { 0,   0, 0, 0, 50 },
     { 0,   0, 0, 0, -1 },
-    }
+    },
+    NULL
   }, // red-med
   { "GREEN-MED",
     "points",
@@ -88,7 +89,8 @@ neo_data_t neo_sequences[MAX_SEQUENCES] = {
     { 0, 8,   0, 0, 50 },
     { 0, 0,   0, 0, 50 },
     { 0, 0,   0, 0, -1 },
-    }
+    },
+    NULL
   }, // green-med
   { "PURPLE-SLOW",
     "points",
@@ -159,14 +161,16 @@ neo_data_t neo_sequences[MAX_SEQUENCES] = {
     { 4,   0, 4,   0, 50 },
     { 0,   0, 0,   0, 50 },
     { 0,   0, 0,   0, -1},
-    }
+    },
+    NULL
   }, //purple-slow
   { "RAINBOW",
     "rainbow",
     {0},
     {
       { 0, 0, 0, 0, -1 },
-    }
+    },
+    NULL
   }, // rainbow
   { "SODIUM",
     "slowp",
@@ -175,41 +179,47 @@ neo_data_t neo_sequences[MAX_SEQUENCES] = {
       { 32,  22,   1,  0,  5},
       { 127, 87,   4,  0,  5},
       { 0,   0,    0,  0, -1}
-    }
+    },
+    NULL
   }, // sodium
   { "USER-1",
     {0},
     {0},
     {
       { 0, 0, 0, 0, -1 },
-    }
+    },
+    NULL
   }, // user-1
   { "USER-2",
     {0},
     {0},
     {
       { 0, 0, 0, 0, -1 },
-    }
+    },
+    NULL
   }, // user-2
   { "USER-3",
     {0},
     {0},
     {
       { 0, 0, 0, 0, -1 },
-    }
+    },
+    NULL
   }, // user-3
   { "USER-4",
     {0},
     {0},
     {
       { 0, 0, 0, 0, -1 },
-    }
+    },
+    NULL
   }, // user-4
   { "USER-5",
     {0},
     {0},
     {
       { 0, 0, 0, 0, -1 },
-    }
+    },
+    NULL
   }, // user-5
 };
