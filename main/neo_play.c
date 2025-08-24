@@ -193,12 +193,60 @@ int8_t neo_is_seq_malloc(seq_strategy_t sequence)  {
  * selection of functions for copying points from the user json
  * file to memory for playback.  malloc() memory if needed.
  * 
+ * parse_pts_OG() : parse points like in the original implementation.
+ * points have color(r, g, b, w), and a time delay parameters.  They are copied
+ * to a preallocated space in the neo_sequences[] array of sequence data.
+ * 
+ *
+ * 
  * arguments:
  *   jparse_ctx_t jctx  : pointer to points in the json heirarchy (from)
  *   uint8_t seq_idx    : place in the sequence array to put the data (to)
  *   int count          : how many points
+ *   void *user         : points to any other data that is needed process the points
+ * 
+ * return:
+ *   jparse_ctx_t jctx  : so that the json parser can know where we ended up
  */
-jparse_ctx_t parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, int count)  {
+jparse_ctx_t parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void *user)  {
+
+  int r = 0;
+  int g = 0;
+  int b = 0;
+  int w = 0;
+  int t = 0;
+
+  for(uint16_t i = 0; i < count; i++)  {
+    json_arr_get_object(pjctx, i); // index into the array, set jctx
+    json_obj_get_int(pjctx, "r", &r);
+    json_obj_get_int(pjctx, "g", &g);
+    json_obj_get_int(pjctx, "b", &b);
+    json_obj_get_int(pjctx, "t", &t);
+    ESP_LOGD(TAG, "colors = %d %d %d %d  interval = %d", r, g, b, w, t);
+    neo_sequences[seq_idx].point[i].red = r;
+    neo_sequences[seq_idx].point[i].green = g;
+    neo_sequences[seq_idx].point[i].blue = b;
+    neo_sequences[seq_idx].point[i].white = w;
+    neo_sequences[seq_idx].point[i].ms_after_last = t;
+    json_arr_leave_object(pjctx);
+  }
+
+  return(*pjctx);
+}
+
+/*
+ *
+ * parse_pts_BW : "bitwise" sequence files contain on/off data in bit r, g, b, w fields
+ * to describe a sequence where in each pixel can be addressed to form unique patterns.
+ * the memory has to be malloc'ed based on the number of points in the sequence. the
+ * pointer to the malloc'ed data is saved in a slot in the neo_sequences[] array.
+ * the memory must be free'ed by the sequences/strategies stopping() function.
+ * 
+ * unique arguments:
+ *   void *basecolor: an array of r, g, b, w to fill in if a pixel/color is "on"
+ * 
+ */
+jparse_ctx_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void *basecolor)  {
 
   int r = 0;
   int g = 0;
@@ -252,11 +300,6 @@ int8_t neo_load_sequence(const char *file)  {
   char depth[MAX_DEPTH_C_STR];
 
   int count; // for counting points in a sequence
-  int r = 0;
-  int g = 0;
-  int b = 0;
-  int w = 0;
-  int t = 0;
 
   /*
    * verify access to the filesystem by displaying partition info
@@ -399,8 +442,7 @@ int8_t neo_load_sequence(const char *file)  {
             /*
              * move the color data into the sequence array
              */
-//            jctx = parse_pts_OG(&jctx, seq_idx, count);
-            jctx = seq_callbacks[neo_set_strategy(strategy)].parse_pts(&jctx, seq_idx, count);
+            jctx = seq_callbacks[neo_set_strategy(strategy)].parse_pts(&jctx, seq_idx, count, NULL);
 
           }
 

@@ -1,5 +1,11 @@
 /****
  * miniwebneopixelsplus
+ * 
+ * *** NOTE: although white("w")  appears in many data structure, it is not faithfully
+ * implemented throughout.  As a matter of fact, as of this writing, it is not implemented
+ * at all and will not function. ***
+ * 
+ * 
  * -> web client based control of neopixels and servos
  *    using an embedded web server and littlsfs
  * 
