@@ -246,13 +246,53 @@ jparse_ctx_t parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void 
  *   void *basecolor: an array of r, g, b, w to fill in if a pixel/color is "on"
  * 
  */
-jparse_ctx_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void *basecolor)  {
+jparse_ctx_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void *bonus)  {
 
+  char color_str[16];
   int r = 0;
   int g = 0;
   int b = 0;
   int w = 0;
   int t = 0;
+
+  jparse_ctx_t bjctx;  // for locally parsing the bonus string
+  char depth[MAX_DEPTH_C_STR];  // how many pixels/pixels/row
+
+  /*
+   * parse the depth and color to be assigned to on pixels from the passed
+   * bonus string
+   */
+  if(json_parse_start(&bjctx, bonus, strlen(bonus)) != OS_SUCCESS)  {
+    ESP_LOGE(TAG, "ERROR: parse_pts_BW(): Deserialization of bonus ... guessing\n");
+
+  }
+  else  {
+    json_obj_get_string(&bjctx, "depth", depth, sizeof(depth));  // used to point to place in sequence array
+    json_obj_get_object(&bjctx, "brightness");  // reserialized for later use
+    json_obj_get_string(&bjctx, "r", color_str, sizeof(color_str));
+    r = atoi(color_str);
+    json_obj_get_string(&bjctx, "g", color_str, sizeof(color_str));
+    g = atoi(color_str);
+    json_obj_get_string(&bjctx, "b", color_str, sizeof(color_str));
+    b = atoi(color_str);
+    json_obj_get_string(&bjctx, "w", color_str, sizeof(color_str));
+    w = atoi(color_str);
+    json_obj_leave_object(&bjctx);  // leave brightness
+    json_parse_end(&bjctx);  // leave bonus
+  }
+
+  /*
+   * malloc'ed and bitwise points
+   * 
+   * json_obj_get_array(&jctx, "points", &count) returns the number of elements in the json array.
+   *   use it in the size of buffer to allocate using malloc()
+   * 
+   * NOTE: can't just use the size of the array because the depth (i.e. number of rows per point)
+   * is variable.  The addressing will be overlayed with data in memory.
+   */
+  ESP_LOGI(TAG, "sequence demands malloc'ed memory");
+
+  malloc(count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * NEO_NUM_COLORS) * atoi(depth) + sizeof(uint32_t)));
 
   for(uint16_t i = 0; i < count; i++)  {
     json_arr_get_object(pjctx, i); // index into the array, set jctx
@@ -297,7 +337,7 @@ int8_t neo_load_sequence(const char *file)  {
   char label[MAX_NUM_LABEL];
   char strategy[MAX_NEO_STRATEGY];
   char bonus[MAX_NEO_BONUS-B_RESERVE];
-  char depth[MAX_DEPTH_C_STR];
+
 
   int count; // for counting points in a sequence
 
@@ -372,25 +412,23 @@ int8_t neo_load_sequence(const char *file)  {
       else  {
         json_obj_get_string(&jctx, "label", label, sizeof(label));  // used to point to place in sequence array
         json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));  // copied to the sequence array
-        json_obj_get_string(&jctx, "depth", depth, sizeof(depth));  // used for calculation
         json_obj_get_object_str(&jctx, "bonus", bonus, sizeof(bonus));  // reserialized for later use
 
         json_obj_get_array(&jctx, "points", &count);  // down one level into the array of points
 
+        ESP_LOGI(TAG, "sequence uses OG points structure");
 
-          ESP_LOGI(TAG, "sequence uses OG points structure");
+        if(count > MAX_NUM_SEQ_POINTS)  {
+          ESP_LOGI(TAG, "Too many points in sequence file ... truncating");
+          count = MAX_NUM_SEQ_POINTS;
+        }
 
-          if(count > MAX_NUM_SEQ_POINTS)  {
-            ESP_LOGI(TAG, "Too many points in sequence file ... truncating");
-            count = MAX_NUM_SEQ_POINTS;
-          }
+        ESP_LOGD(TAG, "For sequence \"%s\" : \n", label);
 
-          ESP_LOGD(TAG, "For sequence \"%s\" : \n", label);
-
-          /*
-          * find the place in neo_sequences[] where the file contents should be copied/stored
-          */
-          int8_t seq_idx = neo_find_sequence(label);  // use LABEL
+        /*
+        * find the place in neo_sequences[] where the file contents should be copied/stored
+        */
+        int8_t seq_idx = neo_find_sequence(label);  // use LABEL
 
         /*
          * iterate over the points in the array
@@ -423,28 +461,10 @@ int8_t neo_load_sequence(const char *file)  {
           strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));  // save STRATEGY
 
           /*
-           * branch at this point: either OG/preallocated memory for points or
-           * malloc'ed and bitwise points
-           * 
-           * json_obj_get_array(&jctx, "points", &count) returns the number of elements in the json array.
-           *   use it in the size of buffer to allocate using mallow()
-           * 
-           * NOTE: can't just juse the size of the array because the depth (i.e. number of rows per point)
-           * is variable.  The addressing will be overlayed with data in memory.
+           * move the color data into the sequence array using the function
+           * appropriate for and registered in the jump table under the strategy.
            */
-          if(neo_is_seq_malloc(neo_set_strategy(strategy)) == NEO_SUCCESS)  {
-            ESP_LOGI(TAG, "sequence demands malloc'ed memory");
-  
-            malloc(count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * NEO_NUM_COLORS) * atoi(depth) + sizeof(uint32_t)));
-            
-          }
-          else  {
-            /*
-             * move the color data into the sequence array
-             */
-            jctx = seq_callbacks[neo_set_strategy(strategy)].parse_pts(&jctx, seq_idx, count, NULL);
-
-          }
+          jctx = seq_callbacks[neo_set_strategy(strategy)].parse_pts(&jctx, seq_idx, count, bonus);
 
           /*
            * launch the newly loaded sequence
