@@ -322,7 +322,7 @@ typedef struct {
       * pull the data from the json data
       */
 
-      json_arr_get_object(pjctx, r); // index into the array, set pjctx
+      json_arr_get_object(pjctx, r); // index into the row array, set pjctx
       for(int c = 0; c < NEO_NUM_COLORS; c++)  {  //colors
         json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str));  // because json doesn't support hex
         ESP_LOGI(TAG, "  %s: %s", jcolors[c], color_str);
@@ -331,8 +331,9 @@ typedef struct {
       json_arr_leave_object(pjctx);  // leave the row array element
 
     }
-    json_arr_leave_object(pjctx); // leave the point array element
+    json_arr_leave_array(pjctx); // leave the bits array
     // read the time interval
+    json_arr_leave_object(pjctx);  // leave the points array element
   }
 
   ESP_LOGI(TAG, "bitwise data in memory:");
