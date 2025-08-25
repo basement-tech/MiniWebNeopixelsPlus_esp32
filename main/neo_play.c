@@ -314,24 +314,26 @@ typedef struct {
   uint16_t *bpoint = neo_sequences[seq_idx].alt_points;  // shorthand and mapping
   for(int p = 0; p < count; p++) {  //points
     ESP_LOGI(TAG, "For point %d", p);
+    json_arr_get_object(pjctx, p); // index into the points array, set jctx
+    json_obj_get_array(pjctx, "bits", &cbits);
     for(int r = 0; r < idepth; r++)  {  //rows
       ESP_LOGI(TAG, "Row %d", r);
       /*
       * pull the data from the json data
       */
-      json_obj_get_array(pjctx, "bits", &cbits);
-      json_arr_get_object(pjctx, r); // index into the array, set pjctx
 
+      json_arr_get_object(pjctx, r); // index into the array, set pjctx
       for(int c = 0; c < NEO_NUM_COLORS; c++)  {  //colors
-        json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str));
-        ESP_LOGI(TAG, "  %s: 0x%x", jcolors[c], atoi(color_str));
-        *(bpoint  += (r * sizeof(neo_seq_cpoint_t)) + (c * sizeof(uint16_t))) = atoi(color_str);
+        json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str));  // because json doesn't support hex
+        ESP_LOGI(TAG, "  %s: %s", jcolors[c], color_str);
+//        *(bpoint  += (r * sizeof(neo_seq_cpoint_t)) + (c * sizeof(uint16_t))) = atoi(color_str);
       }
+      json_arr_leave_object(pjctx);  // leave the row array element
+
     }
-    json_obj_leave_array(pjctx);  // pop
+    json_arr_leave_object(pjctx); // leave the point array element
     // read the time interval
   }
-  json_arr_leave_object(pjctx);
 
   ESP_LOGI(TAG, "bitwise data in memory:");
   for(int i = 0; i < (msize/2); i++)
