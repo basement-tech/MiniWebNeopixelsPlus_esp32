@@ -206,9 +206,9 @@ int8_t neo_is_seq_malloc(seq_strategy_t sequence)  {
  *   void *user         : points to any other data that is needed process the points
  * 
  * return:
- *   jparse_ctx_t jctx  : so that the json parser can know where we ended up
+ *   manupulating jctx directly via passed pointer thereto
  */
-jparse_ctx_t parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void *user)  {
+void parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void *user)  {
 
   int r = 0;
   int g = 0;
@@ -230,8 +230,6 @@ jparse_ctx_t parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void 
     neo_sequences[seq_idx].point[i].ms_after_last = t;
     json_arr_leave_object(pjctx);
   }
-
-  return(*pjctx);
 }
 
 /*
@@ -246,7 +244,7 @@ jparse_ctx_t parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void 
  *   void *basecolor: an array of r, g, b, w to fill in if a pixel/color is "on"
  * 
  */
-jparse_ctx_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void *bonus)  {
+void parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void *bonus)  {
 
   uint8_t idepth = 0;  // depth counter as integer
   char color_str[16];
@@ -359,7 +357,6 @@ typedef struct {
   if(neo_sequences[seq_idx].alt_points != NULL)
     free(neo_sequences[seq_idx].alt_points);
 
-  return(*pjctx);
 }
 
 /*
@@ -512,7 +509,7 @@ int8_t neo_load_sequence(const char *file)  {
            * move the color data into the sequence array using the function
            * appropriate for and registered in the jump table under the strategy.
            */
-          jctx = seq_callbacks[neo_set_strategy(strategy)].parse_pts(&jctx, seq_idx, count, bonus);
+          seq_callbacks[neo_set_strategy(strategy)].parse_pts(&jctx, seq_idx, count, bonus);
 
           /*
            * launch the newly loaded sequence
