@@ -23,6 +23,8 @@
         "esp_vfs_fat.h": "c",
         "bt_eepromlib.h": "c",
         "cstdint": "c",
-        "task.h": "c"
+        "task.h": "c",
+        "neo_system.h": "c",
+        "neo_ll_api.h": "c"
     }
 }

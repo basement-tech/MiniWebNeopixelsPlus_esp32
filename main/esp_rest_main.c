@@ -616,7 +616,7 @@ void app_main(void)
      * start the neopixel engine in a separate task
      */
     ESP_LOGI(TAG, "Starting neopixel process from main() ...");
-    xTaskCreate(neopixel_process, NEO_TASK_HANDLE_NAME, 4096, NULL, 10, NULL);
+    xTaskCreate(neopixel_process, NEO_TASK_HANDLE_NAME, (2*4096), NULL, 10, NULL);
 
     /*
      * start the servo move engine in a separate task

@@ -264,6 +264,7 @@ jparse_ctx_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, int count, void 
   int w = 0;
   int t = 0;
   int cbits = 0;  // number of rows of "bits" in the json
+  uint32_t p, d, c;  // traversing down the json
 
   jparse_ctx_t bjctx;  // for locally parsing the bonus string
   char depth[MAX_DEPTH_C_STR];  // how many pixels/pixels/row
@@ -312,29 +313,44 @@ typedef struct {
 } neo_seq_bpoint_t;
  */
   uint16_t *bpoint = neo_sequences[seq_idx].alt_points;  // shorthand and mapping
-  for(int p = 0; p < count; p++) {  //points
-    ESP_LOGI(TAG, "For point %d", p);
-    json_arr_get_object(pjctx, p); // index into the points array, set jctx
-    json_obj_get_array(pjctx, "bits", &cbits);
-    for(int r = 0; r < idepth; r++)  {  //rows
-      ESP_LOGI(TAG, "Row %d", r);
+  ESP_LOGI(TAG, "calling function said %d points to parse", count);
+  for(p = 0; p < count; p++) {  //points
+    ESP_LOGI(TAG, "For point %lu", p);
+    if(json_arr_get_object(pjctx, p) != OS_SUCCESS) // index into the points array, set jctx
+      ESP_LOGE(TAG, "json_arr_get_object(pjctx, p) error");
+
+    if(json_obj_get_array(pjctx, "bits", &cbits) != OS_SUCCESS)
+      ESP_LOGE(TAG, "json_obj_get_array(pjctx, \"bits\", &cbits) error");
+    else
+      ESP_LOGI(TAG, "found %d elements in \"bits\" array", cbits);
+    for(d = 0; d < idepth; d++)  {  //rows
+      ESP_LOGI(TAG, "Row %lu", d);
       /*
       * pull the data from the json data
       */
 
-      json_arr_get_object(pjctx, r); // index into the row array, set pjctx
-      for(int c = 0; c < NEO_NUM_COLORS; c++)  {  //colors
-        json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str));  // because json doesn't support hex
+      if(json_arr_get_object(pjctx, d) != OS_SUCCESS) // index into the row array, set pjctx
+        ESP_LOGE(TAG, "json_arr_get_object(pjctx, d) error");
+      for(c = 0; c < NEO_NUM_COLORS; c++)  {  //colors
+        if(json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str)) != OS_SUCCESS)  // because json doesn't support hex
+          ESP_LOGE(TAG, "json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str)) error");
         ESP_LOGI(TAG, "  %s: %s", jcolors[c], color_str);
 //        *(bpoint  += (r * sizeof(neo_seq_cpoint_t)) + (c * sizeof(uint16_t))) = atoi(color_str);
+        // Convert hex strings to values, if needed
+        //uint16_t r_val = strtol(r, NULL, 0); // base 0 auto-detects "0x"
       }
-      json_arr_leave_object(pjctx);  // leave the row array element
+      if(json_arr_leave_object(pjctx) != OS_SUCCESS)  // leave the row array element
+        ESP_LOGE(TAG, "json_arr_leave_object(pjctx) error");
 
     }
-    json_arr_leave_array(pjctx); // leave the bits array
+    if(json_arr_leave_array(pjctx) != OS_SUCCESS) // leave the bits array
+      ESP_LOGE(TAG, "json_arr_leave_array(pjctx) error"); 
+
     // read the time interval
-    json_arr_leave_object(pjctx);  // leave the points array element
+    if(json_arr_leave_object(pjctx) != OS_SUCCESS)  // leave the points array element
+      ESP_LOGE(TAG, "json_arr_leave_object(pjctx) error"); 
   }
+  // leaving the points array is in the calling function
 
   ESP_LOGI(TAG, "bitwise data in memory:");
   for(int i = 0; i < (msize/2); i++)
