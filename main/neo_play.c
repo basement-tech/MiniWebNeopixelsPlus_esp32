@@ -352,9 +352,9 @@ typedef struct {
   }
   // leaving the points array is in the calling function
 
-  ESP_LOGI(TAG, "bitwise data in memory:");
-  for(int i = 0; i < (msize/2); i++)
-    ESP_LOGI(TAG, "%d:0x%x", i, bpoint[i]);
+  //ESP_LOGI(TAG, "bitwise data in memory:");
+  //for(int i = 0; i < (msize/2); i++)
+    //ESP_LOGI(TAG, "%d:0x%x", i, bpoint[i]);
 
   if(neo_sequences[seq_idx].alt_points != NULL)
     free(neo_sequences[seq_idx].alt_points);
@@ -519,7 +519,7 @@ int8_t neo_load_sequence(const char *file)  {
            */
           ret = neo_set_sequence(label, strategy);  // LAUNCH
 
-          json_obj_leave_array(&jctx);  // pop back out of the array
+          json_obj_leave_array(&jctx);  // pop back out of the points array
         }
       }
       json_parse_end(&jctx);  // done with json
