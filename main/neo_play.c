@@ -392,7 +392,7 @@ typedef struct {
  * parse the points array.  Note, in this case, the header is json and the points are binary
  */
 void parse_pts_BBW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bonus)  {
-
+  
 }
 
 /*
@@ -414,6 +414,8 @@ int8_t neo_load_sequence(const char *file)  {
 
   struct stat file_stat;
   char buf[NEO_MAX_SEQ_FILE_SIZE];  // buffer in which to read the file contents
+  char *pbuf; // for traversing buf as a pointer
+  char *pbuf_data = NULL;  // pointer in buf[] after the preamble
   char filepath[FILE_PATH_MAX];  // fully qualified path to file
 
   jparse_ctx_t jctx;  // for json parsing
@@ -465,7 +467,7 @@ int8_t neo_load_sequence(const char *file)  {
      * Not sure it helped, but I'll leave it since it functions
      * properly.
      */
-    FILE *fp = fopen(filepath, "r");
+    FILE *fp = fopen(filepath, "rb");
     if (fp == NULL) {
         ESP_LOGE(TAG, "Failed to open file : %s", filepath);
         return NEO_FILE_LOAD_OTHER;
@@ -480,10 +482,26 @@ int8_t neo_load_sequence(const char *file)  {
       ESP_LOGI(TAG, "Raw file contents:\n%s\n", buf);
 
       /*
+       * mark the start of the data after the preamble line
+       * seems that the files have \r\n at the end of each line.
+       */
+      pbuf = buf;
+      pbuf_data = NULL;
+      while(*pbuf != '\0')  {
+        printf("0x%2x(%c)", *pbuf, *pbuf);
+        if(*pbuf == '\n')  {
+          pbuf_data = ++pbuf;
+          break;
+        }
+        else
+          pbuf++;
+      }
+
+      /*
        * deserialize the json contents of the file which
        * is now in buf  -> JsonDocument jsonDoc
        */
-      if(json_parse_start(&jctx, buf, strlen(buf)) != OS_SUCCESS)  {
+      if(json_parse_start(&jctx, pbuf_data, strlen(buf)) != OS_SUCCESS)  {
         ESP_LOGE(TAG, "ERROR: Deserialization of file %s failed ... no change in sequence\n", file);
         ret = NEO_FILE_LOAD_DESERR;
       }
@@ -1321,7 +1339,7 @@ void neo_bitwise_start(bool clear)  {
  * TODO: delete the 'x' before the labels after implementing a strategy
  */
 seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
-//  strategy              label                start                wait              write                stopping             stopped
+//  strategy              label             prep            start                wait              write                stopping             stopped
   { SEQ_STRAT_POINTS,    "points",    parse_pts_OG,     neo_points_start,   neo_points_wait,   neo_points_write,    neo_points_stopping,     noop},
   { SEQ_STRAT_SINGLE,    "single",    parse_pts_OG,     neo_single_start,   neo_points_wait,   neo_single_write,    neo_points_stopping,     noop},
   { SEQ_STRAT_CHASE,     "xchase",    parse_pts_OG,      start_noop,           noop,               noop,                 noop,               noop},

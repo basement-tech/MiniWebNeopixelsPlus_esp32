@@ -1,3 +1,4 @@
+{"strategy" : "bitwise", "__comment" : "first line is skipped"}
 {
     "label" : "USER-5",
     "strategy" : "bitwise",
