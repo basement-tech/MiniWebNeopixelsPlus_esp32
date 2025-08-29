@@ -413,10 +413,10 @@ int8_t neo_load_sequence(const char *file)  {
   int8_t ret = NEO_SUCCESS;
 
   struct stat file_stat;
-  char buf[NEO_MAX_SEQ_FILE_SIZE];  // buffer in which to read the file contents
+  char buf[NEO_MAX_SEQ_FILE_SIZE] = {0};  // buffer in which to read the file contents
   char *pbuf; // for traversing buf as a pointer
   char *pbuf_data = NULL;  // pointer in buf[] after the preamble
-  char filepath[FILE_PATH_MAX];  // fully qualified path to file
+  char filepath[FILE_PATH_MAX] = {0};  // fully qualified path to file
 
   jparse_ctx_t jctx;  // for json parsing
   char label[MAX_NUM_LABEL];
@@ -483,14 +483,14 @@ int8_t neo_load_sequence(const char *file)  {
 
       /*
        * mark the start of the data after the preamble line
-       * seems that the files have \r\n at the end of each line.
+       * seems that the files have \r\n (od -c) at the end of each line,
+       * but when reading it seems that it's only one char.
        */
       pbuf = buf;
       pbuf_data = NULL;
       while(*pbuf != '\0')  {
-        printf("0x%2x(%c)", *pbuf, *pbuf);
         if(*pbuf == '\n')  {
-          pbuf_data = ++pbuf;
+          pbuf_data = ++pbuf;  // beginning of next line
           break;
         }
         else
@@ -498,76 +498,87 @@ int8_t neo_load_sequence(const char *file)  {
       }
 
       /*
-       * deserialize the json contents of the file which
-       * is now in buf  -> JsonDocument jsonDoc
+       * if we got to the end of the buffer with no newline,
+       * the file is corrupt ... no guess possible.
        */
-      if(json_parse_start(&jctx, pbuf_data, strlen(buf)) != OS_SUCCESS)  {
-        ESP_LOGE(TAG, "ERROR: Deserialization of file %s failed ... no change in sequence\n", file);
-        ret = NEO_FILE_LOAD_DESERR;
+      if(*pbuf == '\0')  {
+        ESP_LOGE(TAG, "Error: No preamble line present");
+        ret = NEO_FILE_LOAD_OTHER;
       }
-
-      /*
-       * jsonDoc contains an array of points as JsonObjects
-       * parse it into the place indicated by the "label" in the file contents.
-       */
       else  {
-        json_obj_get_string(&jctx, "label", label, sizeof(label));  // used to point to place in sequence array
-        json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));  // copied to the sequence array
-        json_obj_get_object_str(&jctx, "bonus", bonus, sizeof(bonus));  // reserialized for later use
-
-
-
-        ESP_LOGD(TAG, "For sequence \"%s\" : \n", label);
 
         /*
-        * find the place in neo_sequences[] where the file contents should be copied/stored
+        * deserialize the json contents of the file which
+        * is now in buf  -> JsonDocument jsonDoc
         */
-        int8_t seq_idx = neo_find_sequence(label);  // use LABEL
-
-        /*
-         * iterate over the points in the array
-         */
-        if(seq_idx < 0)  {
-          ret = NEO_FILE_LOAD_NOPLACE;
-          ESP_LOGE(TAG, "ERROR: neo_load_sequence: no placeholder for %s in sequence array\n", label);
+        if(json_parse_start(&jctx, pbuf_data, strlen(buf)) != OS_SUCCESS)  {
+          ESP_LOGE(TAG, "ERROR: Deserialization of file %s failed ... no change in sequence\n", file);
+          ret = NEO_FILE_LOAD_DESERR;
         }
 
         /*
-         * if the label was found, load the points from the json file
-         * into the neo_sequences[] array to be played out
-         *
-         * TODO: super-verbose for now for debugging
-         */
+        * jsonDoc contains an array of points as JsonObjects
+        * parse it into the place indicated by the "label" in the file contents.
+        */
         else  {
-          /*
-           * reserialize bonus for later use
-           * Note: printf() is already in use to the memory footprint is blown already.
-           */
-          snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "%s", bonus);  // save BONUS
-          ESP_LOGI(TAG, "Reserialized bonus: %s", neo_sequences[seq_idx].bonus);
+          json_obj_get_string(&jctx, "label", label, sizeof(label));  // used to point to place in sequence array
+          json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));  // copied to the sequence array
+          json_obj_get_object_str(&jctx, "bonus", bonus, sizeof(bonus));  // reserialized for later use
+
+
+
+          ESP_LOGD(TAG, "For sequence \"%s\" : \n", label);
 
           /*
-           * save the strategy in the sequence array
-           * NOTE: this will be more meaningful when the functionality
-           * to detect if a file is alreadly loaded/don't reload is implemented
-           * NOTE: neo_set_sequence(label, strategy) sets the active strategy (below).
-           */
-          strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));  // save STRATEGY
+          * find the place in neo_sequences[] where the file contents should be copied/stored
+          */
+          int8_t seq_idx = neo_find_sequence(label);  // use LABEL
 
           /*
-           * move the color data into the sequence array using the function
-           * appropriate for and registered in the jump table under the strategy.
-           */
-          seq_callbacks[neo_set_strategy(strategy)].parse_pts(&jctx, seq_idx, bonus);
+          * iterate over the points in the array
+          */
+          if(seq_idx < 0)  {
+            ret = NEO_FILE_LOAD_NOPLACE;
+            ESP_LOGE(TAG, "ERROR: neo_load_sequence: no placeholder for %s in sequence array\n", label);
+          }
 
           /*
-           * launch the newly loaded sequence
-           */
-          ret = neo_set_sequence(label, strategy);  // LAUNCH
+          * if the label was found, load the points from the json file
+          * into the neo_sequences[] array to be played out
+          *
+          * TODO: super-verbose for now for debugging
+          */
+          else  {
+            /*
+            * reserialize bonus for later use
+            * Note: printf() is already in use to the memory footprint is blown already.
+            */
+            snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "%s", bonus);  // save BONUS
+            ESP_LOGI(TAG, "Reserialized bonus: %s", neo_sequences[seq_idx].bonus);
 
+            /*
+            * save the strategy in the sequence array
+            * NOTE: this will be more meaningful when the functionality
+            * to detect if a file is alreadly loaded/don't reload is implemented
+            * NOTE: neo_set_sequence(label, strategy) sets the active strategy (below).
+            */
+            strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));  // save STRATEGY
+
+            /*
+            * move the color data into the sequence array using the function
+            * appropriate for and registered in the jump table under the strategy.
+            */
+            seq_callbacks[neo_set_strategy(strategy)].parse_pts(&jctx, seq_idx, bonus);
+
+            /*
+            * launch the newly loaded sequence
+            */
+            ret = neo_set_sequence(label, strategy);  // LAUNCH
+
+          }
         }
+        json_parse_end(&jctx);  // done with json
       }
-      json_parse_end(&jctx);  // done with json
     }
   }
   return(ret);
