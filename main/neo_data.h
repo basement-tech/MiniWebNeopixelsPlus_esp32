@@ -60,6 +60,7 @@
 #define   NEO_FILE_LOAD_NOPLACE  -8  // no placeholder for file load
 #define   NEO_FILE_LOAD_OTHER    -9
 
+
 /*
  * data for commnication to the neo_play related process
  */
@@ -191,5 +192,6 @@ void neo_set_gamma_color(bool gamma_enable);
 extern neo_data_t neo_sequences[MAX_SEQUENCES];  // sequence specifications
 extern int8_t seq_index;  // which sequence is being played out
 extern int8_t strategy_idx; // which strategy should be used to play a user file
+extern char *filetypes[];
 
 #endif
