@@ -12,22 +12,22 @@
 #include "json_parser.h"
 
 
-#define NEO_MAX_SEQ_FILE_SIZE 1024 // maximum size of a sequence file
-#define NEO_SEQ_STRATEGIES 6      // number of strategies defined (i.e. size of array of strategy callbacks)
-#define MAX_USER_SEQ       5      // maximum number of user buttons/files
-#define MAX_SEQUENCES      10     // number of sequences to allocate
-#define MAX_NUM_SEQ_POINTS 256    // maximum number of points per sequence
-#define MAX_FILENAME       128    // length of filename (without base)
-#define MAX_NUM_LABEL      32     // max number of chars in label
-#define MAX_NEO_BONUS      128    // max chars  in strategy bonus
-#define MAX_DEPTH_C_STR    8      // max chars in json depth field
-#define MAX_NEO_STRATEGY   16     // max chars in a strategy string
-#define MAX_NEO_SEQUENCE   32     // max chars in a sequence string
-#define NEO_SLOWP_POINTS   1024   // number of points (smoothness) in SLOWP sequence
-#define NEO_SLOWP_FLICKERS 100    // max number of slowp random flickers
-#define NEO_FLICKER_MAX    255    // value for bright flickers
-#define NEO_FLICKER_MIN    0      // value for dim flickers
-#define NEO_NUM_COLORS     4      // how many colors in data (not necessarily implemented)
+#define NEO_MAX_SEQ_FILE_SIZE 4096 // maximum size of a sequence file
+#define NEO_SEQ_STRATEGIES 6       // number of strategies defined (i.e. size of array of strategy callbacks)
+#define MAX_USER_SEQ       5       // maximum number of user buttons/files
+#define MAX_SEQUENCES      10      // number of sequences to allocate
+#define MAX_NUM_SEQ_POINTS 256     // maximum number of points per sequence
+#define MAX_FILENAME       128     // length of filename (without base)
+#define MAX_NUM_LABEL      32      // max number of chars in label
+#define MAX_NEO_BONUS      128     // max chars  in strategy bonus
+#define MAX_DEPTH_C_STR    8       // max chars in json depth field
+#define MAX_NEO_STRATEGY   16      // max chars in a strategy string
+#define MAX_NEO_SEQUENCE   32      // max chars in a sequence string
+#define NEO_SLOWP_POINTS   1024    // number of points (smoothness) in SLOWP sequence
+#define NEO_SLOWP_FLICKERS 100     // max number of slowp random flickers
+#define NEO_FLICKER_MAX    255     // value for bright flickers
+#define NEO_FLICKER_MIN    0       // value for dim flickers
+#define NEO_NUM_COLORS     4       // how many colors in data (not necessarily implemented)
 
 #define NEO_UPDATE_INTERVAL   2000  // neopixel strand update rate in uS i.e. speed of state machine updates uS
 #define NEO_CHK_NEWS_INTERVAL 200/portTICK_PERIOD_MS   // timeout for state machine update semaphore, becomes check for new sequence interval (mS)

@@ -422,6 +422,7 @@ int8_t neo_load_sequence(const char *file)  {
   char label[MAX_NUM_LABEL];
   char strategy[MAX_NEO_STRATEGY];
   char bonus[MAX_NEO_BONUS-B_RESERVE];
+  uint16_t hdr_len;  // length of the preamble json string
 
 
   int count; // for counting points in a sequence
@@ -486,32 +487,42 @@ int8_t neo_load_sequence(const char *file)  {
        * seems that the files have \r\n (od -c) at the end of each line,
        * but when reading it seems that it's only one char.
        */
-      pbuf = buf;
       pbuf_data = NULL;
-      while(*pbuf != '\0')  {
-        if(*pbuf == '\n')  {
-          pbuf_data = ++pbuf;  // beginning of next line
-          break;
-        }
-        else
-          pbuf++;
+      for(hdr_len = 0; hdr_len < read_bytes; hdr_len++)  {
+          if(buf[hdr_len] == '\n')  {
+            pbuf_data = buf + ++hdr_len;
+            break;
+          }
       }
 
       /*
        * if we got to the end of the buffer with no newline,
        * the file is corrupt ... no guess possible.
        */
-      if(*pbuf == '\0')  {
+      if(hdr_len >= read_bytes)  {
         ESP_LOGE(TAG, "Error: No preamble line present");
         ret = NEO_FILE_LOAD_OTHER;
       }
       else  {
+        /*
+         * parse the header first
+         */
+        if(json_parse_start(&jctx, buf, hdr_len) != OS_SUCCESS)  {
+          ESP_LOGE(TAG, "ERROR: Deserialization of preamble failed");
+        }
+        else  {
+          json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));
+          ESP_LOGI(TAG, "Preamble strategy = \"%s\"", strategy);
+          json_parse_end(&jctx);
+        }
+
+        ESP_LOGI(TAG, "Balance of the file :\n%s", pbuf_data);
 
         /*
         * deserialize the json contents of the file which
-        * is now in buf  -> JsonDocument jsonDoc
+        * is now in buf and is all json (no binary)
         */
-        if(json_parse_start(&jctx, pbuf_data, strlen(buf)) != OS_SUCCESS)  {
+        if(json_parse_start(&jctx, pbuf_data, strlen(pbuf_data)) != OS_SUCCESS)  {
           ESP_LOGE(TAG, "ERROR: Deserialization of file %s failed ... no change in sequence\n", file);
           ret = NEO_FILE_LOAD_DESERR;
         }
