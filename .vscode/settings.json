@@ -25,6 +25,7 @@
         "cstdint": "c",
         "task.h": "c",
         "neo_system.h": "c",
-        "neo_ll_api.h": "c"
+        "neo_ll_api.h": "c",
+        "format": "c"
     }
 }

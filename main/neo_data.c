@@ -6,15 +6,6 @@
 #include "neo_data.h"
 
 
-/*
- * filetypes
- */
-char *filetypes[] = {
-  "OG",
-  "BIN_BW",
-  NULL
-};
-
 
 // adjust MAX_SEQUENCES in neo_data.h to match number initialized
 neo_data_t neo_sequences[MAX_SEQUENCES] = {

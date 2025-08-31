@@ -97,6 +97,19 @@ int8_t neo_find_sequence(const char *label)  {
   return(ret);
 }
 
+/*
+ * return the index in neo_file_procs[] that matches
+ * the filetype given as an argument.
+ */
+int8_t neo_find_filetype(const char *filetype)  {
+  int8_t ret = -1;
+  for(int i = 0; (neo_file_procs[i].filetypes[0] != '\0'); i++)  {
+    if(strcmp(filetype, neo_file_procs[i].filetypes) == 0)
+      ret = i;
+  }
+  return(ret);
+}
+
 
 /*
  * which/set sequence are we playing out
@@ -396,6 +409,22 @@ void parse_pts_BBW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bonus)  {
 }
 
 /*
+ * parse file for type "OG"
+ */
+uint8_t neo_proc_OG(char *buf)  {
+
+  return(NEO_SUCCESS);
+}
+
+/*
+ * parse file for type "BIN_BW"
+ */
+uint8_t neo_proc_BIN_BW(char *buf)  {
+
+  return(NEO_SUCCESS);
+}
+
+/*
  * look for a label matching the argument, label,
  * and load a sequence from file of the same name.
  * NOTE: currently the requested sequence placeholder of the name
@@ -422,6 +451,7 @@ int8_t neo_load_sequence(const char *file)  {
   char label[MAX_NUM_LABEL];
   char strategy[MAX_NEO_STRATEGY];
   char bonus[MAX_NEO_BONUS-B_RESERVE];
+  char filetype[16];
   uint16_t hdr_len;  // length of the preamble json string
 
 
@@ -505,18 +535,29 @@ int8_t neo_load_sequence(const char *file)  {
       }
       else  {
         /*
-         * parse the header first
+         * parse the header first to determine file type
          */
         if(json_parse_start(&jctx, buf, hdr_len) != OS_SUCCESS)  {
           ESP_LOGE(TAG, "ERROR: Deserialization of preamble failed");
         }
         else  {
-          json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));
-          ESP_LOGI(TAG, "Preamble strategy = \"%s\"", strategy);
+          json_obj_get_string(&jctx, "filetype", filetype, sizeof(filetype));
+          ESP_LOGI(TAG, "Preamble filetype = \"%s\"", filetype);
           json_parse_end(&jctx);
         }
 
         ESP_LOGI(TAG, "Balance of the file :\n%s", pbuf_data);
+
+        int8_t filetype_idx = -1;
+        if((filetype_idx = neo_find_filetype(filetype)) < 0)
+        {
+          ret = NEO_FILE_LOAD_NOPLACE;
+          ESP_LOGE(TAG, "ERROR: neo_load_sequence: no placeholder for %s in filetype array\n", filetype);
+        }
+        else
+        {
+          ESP_LOGI(TAG, "parsing balance of sequence file base on filetype %s", filetype);
+        }
 
         /*
         * deserialize the json contents of the file which
@@ -1354,7 +1395,18 @@ void neo_bitwise_start(bool clear)  {
 
 }
 
+/*
+ * function calls by filetype
+ * one of these functions are called to process the char *buf 
+ * containing the balance of the file after the first line header
+ * determines the filetype.
+ */
 
+neo_ftype_t neo_file_procs[] = {
+  {"OG", neo_proc_OG},
+  {"BIN_BW", neo_proc_BIN_BW},
+  {"\0", NULL}
+};
 
 /*
  * function calls by strategy for each state in the playback machine

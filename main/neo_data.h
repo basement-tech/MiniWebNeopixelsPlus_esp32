@@ -80,6 +80,16 @@ extern neo_mutex_data_t neo_mutex_data;  // data to be sent to neo_play process 
 extern SemaphoreHandle_t xneo_cycle_next_flag;  // neo state machine cycle timer
 extern SemaphoreHandle_t xseq_upd_flag;  // new sequence requested
 
+
+/*
+ * filetypes
+ */
+typedef struct {
+  char *filetypes;
+  uint8_t (*neo_proc_seqfile)(char *buf);
+} neo_ftype_t;
+
+
 /*
  * struct for individual points in the pattern (OG)
  */
@@ -189,9 +199,9 @@ void neo_set_gamma_color(bool gamma_enable);
 /*
  * array of neopixel sequences and the index to the currently playing one
  */
-extern neo_data_t neo_sequences[MAX_SEQUENCES];  // sequence specifications
+extern neo_ftype_t neo_file_procs[];  // filetype switch table
+extern neo_data_t neo_sequences[];  // sequence switch table
 extern int8_t seq_index;  // which sequence is being played out
 extern int8_t strategy_idx; // which strategy should be used to play a user file
-extern char *filetypes[];
 
 #endif
