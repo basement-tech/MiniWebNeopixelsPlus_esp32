@@ -543,7 +543,7 @@ int8_t neo_load_sequence(const char *file)  {
         else
         {
           ESP_LOGI(TAG, "parsing balance of sequence file base on filetype %s", filetype);
-          neo_file_procs[filetype_idx].neo_proc_seqfile(pbuf_data);
+          ret = neo_file_procs[filetype_idx].neo_proc_seqfile(pbuf_data);
         }
       }
     }
@@ -585,7 +585,7 @@ uint8_t neo_proc_OG(char *buf)  {
 
 
 
-    ESP_LOGI(TAG, "For sequence \"%s\" : \n", label);
+    ESP_LOGI(TAG, "For sequence \"%s\" : ", label);
 
     /*
      * find the place in neo_sequences[] where the file contents should be copied/stored
@@ -633,7 +633,7 @@ uint8_t neo_proc_OG(char *buf)  {
        */
       ret = neo_set_sequence(label, strategy);  // LAUNCH
     }
-  json_parse_end(&jctx);  // done with json
+    json_parse_end(&jctx);  // done with json
   }
   return(ret);
 }
