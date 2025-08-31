@@ -484,7 +484,7 @@ int8_t neo_load_sequence(const char *file)  {
      * Not sure it helped, but I'll leave it since it functions
      * properly.
      */
-    FILE *fp = fopen(filepath, "rb");
+    FILE *fp = fopen(filepath, "rb");  // -> OPEN FILE
     if (fp == NULL) {
         ESP_LOGE(TAG, "Failed to open file : %s", filepath);
         return NEO_FILE_LOAD_OTHER;
@@ -495,11 +495,12 @@ int8_t neo_load_sequence(const char *file)  {
        */
       int read_bytes = fread(buf, 1, sizeof(buf), fp);
       buf[read_bytes] = '\0';  // terminate the char string
-      fclose(fp);
-      ESP_LOGI(TAG, "Raw file contents:\n%s\n", buf);
+      fclose(fp);                      // -> CLOSE FILE
+      ESP_LOGI(TAG, "Raw file contents:\n%s\n", buf);  // char *buf takes it from here
 
       /*
-       * mark the start of the data after the preamble line
+       * mark the start of the data after the preamble line with char *pbuf_data
+       *
        * seems that the files have \r\n (od -c) at the end of each line,
        * but when reading it seems that it's only one char.
        */
@@ -642,8 +643,91 @@ uint8_t neo_proc_OG(char *buf)  {
  * parse file for type "BIN_BW"
  */
 uint8_t neo_proc_BIN_BW(char *buf)  {
+int8_t ret = -1;
 
-  return(NEO_SUCCESS);
+  jparse_ctx_t jctx;  // for json parsing
+  int8_t seq_idx = -1;
+  char label[MAX_NUM_LABEL];
+  char strategy[MAX_NEO_STRATEGY];
+  char bonus[MAX_NEO_BONUS-B_RESERVE];
+
+  /*
+   * find the end of the json header (i.e. the start of the binary data)
+   */
+
+  ESP_LOGI(TAG, "Balance of the file :\n%s", buf);
+
+  /*
+   * deserialize the json contents of the file which
+   * is now in buf and is all json (no binary)
+   */
+  if(json_parse_start(&jctx, buf, strlen(buf)) != OS_SUCCESS)  {
+    ESP_LOGE(TAG, "ERROR: Deserialization of file failed at the start ... no change in sequence\n");
+    ret = NEO_FILE_LOAD_DESERR;
+  }
+
+  /*
+   * jsonDoc contains an array of points as JsonObjects
+   * parse it into the place indicated by the "label" in the file contents.
+   */
+  else  {
+    json_obj_get_string(&jctx, "label", label, sizeof(label));  // used to point to place in sequence array
+    json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));  // copied to the sequence array
+    json_obj_get_object_str(&jctx, "bonus", bonus, sizeof(bonus));  // reserialized for later use
+
+
+
+    ESP_LOGI(TAG, "For sequence \"%s\" : ", label);
+
+    /*
+     * find the place in neo_sequences[] where the file contents should be copied/stored
+     */
+    seq_idx = neo_find_sequence(label);  // use LABEL
+
+    /*
+     * iterate over the points in the array
+     */
+    if(seq_idx < 0)  {
+      ret = NEO_FILE_LOAD_NOPLACE;
+      ESP_LOGE(TAG, "ERROR: neo_load_sequence: no placeholder for %s in sequence array\n", label);
+    }
+
+    /*
+     * if the label was found, load the points from the json file
+     * into the neo_sequences[] array to be played out
+     *
+     * TODO: super-verbose for now for debugging
+     */
+    else  {
+      /*
+       * reserialize bonus for later use
+       * Note: printf() is already in use to the memory footprint is blown already.
+       */
+      snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "%s", bonus);  // save BONUS
+      ESP_LOGI(TAG, "Reserialized bonus: %s", neo_sequences[seq_idx].bonus);
+
+      /*
+       * save the strategy in the sequence array
+       * NOTE: this will be more meaningful when the functionality
+       * to detect if a file is alreadly loaded/don't reload is implemented
+       * NOTE: neo_set_sequence(label, strategy) sets the active strategy (below).
+       */
+      strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));  // save STRATEGY
+
+      /*
+       * move the color data into the sequence array using the function
+       * appropriate for and registered in the jump table under the strategy.
+       */
+      seq_callbacks[neo_set_strategy(strategy)].parse_pts(&jctx, seq_idx, bonus);
+
+      /*
+       * launch the newly loaded sequence
+       */
+      ret = neo_set_sequence(label, strategy);  // LAUNCH
+    }
+    json_parse_end(&jctx);  // done with json
+  }
+  return(ret);
 }
 
 /*
