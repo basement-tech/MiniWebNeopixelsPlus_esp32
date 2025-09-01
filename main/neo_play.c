@@ -561,15 +561,15 @@ uint8_t neo_proc_OG(char *buf)  {
 
   jparse_ctx_t jctx;  // for json parsing
   int8_t seq_idx = -1;
-  char label[MAX_NUM_LABEL];
-  char strategy[MAX_NEO_STRATEGY];
-  char bonus[MAX_NEO_BONUS-B_RESERVE];
+  char label[MAX_NUM_LABEL] = {0};
+  char strategy[MAX_NEO_STRATEGY] = {0};
+  char bonus[MAX_NEO_BONUS-B_RESERVE] = {0};
 
   ESP_LOGI(TAG, "Balance of the file :\n%s", buf);
 
   /*
    * deserialize the json contents of the file which
-   * is now in buf and is all json (no binary)
+   * is now in buf and is all json (no binary, i.e. "OG")
    */
   if(json_parse_start(&jctx, buf, strlen(buf)) != OS_SUCCESS)  {
     ESP_LOGE(TAG, "ERROR: Deserialization of file failed at the start ... no change in sequence\n");
@@ -577,7 +577,6 @@ uint8_t neo_proc_OG(char *buf)  {
   }
 
   /*
-   * jsonDoc contains an array of points as JsonObjects
    * parse it into the place indicated by the "label" in the file contents.
    */
   else  {
@@ -585,12 +584,11 @@ uint8_t neo_proc_OG(char *buf)  {
     json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));  // copied to the sequence array
     json_obj_get_object_str(&jctx, "bonus", bonus, sizeof(bonus));  // reserialized for later use
 
-
-
     ESP_LOGI(TAG, "For sequence \"%s\" : ", label);
 
     /*
      * find the place in neo_sequences[] where the file contents should be copied/stored
+     * (will also test for validity of label)
      */
     seq_idx = neo_find_sequence(label);  // use LABEL
 
@@ -625,15 +623,26 @@ uint8_t neo_proc_OG(char *buf)  {
       strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));  // save STRATEGY
 
       /*
-       * move the color data into the sequence array using the function
-       * appropriate for and registered in the jump table under the strategy.
+       * validate strategy
        */
-      seq_callbacks[neo_set_strategy(strategy)].parse_pts(&jctx, seq_idx, bonus);
+      seq_strategy_t strat = neo_set_strategy(strategy);
+      if(strat == SEQ_STRAT_UNDEFINED)  {
+        ret = NEO_STRAT_ERR;
+        ESP_LOGE(TAG, "ERROR: neo_load_sequence: specified strategy not found");
+      }
+      else  {
 
-      /*
-       * launch the newly loaded sequence
-       */
-      ret = neo_set_sequence(label, strategy);  // LAUNCH
+        /*
+        * move the color data into the sequence array using the function
+        * appropriate for and registered in the jump table under the strategy.
+        */
+        seq_callbacks[strat].parse_pts(&jctx, seq_idx, bonus);
+
+        /*
+        * launch the newly loaded sequence
+        */
+        ret = neo_set_sequence(label, strategy);  // LAUNCH
+      }
     }
     json_parse_end(&jctx);  // done with json
   }
@@ -644,23 +653,19 @@ uint8_t neo_proc_OG(char *buf)  {
  * parse file for type "BIN_BW"
  */
 uint8_t neo_proc_BIN_BW(char *buf)  {
-int8_t ret = -1;
+  int8_t ret = -1;
 
   jparse_ctx_t jctx;  // for json parsing
   int8_t seq_idx = -1;
-  char label[MAX_NUM_LABEL];
-  char strategy[MAX_NEO_STRATEGY];
-  char bonus[MAX_NEO_BONUS-B_RESERVE];
-
-  /*
-   * find the end of the json header (i.e. the start of the binary data)
-   */
+  char label[MAX_NUM_LABEL] = {0};
+  char strategy[MAX_NEO_STRATEGY] = {0};
+  char bonus[MAX_NEO_BONUS-B_RESERVE] = {0};
 
   ESP_LOGI(TAG, "Balance of the file :\n%s", buf);
 
   /*
    * deserialize the json contents of the file which
-   * is now in buf and is all json (no binary)
+   * is now in buf and is all json (no binary, i.e. "OG")
    */
   if(json_parse_start(&jctx, buf, strlen(buf)) != OS_SUCCESS)  {
     ESP_LOGE(TAG, "ERROR: Deserialization of file failed at the start ... no change in sequence\n");
@@ -668,7 +673,6 @@ int8_t ret = -1;
   }
 
   /*
-   * jsonDoc contains an array of points as JsonObjects
    * parse it into the place indicated by the "label" in the file contents.
    */
   else  {
@@ -676,12 +680,11 @@ int8_t ret = -1;
     json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));  // copied to the sequence array
     json_obj_get_object_str(&jctx, "bonus", bonus, sizeof(bonus));  // reserialized for later use
 
-
-
     ESP_LOGI(TAG, "For sequence \"%s\" : ", label);
 
     /*
      * find the place in neo_sequences[] where the file contents should be copied/stored
+     * (will also test for validity of label)
      */
     seq_idx = neo_find_sequence(label);  // use LABEL
 
@@ -716,15 +719,26 @@ int8_t ret = -1;
       strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));  // save STRATEGY
 
       /*
-       * move the color data into the sequence array using the function
-       * appropriate for and registered in the jump table under the strategy.
+       * validate strategy
        */
-      seq_callbacks[neo_set_strategy(strategy)].parse_pts(&jctx, seq_idx, bonus);
+      seq_strategy_t strat = neo_set_strategy(strategy);
+      if(strat == SEQ_STRAT_UNDEFINED)  {
+        ret = NEO_STRAT_ERR;
+        ESP_LOGE(TAG, "ERROR: neo_load_sequence: specified strategy not found");
+      }
+      else  {
 
-      /*
-       * launch the newly loaded sequence
-       */
-      ret = neo_set_sequence(label, strategy);  // LAUNCH
+        /*
+         * move the color data into the sequence array using the function
+         * appropriate for and registered in the jump table under the strategy.
+         */
+        seq_callbacks[strat].parse_pts(&jctx, seq_idx, bonus);
+
+        /*
+         * launch the newly loaded sequence
+         */
+        ret = neo_set_sequence(label, strategy);  // LAUNCH
+      }
     }
     json_parse_end(&jctx);  // done with json
   }
