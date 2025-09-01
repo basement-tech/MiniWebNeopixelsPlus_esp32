@@ -1,4 +1,4 @@
-{"filetype" : "OG", "__comment" : "original all json"}
+{"filetype" : "OG", "jsonlen": -1, "__comment" : "original all json"}
 {
     "label" : "USER-5",
     "strategy" : "bitwise",
