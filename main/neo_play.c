@@ -431,17 +431,14 @@ int8_t neo_load_sequence(const char *file)  {
 
   struct stat file_stat;
   char buf[NEO_MAX_SEQ_FILE_SIZE] = {0};  // buffer in which to read the file contents
-  char *pbuf; // for traversing buf as a pointer
   char *pbuf_data = NULL;  // pointer in buf[] after the preamble
   char filepath[FILE_PATH_MAX] = {0};  // fully qualified path to file
 
   jparse_ctx_t jctx;  // for json parsing
 
-  char filetype[16];
+  char filetype[16];  // file type as string extracted from json first row
   uint16_t hdr_len;  // length of the preamble json string
 
-
-  int count; // for counting points in a sequence
 
   /*
    * verify access to the filesystem by displaying partition info
@@ -525,26 +522,30 @@ int8_t neo_load_sequence(const char *file)  {
          * parse the header first to determine file type
          */
         if(json_parse_start(&jctx, buf, hdr_len) != OS_SUCCESS)  {
-          ESP_LOGE(TAG, "ERROR: Deserialization of preamble failed");
+          ESP_LOGE(TAG, "ERROR: Deserialization of preamble failed ... don't know file type");
+          ret = NEO_DESERR;
         }
         else  {
-          json_obj_get_string(&jctx, "filetype", filetype, sizeof(filetype));
-          ESP_LOGI(TAG, "Preamble filetype = \"%s\"", filetype);
+          if(json_obj_get_string(&jctx, "filetype", filetype, sizeof(filetype)) != OS_SUCCESS)  {
+            ESP_LOGE(TAG, "ERROR: Header does not contain \"filetype\" ... don't know file type");
+            ret = NEO_DESERR;
+          }
+          else  {
+            ESP_LOGI(TAG, "Preamble filetype determined = \"%s\"", filetype);
+
+            int8_t filetype_idx = -1;
+            if((filetype_idx = neo_find_filetype(filetype)) < 0)
+            {
+              ESP_LOGE(TAG, "ERROR: neo_load_sequence: no placeholder for %s in filetype array\n", filetype);
+              ret = NEO_FILE_LOAD_NOPLACE;
+            }
+            else
+            {
+              ESP_LOGI(TAG, "parsing balance of sequence file base on filetype %s", filetype);
+              ret = neo_file_procs[filetype_idx].neo_proc_seqfile(pbuf_data);
+            }
+          }
           json_parse_end(&jctx);
-        }
-
-        ESP_LOGI(TAG, "Balance of the file :\n%s", pbuf_data);
-
-        int8_t filetype_idx = -1;
-        if((filetype_idx = neo_find_filetype(filetype)) < 0)
-        {
-          ret = NEO_FILE_LOAD_NOPLACE;
-          ESP_LOGE(TAG, "ERROR: neo_load_sequence: no placeholder for %s in filetype array\n", filetype);
-        }
-        else
-        {
-          ESP_LOGI(TAG, "parsing balance of sequence file base on filetype %s", filetype);
-          ret = neo_file_procs[filetype_idx].neo_proc_seqfile(pbuf_data);
         }
       }
     }
