@@ -86,7 +86,7 @@ extern SemaphoreHandle_t xseq_upd_flag;  // new sequence requested
  */
 typedef struct {
   char *filetypes;
-  uint8_t (*neo_proc_seqfile)(char *buf);
+  uint8_t (*neo_proc_seqfile)(char *buf, int len);
 } neo_ftype_t;
 
 

@@ -437,6 +437,7 @@ int8_t neo_load_sequence(const char *file)  {
   jparse_ctx_t jctx;  // for json parsing
 
   char filetype[16];  // file type as string extracted from json first row
+  int json_len = 0;  // size of the balance of the json part of the file
   uint16_t hdr_len;  // length of the preamble json string
 
 
@@ -530,6 +531,10 @@ int8_t neo_load_sequence(const char *file)  {
             ESP_LOGE(TAG, "ERROR: Header does not contain \"filetype\" ... don't know file type");
             ret = NEO_DESERR;
           }
+          else if(json_obj_get_int(&jctx, "jsonlen", &json_len) != OS_SUCCESS)  {
+            ESP_LOGE(TAG, "ERROR: Header does not contain \"jsonlen\"");
+            ret = NEO_DESERR;
+          }
           else  {
             ESP_LOGI(TAG, "Preamble filetype determined = \"%s\"", filetype);
 
@@ -542,7 +547,7 @@ int8_t neo_load_sequence(const char *file)  {
             else
             {
               ESP_LOGI(TAG, "parsing balance of sequence file base on filetype %s", filetype);
-              ret = neo_file_procs[filetype_idx].neo_proc_seqfile(pbuf_data);
+              ret = neo_file_procs[filetype_idx].neo_proc_seqfile(pbuf_data, json_len);
             }
           }
           json_parse_end(&jctx);
@@ -556,7 +561,7 @@ int8_t neo_load_sequence(const char *file)  {
 /*
  * parse file for type "OG"
  */
-uint8_t neo_proc_OG(char *buf)  {
+uint8_t neo_proc_OG(char *buf, int json_len)  {
   int8_t ret = -1;
 
   jparse_ctx_t jctx;  // for json parsing
@@ -651,8 +656,11 @@ uint8_t neo_proc_OG(char *buf)  {
 
 /*
  * parse file for type "BIN_BW"
+ * arguments:
+ *  char *buf    : buffer containing the balance of the file after filetype json header
+ *  uint16_t len : the number of bytes of json in the balance of the file
  */
-uint8_t neo_proc_BIN_BW(char *buf)  {
+uint8_t neo_proc_BIN_BW(char *buf, int json_len)  {
   int8_t ret = -1;
 
   jparse_ctx_t jctx;  // for json parsing
