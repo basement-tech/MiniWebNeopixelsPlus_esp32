@@ -749,12 +749,12 @@ uint8_t neo_proc_BIN_BW(char *buf, int json_len)  {
         /*
          * launch the newly loaded sequence
          */
-        //ret = neo_set_sequence(label, strategy);  // LAUNCH
+        ret = neo_set_sequence(label, strategy);  // LAUNCH
       }
     }
     json_parse_end(&jctx);  // done with json
   }
-  return(NEO_SUCCESS);
+  return(ret);
 }
 
 /*
