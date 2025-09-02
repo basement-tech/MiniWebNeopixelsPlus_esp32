@@ -223,4 +223,12 @@ neo_data_t neo_sequences[MAX_SEQUENCES] = {
     },
     NULL
   }, // user-5
+  { "USER-6",
+    {0},
+    {0},
+    {
+      { 0, 0, 0, 0, -1 },
+    },
+    NULL
+  }, // user-6
 };

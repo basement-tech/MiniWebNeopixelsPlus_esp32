@@ -668,14 +668,15 @@ uint8_t neo_proc_BIN_BW(char *buf, int json_len)  {
   char label[MAX_NUM_LABEL] = {0};
   char strategy[MAX_NEO_STRATEGY] = {0};
   char bonus[MAX_NEO_BONUS-B_RESERVE] = {0};
+  char comment[MAX_NEO_COMMENT] = {0};
 
-  ESP_LOGI(TAG, "Balance of the file :\n%s", buf);
+  //ESP_LOGI(TAG, "Balance of the file :\n%s", buf);
 
   /*
    * deserialize the json contents of the file which
    * is now in buf and is all json (no binary, i.e. "OG")
    */
-  if(json_parse_start(&jctx, buf, strlen(buf)) != OS_SUCCESS)  {
+  if(json_parse_start(&jctx, buf, json_len) != OS_SUCCESS)  {
     ESP_LOGE(TAG, "ERROR: Deserialization of file failed at the start ... no change in sequence\n");
     ret = NEO_FILE_LOAD_DESERR;
   }
@@ -686,6 +687,7 @@ uint8_t neo_proc_BIN_BW(char *buf, int json_len)  {
   else  {
     json_obj_get_string(&jctx, "label", label, sizeof(label));  // used to point to place in sequence array
     json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));  // copied to the sequence array
+    json_obj_get_string(&jctx, "__comment", comment, sizeof(comment));  // extract the comment for display only
     json_obj_get_object_str(&jctx, "bonus", bonus, sizeof(bonus));  // reserialized for later use
 
     ESP_LOGI(TAG, "For sequence \"%s\" : ", label);
@@ -735,22 +737,24 @@ uint8_t neo_proc_BIN_BW(char *buf, int json_len)  {
         ESP_LOGE(TAG, "ERROR: neo_load_sequence: specified strategy not found");
       }
       else  {
+        ESP_LOGI(TAG, "Using Strategy %s (%d)", strategy, strat);
+        ESP_LOGI(TAG, "comment: %s", comment);
 
         /*
          * move the color data into the sequence array using the function
          * appropriate for and registered in the jump table under the strategy.
          */
-        seq_callbacks[strat].parse_pts(&jctx, seq_idx, bonus);
+        //seq_callbacks[strat].parse_pts(&jctx, seq_idx, bonus);
 
         /*
          * launch the newly loaded sequence
          */
-        ret = neo_set_sequence(label, strategy);  // LAUNCH
+        //ret = neo_set_sequence(label, strategy);  // LAUNCH
       }
     }
     json_parse_end(&jctx);  // done with json
   }
-  return(ret);
+  return(NEO_SUCCESS);
 }
 
 /*

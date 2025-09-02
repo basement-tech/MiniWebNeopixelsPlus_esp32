@@ -15,7 +15,7 @@
 #define NEO_MAX_SEQ_FILE_SIZE 4096 // maximum size of a sequence file
 #define NEO_SEQ_STRATEGIES 6       // number of strategies defined (i.e. size of array of strategy callbacks)
 #define MAX_USER_SEQ       5       // maximum number of user buttons/files
-#define MAX_SEQUENCES      10      // number of sequences to allocate
+#define MAX_SEQUENCES      11      // number of sequences to allocate
 #define MAX_NUM_SEQ_POINTS 256     // maximum number of points per sequence
 #define MAX_FILENAME       128     // length of filename (without base)
 #define MAX_NUM_LABEL      32      // max number of chars in label
@@ -23,6 +23,7 @@
 #define MAX_DEPTH_C_STR    8       // max chars in json depth field
 #define MAX_NEO_STRATEGY   16      // max chars in a strategy string
 #define MAX_NEO_SEQUENCE   32      // max chars in a sequence string
+#define MAX_NEO_COMMENT    64      // max chars in a comment field
 #define NEO_SLOWP_POINTS   1024    // number of points (smoothness) in SLOWP sequence
 #define NEO_SLOWP_FLICKERS 100     // max number of slowp random flickers
 #define NEO_FLICKER_MAX    255     // value for bright flickers
