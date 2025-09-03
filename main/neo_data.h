@@ -90,6 +90,11 @@ typedef struct {
   uint8_t (*neo_proc_seqfile)(char *buf, int len, int binsize);
 } neo_ftype_t;
 
+typedef struct {
+  int size;
+  uint8_t *loc;
+}  bin_data_loc_t;
+
 
 /*
  * struct for individual points in the pattern (OG)
@@ -177,7 +182,7 @@ typedef enum {
 typedef struct {
   seq_strategy_t strategy;
   const char *label;
-  void (*parse_pts)(jparse_ctx_t *pjctx, uint8_t seq_idx, void *user);
+  int8_t (*parse_pts)(jparse_ctx_t *pjctx, uint8_t seq_idx, void *user);
   void (*start)(bool clear);
   void (*wait)(void);
   void (*write)(void);

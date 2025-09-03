@@ -221,7 +221,7 @@ int8_t neo_is_seq_malloc(seq_strategy_t sequence)  {
  * return:
  *   manupulating jctx directly via passed pointer thereto
  */
-void parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, void *user)  {
+int8_t parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, void *user)  {
 
   int r = 0;
   int g = 0;
@@ -254,6 +254,7 @@ void parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, void *user)  {
   }
 
   json_obj_leave_array(pjctx);  // pop back out of the points array
+  return(NEO_SUCCESS);
 }
 
 /*
@@ -276,9 +277,16 @@ void parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, void *user)  {
  * WARNING: underlying structures, etc may have changed since I wrote this ... probably would
  * need to be updated to attempt getting it working again.
  * 
+ * The intention was for this function to parse the json binary point data and 
+ * store it in binary/bitwise format in the space that it malloc()'ed and pointed to
+ * by neo_sequences[seq_idx].alt_points.
+ * 
+ * TODO: come back to this
+ * 
  */
-void parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bonus)  {
+int8_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
 
+  int8_t ret = -1;
   uint8_t idepth = 0;  // depth counter as integer
   char color_str[16];
   char *jcolors[4] = {
@@ -300,6 +308,24 @@ void parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bonus)  {
   jparse_ctx_t bjctx;  // for locally parsing the bonus string
   char depth[MAX_DEPTH_C_STR];  // how many pixels/pixels/row
 
+  /*
+   * if this function is called from a binary file type, there
+   * is no json to parse.  Just copy alloate the space and copy it to 
+   * the place indicated by the seq_idx structure and get out of Dodge.
+   */
+  if(pjctx == NULL)  {
+    if((neo_sequences[seq_idx].alt_points = malloc(((bin_data_loc_t *)bin_data)->size)) == NULL) {
+      ESP_LOGD(TAG, "Error allocating memory for points ... aborting");
+      ret = NEO_FILE_LOAD_OTHER;
+    }
+    else  {
+      memcpy(neo_sequences[seq_idx].alt_points, ((bin_data_loc_t *)bin_data)->loc, ((bin_data_loc_t *)bin_data)->size);
+      ret = NEO_SUCCESS;
+    }
+    return(ret);
+  }
+
+#ifdef SAVE_FOR_LATER
   /*
    * parse the depth and color to be assigned to on pixels from the passed
    * bonus string
@@ -324,6 +350,8 @@ void parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bonus)  {
     json_obj_leave_object(&bjctx);  // leave brightness
     json_parse_end(&bjctx);  // leave bonus
   }
+#endif // SAVE_FOR_LATER
+
 
   int count = 0; // number of points
 
@@ -347,12 +375,7 @@ void parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bonus)  {
   ESP_LOGI(TAG, "parse_pts_BW(): sequence demands malloc'ed memory of size %ld", msize);
 
   neo_sequences[seq_idx].alt_points = malloc(msize);
-/*
-typedef struct {
-  uint16_t bitmap[NEO_NUM_COLORS];  // array on groups of 16 pixels per color
-  int32_t ms_after_last;  // wait this many mS after last change to play
-} neo_seq_bpoint_t;
- */
+
   uint16_t *bpoint = neo_sequences[seq_idx].alt_points;  // shorthand and mapping
   ESP_LOGI(TAG, "calling function said %d points to parse", count);
   for(p = 0; p < count; p++) {  //points
@@ -376,7 +399,7 @@ typedef struct {
         if(json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str)) != OS_SUCCESS)  // because json doesn't support hex
           ESP_LOGE(TAG, "json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str)) error");
         ESP_LOGI(TAG, "  %s: %s", jcolors[c], color_str);
-//        *(bpoint  += (r * sizeof(neo_seq_cpoint_t)) + (c * sizeof(uint16_t))) = atoi(color_str);
+        //*(bpoint  += (r * sizeof(neo_seq_cpoint_t)) + (c * sizeof(uint16_t))) = atoi(color_str);
         // Convert hex strings to values, if needed
         //uint16_t r_val = strtol(r, NULL, 0); // base 0 auto-detects "0x"
       }
@@ -399,19 +422,10 @@ typedef struct {
     //ESP_LOGI(TAG, "%d:0x%x", i, bpoint[i]);
 
   if(neo_sequences[seq_idx].alt_points != NULL)
-    free(neo_sequences[seq_idx].alt_points);
+    free(neo_sequences[seq_idx].alt_points);  // NOTE: if this ever works, this will move
 
+  return(ret);
 }
-
-/*
- * parse the points array.  Note, in this case, the header is json and the points are binary
- */
-void parse_pts_BBW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bonus)  {
-  
-}
-
-
-
 
 
 /*
@@ -655,7 +669,7 @@ uint8_t neo_proc_OG(char *buf, int json_len, int binsize)  {
         * move the color data into the sequence array using the function
         * appropriate for and registered in the jump table under the strategy.
         */
-        seq_callbacks[strat].parse_pts(&jctx, seq_idx, bonus);
+        seq_callbacks[strat].parse_pts(&jctx, seq_idx, NULL);
 
         /*
         * launch the newly loaded sequence
@@ -676,6 +690,8 @@ uint8_t neo_proc_OG(char *buf, int json_len, int binsize)  {
  */
 uint8_t neo_proc_BIN_BW(char *buf, int json_len, int binsize)  {
   int8_t ret = -1;
+
+  bin_data_loc_t bin_data;
 
   jparse_ctx_t jctx;  // for json parsing
   int8_t seq_idx = -1;
@@ -758,7 +774,9 @@ uint8_t neo_proc_BIN_BW(char *buf, int json_len, int binsize)  {
          * move the color data into the sequence array using the function
          * appropriate for and registered in the jump table under the strategy.
          */
-        //seq_callbacks[strat].parse_pts(&jctx, seq_idx, bonus);
+        bin_data.size = binsize;
+        bin_data.loc = (uint8_t*)buf+json_len;
+        seq_callbacks[strat].parse_pts(NULL, seq_idx, &bin_data);
 
         /*
          * launch the newly loaded sequence
