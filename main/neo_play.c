@@ -273,6 +273,8 @@ void parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, void *user)  {
  * All of the mechanics seem to parse correctly, just the data is wrong.  I'll leave it for
  * reference and get back to it.  Meanwhile, I'm going to pursue a binary file version of 
  * the bitwise sequence so that the filesize (and required buffers) are managable.
+ * WARNING: underlying structures, etc may have changed since I wrote this ... probably would
+ * need to be updated to attempt getting it working again.
  * 
  */
 void parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bonus)  {
@@ -439,6 +441,7 @@ int8_t neo_load_sequence(const char *file)  {
   char filetype[16];  // file type as string extracted from json first row
   int json_len = 0;  // size of the balance of the json part of the file
   uint16_t hdr_len;  // length of the preamble json string
+  uint16_t bin_len;  // calculated size of binary data
 
 
   /*
@@ -547,7 +550,18 @@ int8_t neo_load_sequence(const char *file)  {
             else
             {
               ESP_LOGI(TAG, "parsing balance of sequence file base on filetype %s", filetype);
-              ret = neo_file_procs[filetype_idx].neo_proc_seqfile(pbuf_data, json_len);
+              ESP_LOGI(TAG, "total bytes in file = %d", read_bytes);
+              ESP_LOGI(TAG, "minus header length   %d", hdr_len);
+              ESP_LOGI(TAG, "minus json header     %d", json_len);
+              ESP_LOGI(TAG, "                    ------");
+              bin_len = read_bytes-hdr_len-json_len;
+              ESP_LOGI(TAG, "binary/bitwise data   %d\n", bin_len);
+              if((bin_len % sizeof(seq_bin_t)) != 0)  {
+                ESP_LOGD(TAG, "ERROR: size of binary data indicates file is malformed");
+                ret = NEO_FILE_LOAD_OTHER;
+              }
+              else
+                ret = neo_file_procs[filetype_idx].neo_proc_seqfile(pbuf_data, json_len, bin_len);
             }
           }
           json_parse_end(&jctx);
@@ -561,7 +575,7 @@ int8_t neo_load_sequence(const char *file)  {
 /*
  * parse file for type "OG"
  */
-uint8_t neo_proc_OG(char *buf, int json_len)  {
+uint8_t neo_proc_OG(char *buf, int json_len, int binsize)  {
   int8_t ret = -1;
 
   jparse_ctx_t jctx;  // for json parsing
@@ -660,7 +674,7 @@ uint8_t neo_proc_OG(char *buf, int json_len)  {
  *  char *buf    : buffer containing the balance of the file after filetype json header
  *  uint16_t len : the number of bytes of json in the balance of the file
  */
-uint8_t neo_proc_BIN_BW(char *buf, int json_len)  {
+uint8_t neo_proc_BIN_BW(char *buf, int json_len, int binsize)  {
   int8_t ret = -1;
 
   jparse_ctx_t jctx;  // for json parsing

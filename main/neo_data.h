@@ -87,7 +87,7 @@ extern SemaphoreHandle_t xseq_upd_flag;  // new sequence requested
  */
 typedef struct {
   char *filetypes;
-  uint8_t (*neo_proc_seqfile)(char *buf, int len);
+  uint8_t (*neo_proc_seqfile)(char *buf, int len, int binsize);
 } neo_ftype_t;
 
 
@@ -117,18 +117,27 @@ typedef struct {
  * num_colors = 4
  * size = point_count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * num_colors) * "depth") + sizeof(ms_after_last))
  */
-#define PIXELS_PER_JSON_ROW  16  //   i.e. sizeof(uint16_t)
+#define PIXELS_PER_JSON_ROW  32  //   i.e. sizeof(uint16_t)
 typedef struct {
-  uint16_t red;
-  uint16_t green;
-  uint16_t blue;
-  uint16_t white;  // not always used
+  uint32_t red;
+  uint32_t green;
+  uint32_t blue;
+  uint32_t white;  // not always used
 } neo_seq_cpoint_t;
 
 typedef struct {
-  uint16_t bitmap[NEO_NUM_COLORS];  // array on groups of 16 pixels per color
+  uint32_t bitmap[NEO_NUM_COLORS];  // array on groups of 16 pixels per color
   int32_t ms_after_last;  // wait this many mS after last change to play
 } neo_seq_bpoint_t;
+
+/*
+ * binary/bitwise representation of neopixels
+ */
+typedef struct  __attribute__((packed)) {
+    uint8_t o;  // offset
+    uint32_t r, g, b, w;  // colors
+    uint32_t d;   // delay
+} seq_bin_t;
 
 /*
  * structure into which user sequences are read and
