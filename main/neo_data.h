@@ -83,11 +83,13 @@ extern SemaphoreHandle_t xseq_upd_flag;  // new sequence requested
 
 
 /*
- * filetypes
+ * filetypes structure
+ * jump table based on char[] based file types
  */
 typedef struct {
-  char *filetypes;
-  uint8_t (*neo_proc_seqfile)(char *buf, int len, int binsize);
+  char *filetypes;  // string based file types
+  int8_t (*neo_proc_seqfile)(char *buf, int len, int binsize);  // function to process the body of the file
+  bool (*data_valid)(void *user);  // function for data validation 
 } neo_ftype_t;
 
 typedef struct {

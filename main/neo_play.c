@@ -570,8 +570,8 @@ int8_t neo_load_sequence(const char *file)  {
               ESP_LOGI(TAG, "                    ------");
               bin_len = read_bytes-hdr_len-json_len;
               ESP_LOGI(TAG, "binary/bitwise data   %d\n", bin_len);
-              if((bin_len % sizeof(seq_bin_t)) != 0)  {
-                ESP_LOGD(TAG, "ERROR: size of binary data indicates file is malformed");
+              if(neo_file_procs[filetype_idx].data_valid(&bin_len) != true)  {
+                ESP_LOGE(TAG, "ERROR: size of binary data indicates file is malformed");
                 ret = NEO_FILE_LOAD_OTHER;
               }
               else
@@ -587,9 +587,20 @@ int8_t neo_load_sequence(const char *file)  {
 }
 
 /*
- * parse file for type "OG"
+ * data validation for type "OG"
  */
-uint8_t neo_proc_OG(char *buf, int json_len, int binsize)  {
+bool data_valid_OG(void *user)  {
+  return(true);
+}
+/*
+ * parse file for type "OG"
+ *
+ * arguments:
+ *   char *buf : balance of json after the preamble line
+ *   int json_len : not used
+ *   int binsize : not used
+ */
+int8_t neo_proc_OG(char *buf, int json_len, int binsize)  {
   int8_t ret = -1;
 
   jparse_ctx_t jctx;  // for json parsing
@@ -682,13 +693,22 @@ uint8_t neo_proc_OG(char *buf, int json_len, int binsize)  {
   return(ret);
 }
 
+
+/*
+ * data validation for type "BIN_BW"
+ */
+bool data_valid_BIN_BW(void *pbin_len)  {
+  if(*((uint16_t *)pbin_len) % sizeof(seq_bin_t) != 0)
+    return(false);
+  return(true);
+}
 /*
  * parse file for type "BIN_BW"
  * arguments:
  *  char *buf    : buffer containing the balance of the file after filetype json header
  *  uint16_t len : the number of bytes of json in the balance of the file
  */
-uint8_t neo_proc_BIN_BW(char *buf, int json_len, int binsize)  {
+int8_t neo_proc_BIN_BW(char *buf, int json_len, int binsize)  {
   int8_t ret = -1;
 
   bin_data_loc_t bin_data;
@@ -1556,8 +1576,8 @@ void neo_bitwise_start(bool clear)  {
  */
 
 neo_ftype_t neo_file_procs[] = {
-  {"OG", neo_proc_OG},
-  {"BIN_BW", neo_proc_BIN_BW},
+  {"OG", neo_proc_OG, data_valid_OG},
+  {"BIN_BW", neo_proc_BIN_BW, data_valid_BIN_BW},
   {"\0", NULL}
 };
 
