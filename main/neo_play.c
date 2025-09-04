@@ -265,10 +265,13 @@ int8_t parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, void *user)  {
  * pointer to the malloc'ed data is saved in a slot in the neo_sequences[] array.
  * the memory must be free'ed by the sequences/strategies stopping() function.
  * 
- * unique arguments:
- *   void *basecolor: an array of r, g, b, w to fill in if a pixel/color is "on"
+ * The idea is for this function to convert the json description of bitwise points to
+ * the same binary format in memory.  That way the json based and binary file formatted
+ * bitwise strategy files can share the same state machine functions.
  * 
- * ***NOTE: I never got this to fully work (you can see all of the debug statements, etc.).
+ * 
+ * ***NOTE: I never got this to fully work (you can see all of the debug statements, etc.)
+ * for the json based bitwise functionality.
  * It seems that there's a bug in the json component whereby the bits json array spits out 
  * the first point correctly, but then just repeats the first point data from there on.
  * All of the mechanics seem to parse correctly, just the data is wrong.  I'll leave it for
@@ -420,9 +423,6 @@ int8_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
   //ESP_LOGI(TAG, "bitwise data in memory:");
   //for(int i = 0; i < (msize/2); i++)
     //ESP_LOGI(TAG, "%d:0x%x", i, bpoint[i]);
-
-  if(neo_sequences[seq_idx].alt_points != NULL)
-    free(neo_sequences[seq_idx].alt_points);  // NOTE: if this ever works, this will move
 
   return(ret);
 }
@@ -1565,8 +1565,30 @@ void neo_rainbow_stopping(void)  {
  * a malloc'ed buffer for use by the sequence
  */
 void neo_bitwise_start(bool clear)  {
+  neo_state = NEO_SEQ_STOPPING;
+}
+
+void neo_bitwise_stopping(void)  {
+   /*
+    * move to top to avoid potential collision with late
+    * coming meo_cycle_next()
+    */
+  neo_state = NEO_SEQ_STOPPED;
+
+  pixels_clear(); // Set all pixel colors to 'off'
+  pixels_show();   // Send the updated pixel colors to the hardware.
+
+  if(neo_sequences[seq_index].alt_points != NULL)  {
+    free(neo_sequences[seq_index].alt_points);
+    ESP_LOGI(TAG, "binary point data free()'ed");
+  }
+
+  current_index = 0;  // housekeeping
+  seq_index = -1; // so it doesn't match
+  current_strategy = SEQ_STRAT_POINTS;  // housekeeping
 
 }
+// end of SEQ_STRAT_BWISE
 
 /*
  * function calls by filetype
@@ -1593,7 +1615,7 @@ seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
   { SEQ_STRAT_PONG,      "pong",      parse_pts_OG,     neo_pong_start,     neo_slowp_wait,    neo_pong_write,      neo_points_stopping,     noop},
 //  { SEQ_STRAT_RAINBOW,   "rainbow", parse_pts_OG,      neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
   { SEQ_STRAT_SLOWP,     "slowp",     parse_pts_OG,     neo_slowp_start,    neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,     noop},
-  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_BW,        start_noop,           noop,                noop     ,        noop,                noop},
+  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_BW,    neo_bitwise_start,       noop,                noop,          neo_bitwise_stopping,    noop},
 };
 
 
