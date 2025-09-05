@@ -208,6 +208,7 @@ int8_t neo_is_user(const char *label);
 int8_t neo_new_sequence(void);
 int8_t neo_load_sequence(const char *file);
 int8_t neo_set_sequence(const char *label, const char *strategy);
+int8_t neo_find_sequence(const char *label);
 seq_strategy_t neo_set_strategy(const char *sstrategy);
 void neo_cycle_stop(void);
 void neo_n_blinks(uint8_t r, uint8_t g, uint8_t b, uint8_t w, int8_t reps, int32_t t);
@@ -220,5 +221,6 @@ extern neo_ftype_t neo_file_procs[];  // filetype switch table
 extern neo_data_t neo_sequences[];  // sequence switch table
 extern int8_t seq_index;  // which sequence is being played out
 extern int8_t strategy_idx; // which strategy should be used to play a user file
+extern seq_callbacks_t seq_callbacks[];  // state machine callbacks
 
 #endif
