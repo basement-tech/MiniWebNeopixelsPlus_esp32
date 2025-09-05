@@ -6,6 +6,7 @@
 #include <stdio.h>
 
 #include "esp_log.h"
+#include "json_parser.h"
 
 #include "neo_system.h"
 #include "neo_ll_api.h"
@@ -124,6 +125,63 @@ int8_t neo_proc_OG(char *buf, int json_len, int binsize)  {
 
 
 /*
+ * selection of functions for copying points from the user json
+ * file to memory for playback.  malloc() memory if needed.
+ * 
+ * parse_pts_OG() : parse points like in the original implementation.
+ * points have color(r, g, b, w), and a time delay parameters.  They are copied
+ * to a preallocated space in the neo_sequences[] array of sequence data.
+ * 
+ *
+ * 
+ * arguments:
+ *   jparse_ctx_t jctx  : pointer to points in the json heirarchy (from)
+ *   uint8_t seq_idx    : place in the sequence array to put the data (to)
+ *   int count          : how many points
+ *   void *user         : points to any other data that is needed process the points
+ * 
+ * return:
+ *   manupulating jctx directly via passed pointer thereto
+ */
+int8_t parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, void *user)  {
+
+  int r = 0;
+  int g = 0;
+  int b = 0;
+  int w = 0;
+  int t = 0;
+
+  int count = 0; // number of points
+
+  json_obj_get_array(pjctx, "points", &count);  // down one level into the array of points
+
+  if(count > MAX_NUM_SEQ_POINTS)  {
+    ESP_LOGI(TAG, "Too many points in sequence file ... truncating");
+    count = MAX_NUM_SEQ_POINTS;
+  }
+
+  for(uint16_t i = 0; i < count; i++)  {
+    json_arr_get_object(pjctx, i); // index into the array, set jctx
+    json_obj_get_int(pjctx, "r", &r);
+    json_obj_get_int(pjctx, "g", &g);
+    json_obj_get_int(pjctx, "b", &b);
+    json_obj_get_int(pjctx, "t", &t);
+    ESP_LOGD(TAG, "colors = %d %d %d %d  interval = %d", r, g, b, w, t);
+    neo_sequences[seq_idx].point[i].red = r;
+    neo_sequences[seq_idx].point[i].green = g;
+    neo_sequences[seq_idx].point[i].blue = b;
+    neo_sequences[seq_idx].point[i].white = w;
+    neo_sequences[seq_idx].point[i].ms_after_last = t;
+    json_arr_leave_object(pjctx);
+  }
+
+  json_obj_leave_array(pjctx);  // pop back out of the points array
+  return(NEO_SUCCESS);
+}
+
+
+
+/*
  * data validation for type "BIN_BW"
  */
 bool data_valid_BIN_BW(void *pbin_len)  {
@@ -131,6 +189,7 @@ bool data_valid_BIN_BW(void *pbin_len)  {
     return(false);
   return(true);
 }
+
 /*
  * parse file for type "BIN_BW"
  * arguments:
@@ -235,5 +294,146 @@ int8_t neo_proc_BIN_BW(char *buf, int json_len, int binsize)  {
     }
     json_parse_end(&jctx);  // done with json
   }
+  return(ret);
+}
+
+/*
+ *
+ * parse_pts_BW : "bitwise" sequence files contain on/off data in bit r, g, b, w fields
+ * to describe a sequence where in each pixel can be addressed to form unique patterns.
+ * the memory has to be malloc'ed based on the number of points in the sequence. the
+ * pointer to the malloc'ed data is saved in a slot in the neo_sequences[] array.
+ * the memory must be free'ed by the sequences/strategies stopping() function.
+ * 
+ * The idea is for this function to convert the json description of bitwise points to
+ * the same binary format in memory.  That way the json based and binary file formatted
+ * bitwise strategy files can share the same state machine functions.
+ * 
+ * 
+ * ***NOTE: I never got this to fully work (you can see all of the debug statements, etc.)
+ * for the json based bitwise functionality.
+ * It seems that there's a bug in the json component whereby the bits json array spits out 
+ * the first point correctly, but then just repeats the first point data from there on.
+ * All of the mechanics seem to parse correctly, just the data is wrong.  I'll leave it for
+ * reference and get back to it.  Meanwhile, I'm going to pursue a binary file version of 
+ * the bitwise sequence so that the filesize (and required buffers) are managable.
+ * WARNING: underlying structures, etc may have changed since I wrote this ... probably would
+ * need to be updated to attempt getting it working again.
+ * 
+ * The intention was for this function to parse the json binary point data and 
+ * store it in binary/bitwise format in the space that it malloc()'ed and pointed to
+ * by neo_sequences[seq_idx].alt_points.
+ * 
+ * TODO: come back to this
+ * 
+ */
+int8_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
+
+  int8_t ret = -1;
+  uint8_t idepth = 0;  // depth counter as integer
+  char color_str[16];
+  char *jcolors[4] = {
+    "r",
+    "g",
+    "b",
+    "w",
+    "t"
+  };
+
+  int r = 0;
+  int g = 0;
+  int b = 0;
+  int w = 0;
+  int t = 0;
+  int cbits = 0;  // number of rows of "bits" in the json
+  uint32_t p, d, c;  // traversing down the json
+
+  jparse_ctx_t bjctx;  // for locally parsing the bonus string
+  char depth[MAX_DEPTH_C_STR];  // how many pixels/pixels/row
+  int count = 0; // number of points
+
+  /*
+   * if this function is called from a binary file type, there
+   * is no json to parse.  Just copy alloate the space and copy it to 
+   * the place indicated by the seq_idx structure and get out of Dodge.
+   */
+  if(pjctx == NULL)  {
+    if((neo_sequences[seq_idx].alt_points = malloc(((bin_data_loc_t *)bin_data)->size)) == NULL) {
+      ESP_LOGD(TAG, "Error allocating memory for points ... aborting");
+      ret = NEO_FILE_LOAD_OTHER;
+    }
+    else  {
+      memcpy(neo_sequences[seq_idx].alt_points, ((bin_data_loc_t *)bin_data)->loc, ((bin_data_loc_t *)bin_data)->size);
+      ret = NEO_SUCCESS;
+    }
+    return(ret);
+  }
+
+  json_obj_get_array(pjctx, "points", &count);  // down one level into the array of points
+
+  if(count > MAX_NUM_SEQ_POINTS)  {
+    ESP_LOGI(TAG, "Too many points in sequence file ... truncating");
+    count = MAX_NUM_SEQ_POINTS;
+  }
+
+  /*
+   * malloc'ed and bitwise points
+   * 
+   * json_obj_get_array(&jctx, "points", &count) returns the number of elements in the json array.
+   *   use it in the size of buffer to allocate using malloc()
+   * 
+   * NOTE: can't just use the size of the array because the depth (i.e. number of rows per point)
+   * is variable.  The addressing will be overlayed with data in memory.
+   */
+  int32_t msize = count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * NEO_NUM_COLORS) * idepth + sizeof(uint32_t));
+  ESP_LOGI(TAG, "parse_pts_BW(): sequence demands malloc'ed memory of size %ld", msize);
+
+  neo_sequences[seq_idx].alt_points = malloc(msize);
+
+  uint16_t *bpoint = neo_sequences[seq_idx].alt_points;  // shorthand and mapping
+  ESP_LOGI(TAG, "calling function said %d points to parse", count);
+  for(p = 0; p < count; p++) {  //points
+    ESP_LOGI(TAG, "For point %lu", p);
+    if(json_arr_get_object(pjctx, p) != OS_SUCCESS) // index into the points array, set jctx
+      ESP_LOGE(TAG, "json_arr_get_object(pjctx, p) error");
+
+    if(json_obj_get_array(pjctx, "bits", &cbits) != OS_SUCCESS)
+      ESP_LOGE(TAG, "json_obj_get_array(pjctx, \"bits\", &cbits) error");
+    else
+      ESP_LOGI(TAG, "found %d elements in \"bits\" array", cbits);
+    for(d = 0; d < idepth; d++)  {  //rows
+      ESP_LOGI(TAG, "Row %lu", d);
+      /*
+      * pull the data from the json data
+      */
+
+      if(json_arr_get_object(pjctx, d) != OS_SUCCESS) // index into the row array, set pjctx
+        ESP_LOGE(TAG, "json_arr_get_object(pjctx, d) error");
+      for(c = 0; c < NEO_NUM_COLORS; c++)  {  //colors
+        if(json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str)) != OS_SUCCESS)  // because json doesn't support hex
+          ESP_LOGE(TAG, "json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str)) error");
+        ESP_LOGI(TAG, "  %s: %s", jcolors[c], color_str);
+        //*(bpoint  += (r * sizeof(neo_seq_cpoint_t)) + (c * sizeof(uint16_t))) = atoi(color_str);
+        // Convert hex strings to values, if needed
+        //uint16_t r_val = strtol(r, NULL, 0); // base 0 auto-detects "0x"
+      }
+      if(json_arr_leave_object(pjctx) != OS_SUCCESS)  // leave the row array element
+        ESP_LOGE(TAG, "json_arr_leave_object(pjctx) error");
+
+    }
+    if(json_arr_leave_array(pjctx) != OS_SUCCESS) // leave the bits array
+      ESP_LOGE(TAG, "json_arr_leave_array(pjctx) error"); 
+
+    // read the time interval
+    if(json_arr_leave_object(pjctx) != OS_SUCCESS)  // leave the points array element
+      ESP_LOGE(TAG, "json_arr_leave_object(pjctx) error"); 
+  }
+
+  json_obj_leave_array(pjctx);  // pop back out of the points array
+
+  //ESP_LOGI(TAG, "bitwise data in memory:");
+  //for(int i = 0; i < (msize/2); i++)
+    //ESP_LOGI(TAG, "%d:0x%x", i, bpoint[i]);
+
   return(ret);
 }
