@@ -330,7 +330,6 @@ int8_t neo_proc_BIN_BW(char *buf, int json_len, int binsize)  {
 int8_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
 
   int8_t ret = -1;
-  uint8_t idepth = 0;  // depth counter as integer
   char color_str[16];
   char *jcolors[4] = {
     "r",
@@ -351,6 +350,8 @@ int8_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
   jparse_ctx_t bjctx;  // for locally parsing the bonus string
   char depth[MAX_DEPTH_C_STR];  // how many pixels/pixels/row
   int count = 0; // number of points
+
+  neo_sequences[seq_idx].alt_points = NULL;  // to detect if space was malloc'ed
 
   /*
    * if this function is called from a binary file type, there
@@ -381,17 +382,9 @@ int8_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
    * 
    * json_obj_get_array(&jctx, "points", &count) returns the number of elements in the json array.
    *   use it in the size of buffer to allocate using malloc()
-   * 
-   * NOTE: can't just use the size of the array because the depth (i.e. number of rows per point)
-   * is variable.  The addressing will be overlayed with data in memory.
    */
-  int32_t msize = count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * NEO_NUM_COLORS) * idepth + sizeof(uint32_t));
-  ESP_LOGI(TAG, "parse_pts_BW(): sequence demands malloc'ed memory of size %ld", msize);
-
-  neo_sequences[seq_idx].alt_points = malloc(msize);
-
   uint16_t *bpoint = neo_sequences[seq_idx].alt_points;  // shorthand and mapping
-  ESP_LOGI(TAG, "calling function said %d points to parse", count);
+  ESP_LOGI(TAG, "%d points to parse", count);
   for(p = 0; p < count; p++) {  //points
     ESP_LOGI(TAG, "For point %lu", p);
     if(json_arr_get_object(pjctx, p) != OS_SUCCESS) // index into the points array, set jctx
@@ -399,9 +392,16 @@ int8_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
 
     if(json_obj_get_array(pjctx, "bits", &cbits) != OS_SUCCESS)
       ESP_LOGE(TAG, "json_obj_get_array(pjctx, \"bits\", &cbits) error");
-    else
+    else  {
       ESP_LOGI(TAG, "found %d elements in \"bits\" array", cbits);
-    for(d = 0; d < idepth; d++)  {  //rows
+      //now that we know all required, malloc()
+      if(neo_sequences[seq_idx].alt_points == NULL)  {
+        int32_t msize = count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * NEO_NUM_COLORS) * cbits + sizeof(uint32_t));
+        ESP_LOGI(TAG, "parse_pts_BW(): sequence demands malloc'ed memory of size %ld", msize);
+        neo_sequences[seq_idx].alt_points = malloc(msize);
+      }
+    }
+    for(d = 0; d < cbits; d++)  {  //rows
       ESP_LOGI(TAG, "Row %lu", d);
       /*
       * pull the data from the json data
