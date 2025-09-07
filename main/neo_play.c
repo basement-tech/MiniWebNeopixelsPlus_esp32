@@ -1201,7 +1201,7 @@ seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
   { SEQ_STRAT_PONG,      "pong",      parse_pts_OG,     neo_pong_start,     neo_slowp_wait,    neo_pong_write,      neo_points_stopping,     noop},
 //  { SEQ_STRAT_RAINBOW,   "rainbow", parse_pts_OG,      neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
   { SEQ_STRAT_SLOWP,     "slowp",     parse_pts_OG,     neo_slowp_start,    neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,     noop},
-  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_BW,    neo_bitwise_start,       noop,                noop,          neo_bitwise_stopping,    noop},
+  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_BW,     neo_bitwise_start,       noop,                noop,          neo_bitwise_stopping,    noop},
   { SEQ_STRAT_BBWISE,    "bbitwise",  parse_pts_BBW,    neo_bitwise_start,       noop,                noop,          neo_bitwise_stopping,    noop},
 };
 

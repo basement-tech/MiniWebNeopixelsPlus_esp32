@@ -1,8 +1,9 @@
-{"filetype" : "OG", "jsonlen" : 0, "__comment" : "points as json binary"}
+{"filetype" : "OG", "jsonlen" : 0}
 {
     "label" : "USER-5",
     "strategy" : "bitwise",
     "bonus" : { "depth" : 2, "pixel_cnt" : 64, "brightness" : {"r": 255,  "g": 0, "b": 0, "w": 0}},
+    "__comment" : "points as json binary",
     "points" : [
       {"bits": [
         {"o": "0x0",  "r": "0x0001", "g": "0x0003",  "b": "0x0004",  "w": "0x0"},
