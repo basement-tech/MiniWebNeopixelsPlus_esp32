@@ -343,6 +343,9 @@ int8_t neo_load_sequence(const char *file)  {
             }
             else
             {
+              /*
+               * most of this is ignored by "OG", json only ascii data file
+               */
               ESP_LOGI(TAG, "parsing balance of sequence file base on filetype %s", filetype);
               ESP_LOGI(TAG, "total bytes in file = %d", read_bytes);
               ESP_LOGI(TAG, "minus header length   %d", hdr_len);
@@ -1182,7 +1185,7 @@ void neo_bitwise_stopping(void)  {
 
 neo_ftype_t neo_file_procs[] = {
   {"OG", neo_proc_OG, data_valid_OG},
-  {"BIN_BW", neo_proc_BIN_BW, data_valid_BIN_BW},
+  {"BIN_BW", neo_proc_BIN_BBW, data_valid_BIN_BBW},
   {"\0", NULL}
 };
 
@@ -1199,6 +1202,7 @@ seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
 //  { SEQ_STRAT_RAINBOW,   "rainbow", parse_pts_OG,      neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
   { SEQ_STRAT_SLOWP,     "slowp",     parse_pts_OG,     neo_slowp_start,    neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,     noop},
   { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_BW,    neo_bitwise_start,       noop,                noop,          neo_bitwise_stopping,    noop},
+  { SEQ_STRAT_BBWISE,    "bbitwise",  parse_pts_BBW,    neo_bitwise_start,       noop,                noop,          neo_bitwise_stopping,    noop},
 };
 
 

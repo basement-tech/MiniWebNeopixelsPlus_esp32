@@ -13,7 +13,7 @@
 
 
 #define NEO_MAX_SEQ_FILE_SIZE 4096 // maximum size of a sequence file
-#define NEO_SEQ_STRATEGIES 6       // number of strategies defined (i.e. size of array of strategy callbacks)
+#define NEO_SEQ_STRATEGIES 7       // number of strategies defined (i.e. size of array of strategy callbacks)
 #define MAX_USER_SEQ       5       // maximum number of user buttons/files
 #define MAX_SEQUENCES      11      // number of sequences to allocate
 #define MAX_NUM_SEQ_POINTS 256     // maximum number of points per sequence
@@ -173,6 +173,7 @@ typedef enum {
 //  SEQ_STRAT_RAINBOW,  // attributes of a dynamic rainbow pattern are specified
   SEQ_STRAT_SLOWP,    // slow pulse - calculated sequence
   SEQ_STRAT_BWISE,    // bitwise: individual pixel addressing possible
+  SEQ_STRAT_BBWISE,
   SEQ_STRAT_UNDEFINED
 }  seq_strategy_t;
 
