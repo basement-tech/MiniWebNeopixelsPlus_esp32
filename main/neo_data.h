@@ -132,18 +132,13 @@ typedef struct {
   uint32_t white;  // not always used
 } neo_seq_cpoint_t;
 
-typedef struct {
-  uint32_t bitmap[NEO_NUM_COLORS];  // array on groups of 16 pixels per color
-  int32_t ms_after_last;  // wait this many mS after last change to play
-} neo_seq_bpoint_t;
-
 /*
  * binary/bitwise representation of neopixels
  */
 typedef struct  __attribute__((packed)) {
-    uint8_t o;  // offset
+    int8_t o;  // offset
     uint32_t r, g, b, w;  // colors
-    uint32_t d;   // delay
+    int32_t d;   // delay
 } seq_bin_t;
 
 /*

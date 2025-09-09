@@ -216,6 +216,11 @@ int8_t parse_pts_OG(jparse_ctx_t *pjctx, uint8_t seq_idx, void *user)  {
  * 
  * TODO: come back to this
  * 
+ * arguments:
+ *   jparse_ctx_t *pjctx : pointer to the json context, sitting just above "points"
+ *   uint8_t seq_idx     : sequence id slot to put parsed data
+ *   void *bin_data      : unused
+ * 
  */
 int8_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
 
@@ -295,9 +300,10 @@ int8_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
         if(json_arr_leave_object(pjctx) != OS_SUCCESS)  // leave the row array element
           ESP_LOGE(TAG, "json_arr_leave_object(pjctx) error");
       }
+    
+      if(json_arr_leave_array(pjctx) != OS_SUCCESS) // leave the bits array
+        ESP_LOGE(TAG, "json_arr_leave_array(pjctx) error"); 
     }
-    if(json_arr_leave_array(pjctx) != OS_SUCCESS) // leave the bits array
-      ESP_LOGE(TAG, "json_arr_leave_array(pjctx) error"); 
 
     // add read the time interval
 

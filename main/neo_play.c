@@ -1119,39 +1119,137 @@ void neo_rainbow_stopping(void)  {
  * pixels in the strand using a single R, G, B value set, and 
  * play it out
  */
+uint8_t bw_r, bw_g, bw_b, bw_w;  // for the on color
+int8_t bw_idepth = 1;  // number of n pixel chunks ... extracted on start
+int32_t bw_ms_after_last;  // time interval between points; read dynamically
 
 /*
- * open the sequence file and read its contents into a 
- * a malloc'ed buffer for use by the sequence
+ * extract the on/off desired bitwise state of the array
+ * and write r, g, b to the array
+ * 
+ * use a mask to extract the bitwise on/off pixel/color value
+ * and write the global bw_r, g, b as indicated.
+ * 
+ * this function will set pixel values up to the physical number
+ * of pixels defined in pmonconfig (i.e. eeprom)
+ * 
+ * 
+ * arguments:
+ *   int current_index : the point in the sequence
+ *    (NOTE: this is a bitwise point representing all pixels)
+ */
+int32_t neo_bitwise_write_point(bool clear) {
+  uint32_t mask = 0x00000001;  // first pixel
+  p_num_pixels = pixels_numPixels();  // number of pixels set in config eeprom
+  uint16_t pixel_cnt = 0;  // how many pixels have been set
+  seq_bin_t *cpointrow;  // shorthand pointer to start of 32 bit row
+  int8_t d = 0;  // depth/row counter
+  uint8_t r, g, b, w;
+  int32_t t = 1000;  // time between points
+
+  if(clear == true)  pixels_clear(); // Set all pixel colors to 'off'
+
+  cpointrow = (seq_bin_t *)neo_sequences[seq_index].alt_points;
+  cpointrow += (current_index * bw_idepth);  // increments by the size of cpointrow
+  ESP_LOGI(TAG, "cpointrow - 0x%x", (unsigned int)cpointrow);
+
+  pixel_cnt = 0;  // being overly obvious
+  for(d = 0; d < bw_idepth; d++)  {  // rows (i.e. pixel depth )
+    ESP_LOGI(TAG, "Offset from data %d", cpointrow->o);
+    mask = 0x00000001;
+    for(int8_t p = 0; p < PIXELS_PER_JSON_ROW; p++)  {  // pixels
+      if(pixel_cnt < p_num_pixels)  {
+        r = (cpointrow->r  & mask) * bw_r;
+        g = (cpointrow->g  & mask) * bw_g;
+        b = (cpointrow->b  & mask) * bw_b;
+        w = (cpointrow->w  & mask) * bw_w;
+        pixels_setPixelColorRGB(p, r, g, b, w);
+        t = cpointrow->d;  // delay, only the last one counts
+        pixel_cnt++;
+      }
+      mask = mask << 1;  // next pixel in this color's mask
+    }
+    cpointrow++;
+  }
+  pixels_show();
+  return(t);  // pointing to time interval
+}
+
+/*
+ * parse the json bonus to know the on rgb, set the timer
+ * and write the first point.
  */
 void neo_bitwise_start(bool clear)  {
-  #ifdef SAVE_FOR_LATER
+  jparse_ctx_t bjctx;  // for locally parsing the bonus string
+  int bval = 0;
+
+  /*
+   * set a default color in case the json parsing doesn't work
+   * red to indicate issue
+   */
+  bw_r = 64;
+  bw_g = 0;
+  bw_b = 0;
+  bw_w = 0;
+
   /*
    * parse the depth and color to be assigned to on pixels from the passed
    * bonus string
    * NOTE: don't really need to parse the bonus string here ... leave for reference.
    */
-  if(json_parse_start(&bjctx, bonus, strlen(bonus)) != OS_SUCCESS)  {
-    ESP_LOGE(TAG, "ERROR: parse_pts_BW(): Deserialization of bonus ... guessing\n");
+  if(json_parse_start(&bjctx, neo_sequences[seq_index].bonus, strlen(neo_sequences[seq_index].bonus)) != OS_SUCCESS)  {
+    ESP_LOGE(TAG, "ERROR: bitwise_start: Deserialization of bonus\n");
 
   }
   else  {
-    json_obj_get_string(&bjctx, "depth", depth, sizeof(depth));  // used to point to place in sequence array
-    idepth = atoi(depth);  // as integer
+    json_obj_get_int(&bjctx, "depth", &bval);  // used to point to place in sequence array
+      bw_idepth = bval;
     json_obj_get_object(&bjctx, "brightness");  // reserialized for later use
-    json_obj_get_string(&bjctx, "r", color_str, sizeof(color_str));
-    r = atoi(color_str);
-    json_obj_get_string(&bjctx, "g", color_str, sizeof(color_str));
-    g = atoi(color_str);
-    json_obj_get_string(&bjctx, "b", color_str, sizeof(color_str));
-    b = atoi(color_str);
-    json_obj_get_string(&bjctx, "w", color_str, sizeof(color_str));
-    w = atoi(color_str);
+    json_obj_get_int(&bjctx, "r", &bval);
+    bw_r = bval;
+    json_obj_get_int(&bjctx, "g", &bval);
+    bw_g = bval;
+    json_obj_get_int(&bjctx, "b", &bval);
+    bw_b = bval;
+    json_obj_get_int(&bjctx, "w", &bval);
+    bw_w = bval;
     json_obj_leave_object(&bjctx);  // leave brightness
     json_parse_end(&bjctx);  // leave bonus
   }
-#endif // SAVE_FOR_LATER
-  neo_state = NEO_SEQ_STOPPING;
+  ESP_LOGI(TAG, "Using on values of %u %u %u %u", bw_r, bw_g, bw_b, bw_w);
+
+  current_millis = millis();  // set the timer
+
+  // write the first pixel
+  bw_ms_after_last =  neo_bitwise_write_point(true);
+  ESP_LOGI(TAG, "Using time interval of %ld", bw_ms_after_last);
+  neo_state = NEO_SEQ_WAIT;
+
+}
+
+void neo_bitwise_write(void) {
+  if(bw_ms_after_last < 0)  {  // list terminator from the last write: nothing to write
+    current_index = 0;
+    ESP_LOGI(TAG, "Back to point %ld", current_index);
+  }
+  bw_ms_after_last = neo_bitwise_write_point(false);
+  ESP_LOGI(TAG, "Using time interval of %ld", bw_ms_after_last);
+  neo_state = NEO_SEQ_WAIT;
+}
+
+void neo_bitwise_wait(void)  {
+  uint64_t new_millis = 0;
+
+  /*
+    * if the timer has expired (or assumed that if current_millis == 0, then it will be)
+    * i.e. done waiting move to the next state
+    */
+  if(((new_millis = millis()) - current_millis) >= bw_ms_after_last)  {
+    current_millis = new_millis;
+    current_index++;
+    neo_state = NEO_SEQ_WRITE;
+  }
+
 }
 
 void neo_bitwise_stopping(void)  {
@@ -1186,7 +1284,7 @@ void neo_bitwise_stopping(void)  {
 neo_ftype_t neo_file_procs[] = {
   {"OG", neo_proc_OG, data_valid_OG},
   {"BIN_BW", neo_proc_BIN_BBW, data_valid_BIN_BBW},
-  {"\0", NULL}
+  {"\0", NULL, NULL}
 };
 
 /*
@@ -1201,8 +1299,8 @@ seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
   { SEQ_STRAT_PONG,      "pong",      parse_pts_OG,     neo_pong_start,     neo_slowp_wait,    neo_pong_write,      neo_points_stopping,     noop},
 //  { SEQ_STRAT_RAINBOW,   "rainbow", parse_pts_OG,      neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
   { SEQ_STRAT_SLOWP,     "slowp",     parse_pts_OG,     neo_slowp_start,    neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,     noop},
-  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_BW,     neo_bitwise_start,       noop,                noop,          neo_bitwise_stopping,    noop},
-  { SEQ_STRAT_BBWISE,    "bbitwise",  parse_pts_BBW,    neo_bitwise_start,       noop,                noop,          neo_bitwise_stopping,    noop},
+  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_BW,       start_noop,            noop,                noop,          neo_bitwise_stopping,    noop},
+  { SEQ_STRAT_BBWISE,    "bbitwise",  parse_pts_BBW,    neo_bitwise_start,  neo_bitwise_wait,  neo_bitwise_write,     neo_bitwise_stopping,    noop},
 };
 
 
