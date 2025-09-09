@@ -1140,8 +1140,8 @@ int32_t bw_ms_after_last;  // time interval between points; read dynamically
  */
 int32_t neo_bitwise_write_point(bool clear) {
   uint32_t mask = 0x00000001;  // first pixel
-  p_num_pixels = pixels_numPixels();  // number of pixels set in config eeprom
-  uint16_t pixel_cnt = 0;  // how many pixels have been set
+  uint32_t p_num_pixels;  // number of pixels set in config eeprom
+  uint32_t pixel_cnt = 0;  // how many pixels have been set
   seq_bin_t *cpointrow;  // shorthand pointer to start of 32 bit row
   int8_t d = 0;  // depth/row counter
   uint8_t r, g, b, w;
@@ -1153,17 +1153,19 @@ int32_t neo_bitwise_write_point(bool clear) {
   cpointrow += (current_index * bw_idepth);  // increments by the size of cpointrow
   ESP_LOGI(TAG, "cpointrow - 0x%x", (unsigned int)cpointrow);
 
+  p_num_pixels = pixels_numPixels();
+  ESP_LOGI(TAG, "Updating %lu pixels with mask", p_num_pixels);
   pixel_cnt = 0;  // being overly obvious
   for(d = 0; d < bw_idepth; d++)  {  // rows (i.e. pixel depth )
     ESP_LOGI(TAG, "Offset from data %d", cpointrow->o);
     mask = 0x00000001;
     for(int8_t p = 0; p < PIXELS_PER_JSON_ROW; p++)  {  // pixels
       if(pixel_cnt < p_num_pixels)  {
-        r = (cpointrow->r  & mask) * bw_r;
-        g = (cpointrow->g  & mask) * bw_g;
-        b = (cpointrow->b  & mask) * bw_b;
-        w = (cpointrow->w  & mask) * bw_w;
-        pixels_setPixelColorRGB(p, r, g, b, w);
+        r = ((cpointrow->r  & mask) ? 1 : 0) * bw_r;
+        g = ((cpointrow->g  & mask) ? 1 : 0) * bw_g;
+        b = ((cpointrow->b  & mask) ? 1 : 0) * bw_b;
+        w = ((cpointrow->w  & mask) ? 1 : 0) * bw_w;
+        pixels_setPixelColorRGB(pixel_cnt, r, g, b, w);
         t = cpointrow->d;  // delay, only the last one counts
         pixel_cnt++;
       }
@@ -1228,13 +1230,15 @@ void neo_bitwise_start(bool clear)  {
 }
 
 void neo_bitwise_write(void) {
-  if(bw_ms_after_last < 0)  {  // list terminator from the last write: nothing to write
+  if((bw_ms_after_last = neo_bitwise_write_point(false)) < 0)  {  // list terminator from the last write: nothing to write
     current_index = 0;
     ESP_LOGI(TAG, "Back to point %ld", current_index);
+    neo_state = NEO_SEQ_WRITE;
   }
-  bw_ms_after_last = neo_bitwise_write_point(false);
-  ESP_LOGI(TAG, "Using time interval of %ld", bw_ms_after_last);
-  neo_state = NEO_SEQ_WAIT;
+  else
+    neo_state = NEO_SEQ_WAIT;
+
+  ESP_LOGI(TAG, "neo_bitwise_write() using time interval of %ld", bw_ms_after_last);
 }
 
 void neo_bitwise_wait(void)  {
@@ -1245,6 +1249,7 @@ void neo_bitwise_wait(void)  {
     * i.e. done waiting move to the next state
     */
   if(((new_millis = millis()) - current_millis) >= bw_ms_after_last)  {
+    ESP_LOGI(TAG, "... time's up !");
     current_millis = new_millis;
     current_index++;
     neo_state = NEO_SEQ_WRITE;
