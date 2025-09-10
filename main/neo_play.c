@@ -1164,10 +1164,10 @@ int32_t neo_bitwise_write_point(bool clear, bool show) {
     mask = 0x00000001;
     for(int8_t p = 0; p < PIXELS_PER_JSON_ROW; p++)  {  // pixels
       if(pixel_cnt < p_num_pixels)  {
-        r = ((cpointrow->r  & mask) ? 1 : 0) * bw_r;
-        g = ((cpointrow->g  & mask) ? 1 : 0) * bw_g;
-        b = ((cpointrow->b  & mask) ? 1 : 0) * bw_b;
-        w = ((cpointrow->w  & mask) ? 1 : 0) * bw_w;
+        r = ((cpointrow->r  & mask) ? bw_r : 0);
+        g = ((cpointrow->g  & mask) ? bw_g : 0);
+        b = ((cpointrow->b  & mask) ? bw_b : 0);
+        w = ((cpointrow->w  & mask) ? bw_w : 0);
         pixels_setPixelColorRGB(pixel_cnt, r, g, b, w);
         t = cpointrow->d;  // delay, only the last one counts
         pixel_cnt++;
