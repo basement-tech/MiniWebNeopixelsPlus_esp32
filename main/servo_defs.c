@@ -3,11 +3,13 @@
  *
  * abstract the math interface to the physical servos
  */
-
+#include <stdio.h>
+#include <string.h>
 #include <stdint.h>
 #include <math.h>
 #include "esp_log.h"
 #include "esp_err.h"
+#include "bt_eepromlib.h"
 #include "pca9685.h"
 #include "servo_defs.h"
 
@@ -92,7 +94,22 @@ void servo_precalc(void)  {
     }
 }
 
+static net_config_t *pmon_config;
+bool servo_auth = false;
 esp_err_t servo_init(void)  {
+    /*
+     * read the servo move authorization value from the
+     * eeprom parameters and set a local bool.  If "true"
+     * then movement will happen
+     */
+    pmon_config = get_mon_config_ptr();
+    if(strcmp("true", pmon_config->servo_auth) == 0)
+        servo_auth = true;
+    else  {
+        servo_auth = false;
+        ESP_LOGI(TAG, "WARNING: servo moves not authorized in eeprom");
+    }
+
     servo_precalc();
     return(pca9685_init());
 }
@@ -104,11 +121,18 @@ esp_err_t servo_init(void)  {
  * truncate the value if exceeds limits.
  * return the angle actual value set.
  * 
+ * NOTE: if servo movement is not authorized in the eeprom parameters
+ * no physical move is accomplished and the return value cannot be 
+ * trusted to match the position of the servo.
+ * 
  *   angle                      pulse
  *   -----                      -----
 
  */
 int32_t servo_move_real_pre(uint8_t ch, int32_t angle, bool relative)  {
+
+    if(servo_auth == false)
+        return(0);
 
     /*
      * apply the request for a relative move if so
@@ -146,9 +170,18 @@ int32_t servo_move_real_pre(uint8_t ch, int32_t angle, bool relative)  {
  * it then back-calculates position in degrees to fill in the current angle
  * value in servo_defs[].
  * NOTE: the real world angle in deg may not be symetrically mapped to the pulse width span.
+ * 
+ * NOTE: if servo movement is not authorized in the eeprom parameters
+ * no physical move is accomplished and the return value cannot be 
+ * trusted to match the position of the servo.
+ * 
  */
 esp_err_t servo_rest(uint8_t ch)  {
     esp_err_t err = ESP_OK;
+
+    if(servo_auth == false)
+        return(ESP_FAIL);
+
     if((err = pca9685_set_pwm(ch, 0, servo_defs[ch].servo_mid)) != ESP_OK)
         ESP_LOGE(TAG, "Error setting channel %u to neutral position", ch);
     else  {
