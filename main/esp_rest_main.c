@@ -614,6 +614,7 @@ void app_main(void)
 
     /*
      * start the neopixel engine in a separate task
+     * NOTE: bbw seems to cause panic/reset if stack is less than 2*4096
      */
     ESP_LOGI(TAG, "Starting neopixel process from main() ...");
     xTaskCreate(neopixel_process, NEO_TASK_HANDLE_NAME, (2*4096), NULL, 10, NULL);

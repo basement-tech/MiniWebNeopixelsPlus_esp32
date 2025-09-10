@@ -221,12 +221,13 @@ int8_t neo_is_seq_malloc(seq_strategy_t sequence)  {
  *          -1: file not found or error opening
  *          -2: error deserializing file
  */
+char buf[NEO_MAX_SEQ_FILE_SIZE] = {0};  // buffer in which to read the file contents
 int8_t neo_load_sequence(const char *file)  {
 
   int8_t ret = NEO_SUCCESS;
 
   struct stat file_stat;
-  char buf[NEO_MAX_SEQ_FILE_SIZE] = {0};  // buffer in which to read the file contents
+
   char *pbuf_data = NULL;  // pointer in buf[] after the preamble
   char filepath[FILE_PATH_MAX] = {0};  // fully qualified path to file
 
