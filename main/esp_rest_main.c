@@ -457,6 +457,8 @@ static void servo_process(void *pvParameters)  {
     /*
      * +/- 45 test
      */
+
+    #ifdef SERVO_DEMO
     while(1)  {
             //servo_move_real_pre(ch, servo_defs[ch].mina, false);  // absolute move to ccw
       servo_rest(ch);  // back to middle
@@ -490,6 +492,12 @@ static void servo_process(void *pvParameters)  {
       vTaskDelay(1000 / portTICK_PERIOD_MS);
 
     }
+#else
+    while(1)  {
+      vTaskDelay(1000 / portTICK_PERIOD_MS);
+    }
+#endif  // SERVO_DEMO
+
 }
 
 /*

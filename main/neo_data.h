@@ -135,10 +135,12 @@ typedef struct {
 /*
  * binary/bitwise representation of neopixels
  */
-typedef struct  __attribute__((packed)) {
+typedef struct __attribute__((packed)) {
     int8_t o;  // offset
-    uint32_t r, g, b, w;  // colors
+    uint32_t r, g, b, w;  // color bitmap
     int32_t d;   // delay
+    uint16_t s;  // servo bitmap
+    int32_t a;   // servo angle
 } seq_bin_t;
 
 /*
