@@ -1125,6 +1125,9 @@ int8_t bw_idepth = 1;  // number of n pixel chunks ... extracted on start
 int32_t bw_ms_after_last;  // time interval between points; read dynamically
 
 /*
+ * int32_t neo_bitwise_write_point(bool clear, bool show)
+ *
+ *
  * extract the on/off desired bitwise state of the array
  * and write r, g, b to the array
  * 
@@ -1132,12 +1135,24 @@ int32_t bw_ms_after_last;  // time interval between points; read dynamically
  * and write the global bw_r, g, b as indicated.
  * 
  * this function will set pixel values up to the physical number
- * of pixels defined in pmonconfig (i.e. eeprom)
+ * of pixels defined in pmonconfig (i.e. eeprom) only.  Any beyond
+ * that in the binary data are ignored.
+ * 
+ * pixels_show() is *optionally* called to play out the pixels.
  * 
  * 
  * arguments:
  *   bool clear : clear the pixels before updating
  *   bool show: send the pixels to the strand hardware
+ * 
+ * globals:
+ *   seq_index : index of sequence being played out
+ *   neo_sequences[seq_index].alt_points : pointer to binary/bitwise data
+ *   current_index : current point in sequence
+ * 
+ * return:
+ *   int32_t t : time interval from point data
+ *               (can be -1 to indicate a point data terminator)
  * 
  *    (NOTE: this is a bitwise point representing all pixels)
  */
@@ -1178,6 +1193,74 @@ int32_t neo_bitwise_write_point(bool clear, bool show) {
   }
   if(show == true)
     pixels_show();
+  return(t);  // pointing to time interval
+}
+
+
+/*
+ * int32_t neo_bitwise_write_servo(bool clear, bool show)
+ *
+ * extract the on/off desired bitwise state of the array
+ * and write r, g, b to the array
+ * 
+ * use a mask to extract the bitwise on/off pixel/color value
+ * and write the global bw_r, g, b as indicated.
+ * 
+ * this function will set pixel values up to the physical number
+ * of pixels defined in pmonconfig (i.e. eeprom) only.  Any beyond
+ * that in the binary data are ignored.
+ * 
+ * pixels_show() is *optionally* called to play out the pixels.
+ * 
+ * 
+ * arguments:
+ *   bool clear : clear the pixels before updating
+ *   bool show: send the pixels to the strand hardware
+ * 
+ * globals:
+ *   seq_index : index of sequence being played out
+ *   neo_sequences[seq_index].alt_points : pointer to binary/bitwise data
+ *   current_index : current point in sequence
+ * 
+ * return:
+ *   int32_t t : time interval from point data
+ *               (can be -1 to indicate a point data terminator)
+ * 
+ *    (NOTE: this is a bitwise point representing all pixels)
+ */
+int32_t neo_bitwise_write_servo() {
+  uint32_t mask = 0x00000001;  // 32 bit mask to interogate data - first pixel
+  uint32_t p_num_pixels = 0;  // number of pixels set in config eeprom
+  uint32_t pixel_cnt = 0;  // how many pixels have been set
+  seq_bin_t *cpointrow;  // shorthand pointer to start of 32 bit row
+  int8_t d = 0;  // depth/row counter
+  uint8_t r, g, b, w;  // appropriately sized color values
+  int32_t t = 1000;  // time between points
+
+  cpointrow = (seq_bin_t *)neo_sequences[seq_index].alt_points;
+  cpointrow += (current_index * bw_idepth);  // increments by the size of cpointrow
+  ESP_LOGD(TAG, "cpointrow - 0x%x", (unsigned int)cpointrow);
+
+  p_num_pixels = pixels_numPixels();
+  ESP_LOGD(TAG, "Updating %lu pixels with mask", p_num_pixels);
+  pixel_cnt = 0;  // being overly obvious
+  for(d = 0; d < bw_idepth; d++)  {  // rows (i.e. pixel depth )
+    ESP_LOGD(TAG, "Offset from data %d", cpointrow->o);
+    mask = 0x00000001;
+    for(int8_t p = 0; p < PIXELS_PER_JSON_ROW; p++)  {  // pixels
+      if(pixel_cnt < p_num_pixels)  {
+        r = ((cpointrow->r  & mask) ? bw_r : 0);
+        g = ((cpointrow->g  & mask) ? bw_g : 0);
+        b = ((cpointrow->b  & mask) ? bw_b : 0);
+        w = ((cpointrow->w  & mask) ? bw_w : 0);
+        pixels_setPixelColorRGB(pixel_cnt, r, g, b, w);
+        t = cpointrow->d;  // delay, only the last one counts
+        pixel_cnt++;
+      }
+      mask = mask << 1;  // next pixel in this color's mask
+    }
+    cpointrow++;
+  }
   return(t);  // pointing to time interval
 }
 
@@ -1237,7 +1320,7 @@ void neo_bitwise_write(void) {
   /*
    * write the pixel, but don't show yet
    */
-  if((bw_ms_after_last = neo_bitwise_write_point(false, false)) < 0)  {  // list terminator from the last write: nothing to write
+  if((bw_ms_after_last = neo_bitwise_write_point(false, false)) < 0)  {  // list terminator from the last write: don't display
     current_index = 0;
     ESP_LOGD(TAG, "Back to point %ld", current_index);
     neo_state = NEO_SEQ_WRITE;  // loop back around and write the top of list
