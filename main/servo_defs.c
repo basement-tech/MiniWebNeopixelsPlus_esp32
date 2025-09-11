@@ -39,6 +39,8 @@ servo_def_t servo_defs[PCA9685_MAX_CHANNELS] = {
    {15, PCA9685_SERVO_MIN, PCA9685_SERVO_MID, PCA9685_SERVO_MAX, FUTABA_3107_MINA, FUTABA_3107_MAXA,  0,        0, false}   // Futaba 3107
 };
 
+bool servo_auth = false; // servo_init() sets this inhibit movement state
+
 /*
  * map the real world coordinates to the pulse width calibration values
  * and move the servo to the requested real world angle
@@ -94,14 +96,15 @@ void servo_precalc(void)  {
     }
 }
 
-static net_config_t *pmon_config;
-bool servo_auth = false;
+
+
 esp_err_t servo_init(void)  {
     /*
      * read the servo move authorization value from the
      * eeprom parameters and set a local bool.  If "true"
      * then movement will happen
      */
+    net_config_t *pmon_config;
     pmon_config = get_mon_config_ptr();
     if(strcmp("true", pmon_config->servo_auth) == 0)
         servo_auth = true;
