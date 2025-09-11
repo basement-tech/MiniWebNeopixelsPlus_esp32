@@ -134,6 +134,9 @@ esp_err_t servo_init(void)  {
  */
 int32_t servo_move_real_pre(uint8_t ch, int32_t angle, bool relative)  {
 
+    ESP_LOGI(TAG, "Attempting to move ch%2u to angle %ld (%s)%s ", 
+                    ch, angle, (relative ? "rel" : "abs"), (servo_auth ? "" : " - simulated"));
+
     if(servo_auth == false)
         return(0);
 
@@ -198,4 +201,8 @@ esp_err_t servo_rest(uint8_t ch)  {
  */
 int32_t servo_get_angle(uint8_t ch)  {
     return(servo_defs[ch].cura);
+}
+
+int32_t servo_get_numservos(void)  {
+    return(PCA9685_MAX_CHANNELS);
 }

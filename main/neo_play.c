@@ -22,6 +22,7 @@
 #include "neo_ll_api.h"
 #include "neo_data.h"
 #include "neo_parsing.h"
+#include "servo_defs.h"
 
 #define TAG "neo_play"
 
@@ -1185,8 +1186,8 @@ int32_t neo_bitwise_write_point(bool clear, bool show) {
         w = ((cpointrow->w  & mask) ? bw_w : 0);
         pixels_setPixelColorRGB(pixel_cnt, r, g, b, w);
         t = cpointrow->d;  // delay, only the last one counts
-        pixel_cnt++;
       }
+      pixel_cnt++;
       mask = mask << 1;  // next pixel in this color's mask
     }
     cpointrow++;
@@ -1228,40 +1229,31 @@ int32_t neo_bitwise_write_point(bool clear, bool show) {
  * 
  *    (NOTE: this is a bitwise point representing all pixels)
  */
-int32_t neo_bitwise_write_servo() {
-  uint32_t mask = 0x00000001;  // 32 bit mask to interogate data - first pixel
-  uint32_t p_num_pixels = 0;  // number of pixels set in config eeprom
-  uint32_t pixel_cnt = 0;  // how many pixels have been set
+void neo_bitwise_write_servo(void) {
+  uint32_t mask = 0x00000001;  // 32 bit mask to interogate data - first servo
+  uint32_t p_num_servos = servo_get_numservos();  // number of pixels set in config eeprom
+  uint8_t servo_cnt = 0;  // how many pixels have been set
   seq_bin_t *cpointrow;  // shorthand pointer to start of 32 bit row
   int8_t d = 0;  // depth/row counter
-  uint8_t r, g, b, w;  // appropriately sized color values
-  int32_t t = 1000;  // time between points
 
   cpointrow = (seq_bin_t *)neo_sequences[seq_index].alt_points;
   cpointrow += (current_index * bw_idepth);  // increments by the size of cpointrow
   ESP_LOGD(TAG, "cpointrow - 0x%x", (unsigned int)cpointrow);
 
-  p_num_pixels = pixels_numPixels();
-  ESP_LOGD(TAG, "Updating %lu pixels with mask", p_num_pixels);
-  pixel_cnt = 0;  // being overly obvious
+  servo_cnt = 0;  // being overly obvious
   for(d = 0; d < bw_idepth; d++)  {  // rows (i.e. pixel depth )
     ESP_LOGD(TAG, "Offset from data %d", cpointrow->o);
     mask = 0x00000001;
-    for(int8_t p = 0; p < PIXELS_PER_JSON_ROW; p++)  {  // pixels
-      if(pixel_cnt < p_num_pixels)  {
-        r = ((cpointrow->r  & mask) ? bw_r : 0);
-        g = ((cpointrow->g  & mask) ? bw_g : 0);
-        b = ((cpointrow->b  & mask) ? bw_b : 0);
-        w = ((cpointrow->w  & mask) ? bw_w : 0);
-        pixels_setPixelColorRGB(pixel_cnt, r, g, b, w);
-        t = cpointrow->d;  // delay, only the last one counts
-        pixel_cnt++;
+    for(int8_t p = 0; p < SERVOS_PER_JSON_ROW; p++)  {  // servos
+      if(servo_cnt < p_num_servos)  {
+        if((cpointrow->s  & mask) != (uint32_t)0)
+          servo_move_real_pre(servo_cnt, cpointrow->a, false);
       }
+      servo_cnt++;
       mask = mask << 1;  // next pixel in this color's mask
     }
     cpointrow++;
   }
-  return(t);  // pointing to time interval
 }
 
 /*
@@ -1327,6 +1319,7 @@ void neo_bitwise_write(void) {
   }
   else  {
     pixels_show();
+    neo_bitwise_write_servo();
     neo_state = NEO_SEQ_WAIT;
   }
 

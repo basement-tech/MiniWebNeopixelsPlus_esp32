@@ -124,7 +124,8 @@ typedef struct {
  * num_colors = 4
  * size = point_count * (((PIXELS_PER_JSON_ROW/sizeof(uint8_t)) * num_colors) * "depth") + sizeof(ms_after_last))
  */
-#define PIXELS_PER_JSON_ROW  32  //   i.e. sizeof(uint16_t)
+#define PIXELS_PER_JSON_ROW  32  //   i.e. sizeof(uint32_t)
+#define SERVOS_PER_JSON_ROW  32  //   i.e. sizeof(uint32_t)
 typedef struct {
   uint32_t red;
   uint32_t green;
