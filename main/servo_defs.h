@@ -35,7 +35,7 @@ typedef struct {
  */
 extern servo_def_t servo_defs[];
 esp_err_t servo_init(void);
-int32_t servo_move_real_pre(uint8_t channel, int32_t angle, bool relative);
+esp_err_t servo_move_real_pre(uint8_t ch, int32_t rangle, bool relative, int32_t *aangle);
 esp_err_t servo_rest(uint8_t ch);
 int32_t servo_get_angle(uint8_t ch);
 int32_t servo_get_numservos(void);

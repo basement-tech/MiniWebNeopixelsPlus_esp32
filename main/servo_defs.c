@@ -128,46 +128,52 @@ esp_err_t servo_init(void)  {
  * no physical move is accomplished and the return value cannot be 
  * trusted to match the position of the servo.
  * 
- *   angle                      pulse
- *   -----                      -----
-
+ *   arguments:
+ *      uint8_t ch  : servo channel to move
+ *      int32_t rangle : requested angle
+ *      bool relative: if true, make a relative move; otherwise absolute
+ *      int32_t aangle: achieved angle (always absolute)
  */
-int32_t servo_move_real_pre(uint8_t ch, int32_t angle, bool relative)  {
-
-    ESP_LOGI(TAG, "Attempting to move ch%2u to angle %ld (%s)%s ", 
-                    ch, angle, (relative ? "rel" : "abs"), (servo_auth ? "" : " - simulated"));
-
-    if(servo_auth == false)
-        return(0);
+esp_err_t servo_move_real_pre(uint8_t ch, int32_t rangle, bool relative, int32_t *aangle)  {
+    esp_err_t err = ESP_OK;
 
     /*
      * apply the request for a relative move if so
      * (i.e. convert to absolute)
      */
     if(relative == true)
-        angle = servo_defs[ch].cura + angle;
+        *aangle = servo_defs[ch].cura + rangle;
+    else
+        *aangle = rangle;
 
     /*
      * make sure the requested angla is in bounds
      * (use the precalculated bound_sign flag)
      */
     if(servo_defs[ch].bound_sign == true)  {
-        if((angle + servo_defs[ch].mina) > servo_defs[ch].maxa)
-            angle = servo_defs[ch].maxa;
+        if((*aangle + servo_defs[ch].mina) > servo_defs[ch].maxa)
+            *aangle = servo_defs[ch].maxa;
     }
     else  {
-        if((angle + servo_defs[ch].maxa) > servo_defs[ch].mina)
-            angle = servo_defs[ch].mina;
+        if((*aangle + servo_defs[ch].maxa) > servo_defs[ch].mina)
+            *aangle = servo_defs[ch].mina;
     }
 
-    uint16_t pulse = calc_pulse(ch, angle);
+    ESP_LOGI(TAG, "Attempting to move ch%2u to angle %ld (%s)%s ", 
+                    ch, rangle, (relative ? "rel" : "abs"), (servo_auth ? "" : " - simulated"));
+    ESP_LOGI(TAG, "Resultant absolute angle %ld", *aangle);
+
+    if(servo_auth == false)
+        return(err);
+
+    uint16_t pulse = calc_pulse(ch, *aangle);
     ESP_LOGD(TAG, "pulse = %u", pulse);
-    if(pca9685_set_pwm(ch, 0, pulse) == ESP_OK)
-        servo_defs[ch].cura = angle;
+    if((err = pca9685_set_pwm(ch, 0, pulse)) == ESP_OK)
+        servo_defs[ch].cura = *aangle;
     else
         ESP_LOGE(TAG, "Error writing to servo");
 
-    return(angle);
+    return(err);
 }
 
 /*

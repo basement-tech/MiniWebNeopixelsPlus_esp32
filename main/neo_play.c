@@ -1237,6 +1237,7 @@ void neo_bitwise_write_servo(void) {
   uint8_t servo_cnt = 0;  // how many pixels have been set
   seq_bin_t *cpointrow;  // shorthand pointer to start of 32 bit row
   int8_t d = 0;  // depth/row counter
+  int32_t aangle = 0; // achieved absolute angle
 
   cpointrow = (seq_bin_t *)neo_sequences[seq_index].alt_points;
   cpointrow += (current_index * bw_idepth);  // increments by the size of cpointrow
@@ -1249,7 +1250,7 @@ void neo_bitwise_write_servo(void) {
     for(int8_t p = 0; p < SERVOS_PER_JSON_ROW; p++)  {  // servos
       if(servo_cnt < p_num_servos)  {
         if((cpointrow->s  & mask) != (uint32_t)0)
-          servo_move_real_pre(servo_cnt, cpointrow->a, false);
+          servo_move_real_pre(servo_cnt, cpointrow->a, false, &aangle);
       }
       servo_cnt++;
       mask = mask << 1;  // next pixel in this color's mask
