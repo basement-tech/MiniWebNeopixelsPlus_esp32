@@ -333,6 +333,9 @@ SemaphoreHandle_t xneo_cycle_next_flag;  // neo state machine cycle timer
 
 #define NEO_TAG "neopixel_process"
 
+/*
+ * manage the web server - neopixel playout state machine interface
+ */
 static void neopixel_process(void *pvParameters)  {
     uint16_t count = atoi(pmon_config->neocount);
     int8_t err = NEO_SUCCESS;
