@@ -159,9 +159,9 @@ esp_err_t servo_move_real_pre(uint8_t ch, int32_t rangle, bool relative, int32_t
             *aangle = servo_defs[ch].mina;
     }
 
-    ESP_LOGI(TAG, "Attempting to move ch%2u to angle %ld (%s)%s ", 
+    ESP_LOGD(TAG, "Attempting to move ch%2u to angle %ld (%s)%s ", 
                     ch, rangle, (relative ? "rel" : "abs"), (servo_auth ? "" : " - simulated"));
-    ESP_LOGI(TAG, "Resultant absolute angle %ld", *aangle);
+    ESP_LOGD(TAG, "Resultant absolute angle %ld", *aangle);
 
     if(servo_auth == false)
         return(err);

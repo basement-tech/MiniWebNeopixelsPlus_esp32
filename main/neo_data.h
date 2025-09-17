@@ -12,7 +12,7 @@
 #include "json_parser.h"
 
 
-#define NEO_MAX_SEQ_FILE_SIZE 4096 // maximum size of a sequence file
+#define NEO_MAX_SEQ_FILE_SIZE 2*4096 // maximum size of a sequence file
 #define NEO_SEQ_STRATEGIES 7       // number of strategies defined (i.e. size of array of strategy callbacks)
 #define MAX_USER_SEQ       5       // maximum number of user buttons/files
 #define MAX_SEQUENCES      11      // number of sequences to allocate
