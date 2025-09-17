@@ -52,8 +52,8 @@ rest_resp_queue_t rest_resp_pending;  // place to hold the pending transaction
  */
 #define UPLOAD_POST_URI  "/upload"  // upload files
 #define DELETE_POST_URI  "/delete"  // delete files
-#define LIST_GET_URI     "/api/v1/system/list" // list files in local filesystem
-#define SYS_INFO_GET_URI "/api/v1/system/info" // list information about the system
+#define LIST_GET_URI     "/list" // list files in local filesystem
+#define SYS_INFO_GET_URI "/sysinfo" // list information about the system
 #define BUTTON_POST_URI  "/api/button"  // respond to a neopixel button from the browser
 
 
@@ -71,6 +71,7 @@ static const char *REST_TAG = "esp-rest";
 #define FILE_PATH_MAX (ESP_VFS_PATH_MAX + 128)
 #define SCRATCH_BUFSIZE (10240)
 #define LOCAL_NO_CACHE
+#define MAX_BOUNDARY_STRING 64
 
 typedef struct rest_server_context {
     char base_path[ESP_VFS_PATH_MAX + 1];
@@ -282,7 +283,18 @@ void hex_ascii_dump(const char *data, size_t len, size_t perline) {
     }
 }
 
-static int parse_req_header_for_boundary(httpd_req_t *req) {
+/*
+ * find the length of the boundary string and the punctuation
+ * that comes after.
+ * NOTE: the returned number is longer than the length of the actual boundary string
+ * 
+ * arguments:
+ *  httpd_req_t *req : the request/response header (different that the body heater)
+ *  char *rb_str     : a character buffer into which the actual boundary text can be returned
+ *                     (if not NULL)
+ *  int size         : size of rb_str buffer
+ */
+static int parse_req_header_for_boundary(httpd_req_t *req, char *rb_str, int size) {
     /*
      * extract the boundary string from the req header (different from the body header),
      * and the length of the boundary header to skip when copying data.
@@ -307,6 +319,9 @@ static int parse_req_header_for_boundary(httpd_req_t *req) {
              */
             b_str_len = strlen(b_str) + 6 + FINAL_EXTRA_CHARS_AT_END;
             ESP_LOGI(REST_TAG, "boundary string length = %d", b_str_len);
+            ESP_LOGI(REST_TAG, "boundary string: \"%s\"", b_str);
+            if(rb_str != NULL)
+                strncpy(rb_str, b_str, size);
         }
         else
             ESP_LOGE(REST_TAG, "\"boundary=\" not found");
@@ -376,13 +391,15 @@ static int parse_req_header_for_boundary(httpd_req_t *req) {
  * 
  * Care must be taken to detect when a searched-for string straddles two buffer/read chunks:
  * 
- * 
+ * NOTE: this function in written so that it processes in chunks and doesn't need a buffer
+ * as big as the file.  e.g. the background image is >150K.  
  * 
  */
 static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     char filepath[FILE_PATH_MAX] = {0};
     char filename[FILE_PATH_MAX] = {0};
+    char rb_str[MAX_BOUNDARY_STRING] = {0};
     FILE *fd = NULL;
     char *next = NULL;
     int remaining = 0;
@@ -402,9 +419,9 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     /*
      * find the length of the multiform boundary string
      * so that it can be subtracted from the number of characters
-     * to be read 
+     * to be read.  this is in the http/req header, not the data itself.
      */
-    b_str_len = parse_req_header_for_boundary(req);
+    b_str_len = parse_req_header_for_boundary(req, rb_str, sizeof(rb_str));
 
     esp_err_t err = ESP_OK; // exit status of the while
     while((remaining > 0) && (err == ESP_OK))  {
@@ -413,6 +430,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
         /*
          * read buffer full of data 
          * leave room for the safety '\0'
+         * - up to 5 timeouts per read attempt are not fatal
          */
         timeouts = NUM_TIMEOUTS;
         do  {
@@ -423,7 +441,8 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
             else
                 timeouts = received;  // exit with error status (always negative)
         }  while((received <= 0) && (timeouts > 0));
-#ifdef DEBUG_DUMP_RAW
+#define DEBUG_DUMP_RAW
+        #ifdef DEBUG_DUMP_RAW
         ESP_LOGI(REST_TAG, "Raw contents of received buffer:");
         hex_ascii_dump(buf, received, 32);
 #endif
@@ -481,7 +500,9 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
                 received -= (next-buf);  // used up some number of bytes looking for filename and start of data
                 ESP_LOGI(REST_TAG, "Subtracted %d bytes for filename extraction", next-buf);
 
-
+                char *b_ptr;
+                if((b_ptr = strstr(next, rb_str)) != NULL)
+                    ESP_LOGI(REST_TAG, "Found boundary string in body at position %d", (int)(b_ptr-next));
 
                 /*
                  * make sure we have a validly constructed filepath
@@ -971,7 +992,10 @@ esp_err_t start_rest_server(const char *base_path)
     httpd_register_uri_handler(server, &light_brightness_post_uri);
 
 
-    /* URI handler for file uploads */
+    /* 
+     * URI handler for file uploads
+     * i.e. send the UI for user interaction
+     */
     httpd_uri_t upload_uri = {
         .uri = UPLOAD_POST_URI,
         .method = HTTP_GET,
@@ -979,7 +1003,10 @@ esp_err_t start_rest_server(const char *base_path)
         .user_ctx = rest_context
     };
     httpd_register_uri_handler(server, &upload_uri);
-    /* URI handler for file upload return post */
+    /* 
+     * URI handler for file upload return post
+     * i.e. execute the file upload
+     */
     httpd_uri_t file_upload_post_uri = {
         .uri = UPLOAD_POST_URI,
         .method = HTTP_POST,
