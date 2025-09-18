@@ -395,6 +395,74 @@ static int parse_req_header_for_boundary(httpd_req_t *req, char *rb_str, int siz
  * as big as the file.  e.g. the background image is >150K.  
  * 
  */
+//#define NEW_READING_TRY
+#ifdef NEW_READING_TRY
+ typedef enum {
+    READING,
+    STARTED,
+    FOUND,
+    DONE
+} rstate_t;
+
+#define BUF_SIZE;
+uint8_t buf[BUF_SIZE];
+rstate_t read_while_searching(uint8_t *buf, int bytes_left, char *search_string)  {
+    char search_string[] = "find_me";
+    int search_index = 0;
+    int buf_index = 0;
+    char c;
+    rstate_t state;
+    bool holdoff;
+    int start_index = 0; // where did the search string start
+    int max_buf_index = 0;
+
+    max_buf_index = sizeof(buf) - strlen(search_string);  // leave room for holdoff condition
+
+    while((buf_index < max_buf_index) && (holdoff == false))  {
+        switch(state) {
+            c = read_a_char();
+            case READING:  // reading characters with no sign of search_string
+                if(c == search_string[search_index])  {
+                    search_index++;  // start looking for the next character in the search string
+                    holdoff = true;
+                    start_index = buf_index;  // mark the start of the search string in buffer
+                    state = STARTED;
+                }
+                buf[buf_index++] = c;
+                break;
+
+            case STARTED:  // found first character, looking for balance of search_string
+                if(c == search_string[search_index])  {
+                    search_index++;  // start looking for the next character in the search string
+                    if(search_index < strlen(search_string))
+                        state = STARTED;
+                    else
+                        state = FOUND;
+                }
+                else  {  // false alarm
+                    state = READING;
+                    holdoff = false;
+                    search_index = 0;
+                }
+                buf[buf_index++] = c;
+                break;
+
+            case FOUND:  // found the entire search string, but more data to read
+                holdoff = false;
+                state = DONE;
+                break;
+
+            case DONE:  // no more data to read
+                break;
+
+            default:
+                break;
+        }
+    }
+    return(state);
+}
+#endif
+
 static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     char filepath[FILE_PATH_MAX] = {0};
@@ -500,6 +568,10 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
                 received -= (next-buf);  // used up some number of bytes looking for filename and start of data
                 ESP_LOGI(REST_TAG, "Subtracted %d bytes for filename extraction", next-buf);
 
+                /*
+                 * starting to set up for processing multipart forms
+                 * i.e. dragging/uploading two files at once
+                 */
                 char *b_ptr;
                 if((b_ptr = strstr(next, rb_str)) != NULL)
                     ESP_LOGI(REST_TAG, "Found boundary string in body at position %d", (int)(b_ptr-next));
