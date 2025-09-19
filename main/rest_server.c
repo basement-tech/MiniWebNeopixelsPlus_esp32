@@ -396,9 +396,6 @@ static int parse_req_header_for_boundary(httpd_req_t *req, char *rb_str, int siz
  * 
  */
 
-
-#define NEW_READING_TRY
-#ifdef NEW_READING_TRY
  typedef enum {
     READING,
     STARTED,
@@ -446,7 +443,7 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
      * "if there is space in the buffer/block or I'm using up the reserve for searchstring,
      * and there are bytes left to read"
      */
-    while((state != FOUND) && ((*buf_index < max_buf_index) || (state == STARTED)) && (*pbytes_left > 0))  {
+    while((state != FOUND) && ((*buf_index < max_buf_index) || (state == STARTED)) && (*pbytes_left > 0) && (ret == ESP_OK))  {
 
         /*
         * read a character with timeouts
@@ -525,7 +522,7 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
         *rstate = DONE;
     return(ret);
 }
-#endif
+
 
 static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
@@ -607,28 +604,9 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
             ESP_LOGI(REST_TAG, "boundary string found, buf_index = %d, remaining = %d", buf_index, remaining);
         }
 
-        buf[buf_index-1] = '\0';  // -1 to lose the \"
+        buf[buf_index-strlen(rb_str)] = '\0';  // to lose the boundary string
         ESP_LOGI(REST_TAG, "buf = %s", buf);
 
-        /*
-         * just read all of the rest for debugging, so that the while() exits
-         */
-        timeouts = NUM_TIMEOUTS;
-        do  {
-            received = httpd_req_recv(req, buf, MIN(remaining, (SCRATCH_BUFSIZE-1)));
-            ESP_LOGI(REST_TAG, "Number of bytes received in chunk = %d in countdown %d", received, timeouts);
-            if(received == HTTPD_SOCK_ERR_TIMEOUT)
-                timeouts--;
-            else
-                timeouts = received;  // exit with error status (always negative)
-        }  while((received <= 0) && (timeouts > 0));
-
-#define DEBUG_DUMP_RAW
-        #ifdef DEBUG_DUMP_RAW
-        ESP_LOGI(REST_TAG, "Raw contents of received buffer:");
-        hex_ascii_dump(buf, received, 32);
-#endif
-        remaining -= received;
 
 #ifdef OG_HTTP_PARSE
         /*
