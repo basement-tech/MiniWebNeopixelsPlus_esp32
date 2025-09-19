@@ -395,7 +395,9 @@ static int parse_req_header_for_boundary(httpd_req_t *req, char *rb_str, int siz
  * as big as the file.  e.g. the background image is >150K.  
  * 
  */
-//#define NEW_READING_TRY
+
+
+#define NEW_READING_TRY
 #ifdef NEW_READING_TRY
  typedef enum {
     READING,
@@ -404,62 +406,113 @@ static int parse_req_header_for_boundary(httpd_req_t *req, char *rb_str, int siz
     DONE
 } rstate_t;
 
-#define BUF_SIZE;
-uint8_t buf[BUF_SIZE];
-rstate_t read_while_searching(uint8_t *buf, int bytes_left, char *search_string)  {
-    char search_string[] = "find_me";
-    int search_index = 0;
-    int buf_index = 0;
-    char c;
-    rstate_t state;
-    bool holdoff;
-    int start_index = 0; // where did the search string start
+/*
+ * read characters from the data POST'ed by the request to upload
+ * a file, looking for the search string.  return whether the string
+ * was found.
+ * 
+ * the idea here is to avoid having to read all of the data from the 
+ * web client, all at once into a huge buffer.
+ * 
+ * We'll read up to a reasonable block size and write it to the
+ * filesystem a chunk at a time.  (Don't want to stress the flash
+ * by doing byte by byte writing)
+ * 
+ * arguments:
+ *  httpd_req_t *req : to get to the data sent from http client
+ *  uint8_t *pbuf  : buf to use for i/o (probably scratch buffer)
+ *  int size: size of buffer pointed to by pbuf
+ *  int bytes_left: bytes left in the http buffer process
+ *  char *search_string: the string to be searched for
+ *  rstate_t &rstate : pointer to the place to deposit the exit state (i.e. found or not)
+ *                     (should always be FOUND or READING since, if it found any part of the ss, it'll finish)
+ */
+
+esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbytes_left, char *search_string, rstate_t *rstate)  {
+    esp_err_t ret = ESP_OK;
+    int search_index = 0;  // where are we in the search string during searching
+    int buf_index = 0;  // counting bytes in buf
+    char *pstart = NULL;  // pointer to the start of the search_string in buf
+    rstate_t state = READING;  // state of the search
+    bool holdoff = false;
     int max_buf_index = 0;
+    int timeouts = NUM_TIMEOUTS;
+    int received;
 
-    max_buf_index = sizeof(buf) - strlen(search_string);  // leave room for holdoff condition
+    max_buf_index = size - strlen(search_string);  // leave room for holdoff condition
 
-    while((buf_index < max_buf_index) && (holdoff == false))  {
-        switch(state) {
-            c = read_a_char();
-            case READING:  // reading characters with no sign of search_string
-                if(c == search_string[search_index])  {
-                    search_index++;  // start looking for the next character in the search string
-                    holdoff = true;
-                    start_index = buf_index;  // mark the start of the search string in buffer
-                    state = STARTED;
-                }
-                buf[buf_index++] = c;
-                break;
+    /*
+     * read a buffer full of data or until the search string is found in it's entirety
+     * stop also if all of the characters from the client are used up
+     */
+    while((buf_index < max_buf_index) && (*pbytes_left > 0) && (holdoff == false))  {
 
-            case STARTED:  // found first character, looking for balance of search_string
-                if(c == search_string[search_index])  {
-                    search_index++;  // start looking for the next character in the search string
-                    if(search_index < strlen(search_string))
-                        state = STARTED;
-                    else
-                        state = FOUND;
-                }
-                else  {  // false alarm
-                    state = READING;
-                    holdoff = false;
-                    search_index = 0;
-                }
-                buf[buf_index++] = c;
-                break;
+        /*
+        * read a character with timeouts
+        */
+        timeouts = NUM_TIMEOUTS;  // reset
+        do  {
+            received = httpd_req_recv(req, pbuf, 1);
+            ESP_LOGI(REST_TAG, "Number of bytes received in chunk = %d in countdown %d", received, timeouts);
+            if(received == HTTPD_SOCK_ERR_TIMEOUT)
+                timeouts--;
+            else
+                timeouts = received;  // exit with error status (always negative)
+        }   while((received <= 0) && (timeouts > 0));
 
-            case FOUND:  // found the entire search string, but more data to read
-                holdoff = false;
-                state = DONE;
-                break;
-
-            case DONE:  // no more data to read
-                break;
-
-            default:
-                break;
+        if(timeouts > 0)
+            (*pbytes_left)--;
+        else  {
+            ESP_LOGE(REST_TAG, "Error: timeout reading from client buffer");
+            ret = ESP_ERR_TIMEOUT;
         }
+
+        if(ret == ESP_OK)  {
+            /*
+             * searching state machine
+             */
+            switch(state) {
+                case READING:  // reading characters with no sign of search_string
+                    if(*pbuf++ == search_string[search_index])  {
+                        search_index++;  // start looking for the next character in the search string
+                        holdoff = true;  // in case the search_string would strattle the end of a block
+                        pstart = pbuf;  // mark the start of the search string in buffer
+                        state = STARTED;
+                    }
+                    buf_index++;
+                    break;
+
+                case STARTED:  // found first character, looking for balance of search_string
+                    if(*pbuf++ == search_string[search_index])  {
+                        search_index++;  // start looking for the next character in the search string
+                        if(search_index < strlen(search_string))  // entire search_string found?
+                            state = STARTED;
+                        else
+                            state = FOUND;
+                    }
+                    else  {  // false alarm ... start over
+                        state = READING;
+                        holdoff = false;
+                        search_index = 0;
+                    }
+                    break;
+
+                case FOUND:  // found the entire search string, but more data to read
+                    // how to indicate the number of characters in buffer for calling function to write ???
+                    holdoff = false;
+                    state = DONE;
+                    break;
+
+                case DONE:  // no more data to read
+                    break;
+
+                default:
+                    break;
+            }  // switch()
+        } // err == ESP_OK
     }
-    return(state);
+    *rstate = state;
+    return(ret);
 }
 #endif
 
