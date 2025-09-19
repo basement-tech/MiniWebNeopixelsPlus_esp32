@@ -454,7 +454,7 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
         timeouts = NUM_TIMEOUTS;  // reset
         do  {
             received = httpd_req_recv(req, pbuf, 1);
-            ESP_LOGI(REST_TAG, "Number of bytes received in chunk = %d in countdown %d", received, timeouts);
+            ESP_LOGD(REST_TAG, "Number of bytes received in chunk = %d in countdown %d", received, timeouts);
             if(received == HTTPD_SOCK_ERR_TIMEOUT)
                 timeouts--;
             else
@@ -531,7 +531,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     char filepath[FILE_PATH_MAX] = {0};
     char filename[FILE_PATH_MAX] = {0};
-    char rb_str[MAX_BOUNDARY_STRING] = {0};
+    char rb_str[MAX_BOUNDARY_STRING] = {0};  // some room to add --
     FILE *fd = NULL;
     char *next = NULL;
     int remaining = 0;
@@ -554,8 +554,17 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
      * find the length of the multiform boundary string
      * so that it can be subtracted from the number of characters
      * to be read.  this is in the http/req header, not the data itself.
+     * 
+     * insert two '-''s since the client seems to do that
      */
     b_str_len = parse_req_header_for_boundary(req, rb_str, sizeof(rb_str));
+    for(int i = (strlen(rb_str)); i >= 0; i--)  {  // include the '\0'
+        rb_str[i+2] = rb_str[i];
+    }
+    rb_str[1] = '-';
+    rb_str[0] = '-';
+    ESP_LOGI(REST_TAG, "rb_str after insertion = \"%s\"", rb_str);
+
 
     esp_err_t err = ESP_OK; // exit status of the while
     while((remaining > 0) && (err == ESP_OK))  {
@@ -579,8 +588,23 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
         read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, "\"", &buf_index, &rstate);
         if(rstate == FOUND)  {
-            ESP_LOGI(REST_TAG, "\" found, remaining = %d", remaining);
             ESP_LOGI(REST_TAG, " \" found, buf_index = %d, remaining = %d", buf_index, remaining);
+        }
+
+        buf[buf_index-1] = '\0';  // -1 to lose the \"
+        ESP_LOGI(REST_TAG, "buf = %s", buf);
+
+        read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, BODY_HEADER_END_STR, &buf_index, &rstate);
+        if(rstate == FOUND)  {
+            ESP_LOGI(REST_TAG, "start of data found, remaining = %d", remaining);
+        }
+
+        buf[buf_index-1] = '\0';  // -1 to lose the \"
+        ESP_LOGI(REST_TAG, "buf = %s", buf);
+
+        read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, rb_str, &buf_index, &rstate);
+        if(rstate == FOUND)  {
+            ESP_LOGI(REST_TAG, "boundary string found, buf_index = %d, remaining = %d", buf_index, remaining);
         }
 
         buf[buf_index-1] = '\0';  // -1 to lose the \"
