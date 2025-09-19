@@ -427,25 +427,26 @@ static int parse_req_header_for_boundary(httpd_req_t *req, char *rb_str, int siz
  *  rstate_t &rstate : pointer to the place to deposit the exit state (i.e. found or not)
  *                     (should always be FOUND or READING since, if it found any part of the ss, it'll finish)
  */
-
+#define _MBI_MARGIN_ 8  // just incase the math is incorrect
 esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbytes_left, char *search_string, rstate_t *rstate)  {
     esp_err_t ret = ESP_OK;
     int search_index = 0;  // where are we in the search string during searching
     int buf_index = 0;  // counting bytes in buf
-    char *pstart = NULL;  // pointer to the start of the search_string in buf
     rstate_t state = READING;  // state of the search
-    bool holdoff = false;
     int max_buf_index = 0;
     int timeouts = NUM_TIMEOUTS;
     int received;
 
-    max_buf_index = size - strlen(search_string);  // leave room for holdoff condition
+    max_buf_index = size - strlen(search_string) - _MBI_MARGIN_;  // leave room for holdoff condition
 
     /*
      * read a buffer full of data or until the search string is found in it's entirety
-     * stop also if all of the characters from the client are used up
+     * stop also if all of the characters from the client are used up:
+     * 
+     * "if there is space in the buffer/block or I'm using up the reserve for searchstring,
+     * and there are bytes left to read"
      */
-    while((buf_index < max_buf_index) && (*pbytes_left > 0) && (holdoff == false))  {
+    while((state != FOUND) && ((buf_index < max_buf_index) || (state == STARTED)) && (*pbytes_left > 0))  {
 
         /*
         * read a character with timeouts
@@ -460,8 +461,10 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
                 timeouts = received;  // exit with error status (always negative)
         }   while((received <= 0) && (timeouts > 0));
 
-        if(timeouts > 0)
+        if(timeouts > 0)  {
             (*pbytes_left)--;
+            buf_index++;
+        }
         else  {
             ESP_LOGE(REST_TAG, "Error: timeout reading from client buffer");
             ret = ESP_ERR_TIMEOUT;
@@ -475,11 +478,8 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
                 case READING:  // reading characters with no sign of search_string
                     if(*pbuf++ == search_string[search_index])  {
                         search_index++;  // start looking for the next character in the search string
-                        holdoff = true;  // in case the search_string would strattle the end of a block
-                        pstart = pbuf;  // mark the start of the search string in buffer
                         state = STARTED;
                     }
-                    buf_index++;
                     break;
 
                 case STARTED:  // found first character, looking for balance of search_string
@@ -492,18 +492,14 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
                     }
                     else  {  // false alarm ... start over
                         state = READING;
-                        holdoff = false;
                         search_index = 0;
                     }
                     break;
 
                 case FOUND:  // found the entire search string, but more data to read
-                    // how to indicate the number of characters in buffer for calling function to write ???
-                    holdoff = false;
-                    state = DONE;
                     break;
 
-                case DONE:  // no more data to read
+                case DONE:  // no more data to read ... shouldn't ever get here
                     break;
 
                 default:
@@ -511,7 +507,10 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
             }  // switch()
         } // err == ESP_OK
     }
-    *rstate = state;
+    if(*pbytes_left > 0)
+        *rstate = state;
+    else
+        *rstate = DONE;
     return(ret);
 }
 #endif
@@ -524,6 +523,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     FILE *fd = NULL;
     char *next = NULL;
     int remaining = 0;
+    rstate_t rstate;
     struct stat file_stat;
     uint8_t timeouts = NUM_TIMEOUTS;
     bool first_read = true;  // used to do some body header parsing on the first buffer
@@ -546,8 +546,41 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     esp_err_t err = ESP_OK; // exit status of the while
     while((remaining > 0) && (err == ESP_OK))  {
-        ESP_LOGI(REST_TAG, "Remaining bytes before read = %d", remaining);
+        ESP_LOGI(REST_TAG, "Remaining bytes at top of while() = %d", remaining);
 
+        read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, "Content-Disposition", &rstate);
+        if(rstate == FOUND)  {
+            ESP_LOGI(REST_TAG, "\"Content-Disposition\" found, remaining = %d", remaining);
+        }
+
+        buf[req->content_len-remaining+1] = '\0';  // terminate just for display
+
+        /*
+         * should just contain the search string at this point
+         */
+        ESP_LOGI(REST_TAG, "buf = %s", buf);
+
+        /*
+         * just read all of the rest for debugging, so that the while() exits
+         */
+        timeouts = NUM_TIMEOUTS;
+        do  {
+            received = httpd_req_recv(req, buf, MIN(remaining, (SCRATCH_BUFSIZE-1)));
+            ESP_LOGI(REST_TAG, "Number of bytes received in chunk = %d in countdown %d", received, timeouts);
+            if(received == HTTPD_SOCK_ERR_TIMEOUT)
+                timeouts--;
+            else
+                timeouts = received;  // exit with error status (always negative)
+        }  while((received <= 0) && (timeouts > 0));
+
+#define DEBUG_DUMP_RAW
+        #ifdef DEBUG_DUMP_RAW
+        ESP_LOGI(REST_TAG, "Raw contents of received buffer:");
+        hex_ascii_dump(buf, received, 32);
+#endif
+        remaining -= received;
+
+#ifdef OG_HTTP_PARSE
         /*
          * read buffer full of data 
          * leave room for the safety '\0'
@@ -709,11 +742,13 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
         }  // if successful read i.e. timeouts > 0
         else
             err = ESP_FAIL;
-
+#endif
     }  // while() ... reading loop
 
     /* Close file upon upload completion */
-    fclose(fd);
+    //fclose(fd);
+
+
     ESP_LOGI(REST_TAG, "File reception complete");
 
     return(err);
