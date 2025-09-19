@@ -428,16 +428,16 @@ static int parse_req_header_for_boundary(httpd_req_t *req, char *rb_str, int siz
  *                     (should always be FOUND or READING since, if it found any part of the ss, it'll finish)
  */
 #define _MBI_MARGIN_ 8  // just incase the math is incorrect
-esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbytes_left, char *search_string, rstate_t *rstate)  {
+esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbytes_left, char *search_string, int *buf_index, rstate_t *rstate)  {
     esp_err_t ret = ESP_OK;
     int search_index = 0;  // where are we in the search string during searching
-    int buf_index = 0;  // counting bytes in buf
     rstate_t state = READING;  // state of the search
     int max_buf_index = 0;
     int timeouts = NUM_TIMEOUTS;
     int received;
 
     max_buf_index = size - strlen(search_string) - _MBI_MARGIN_;  // leave room for holdoff condition
+    *buf_index = 0;  // counting bytes in buf
 
     /*
      * read a buffer full of data or until the search string is found in it's entirety
@@ -446,7 +446,7 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
      * "if there is space in the buffer/block or I'm using up the reserve for searchstring,
      * and there are bytes left to read"
      */
-    while((state != FOUND) && ((buf_index < max_buf_index) || (state == STARTED)) && (*pbytes_left > 0))  {
+    while((state != FOUND) && ((*buf_index < max_buf_index) || (state == STARTED)) && (*pbytes_left > 0))  {
 
         /*
         * read a character with timeouts
@@ -463,7 +463,7 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
 
         if(timeouts > 0)  {
             (*pbytes_left)--;
-            buf_index++;
+            (*buf_index)++;
         }
         else  {
             ESP_LOGE(REST_TAG, "Error: timeout reading from client buffer");
@@ -476,9 +476,20 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
              */
             switch(state) {
                 case READING:  // reading characters with no sign of search_string
+                    /*
+                     * had to put all of this here in the case of a single character string
+                     * and to maintain the holdover function
+                     */
                     if(*pbuf++ == search_string[search_index])  {
                         search_index++;  // start looking for the next character in the search string
-                        state = STARTED;
+                        if(search_index < strlen(search_string))  // entire search_string found?
+                            state = STARTED;
+                        else
+                            state = FOUND;
+                    }
+                    else  {  // redundant
+                        state = READING;
+                        search_index = 0;
                     }
                     break;
 
@@ -506,7 +517,8 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
                     break;
             }  // switch()
         } // err == ESP_OK
-    }
+    }  // while()
+
     if(*pbytes_left > 0)
         *rstate = state;
     else
@@ -529,6 +541,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     bool first_read = true;  // used to do some body header parsing on the first buffer
     int b_str_len = 0;  // number of bytes in boundary string
     int b_str_bytes_to_skip = 0;
+    int buf_index = 0; // number of chars read in buffer
 
     /* Retrieve the pointer to scratch buffer for temporary storage */
     char *buf = ((rest_server_context_t *)req->user_ctx)->scratch;
@@ -548,16 +561,29 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     while((remaining > 0) && (err == ESP_OK))  {
         ESP_LOGI(REST_TAG, "Remaining bytes at top of while() = %d", remaining);
 
-        read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, "Content-Disposition", &rstate);
+        read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, "Content-Disposition", &buf_index, &rstate);
         if(rstate == FOUND)  {
-            ESP_LOGI(REST_TAG, "\"Content-Disposition\" found, remaining = %d", remaining);
+            ESP_LOGI(REST_TAG, "\"Content-Disposition\" found, buf_index = %d, remaining = %d", buf_index, remaining);
         }
 
-        buf[req->content_len-remaining+1] = '\0';  // terminate just for display
+        buf[buf_index] = '\0';  // terminate just for display
+        ESP_LOGI(REST_TAG, "buf = %s", buf);
 
-        /*
-         * should just contain the search string at this point
-         */
+        read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, "filename=\"", &buf_index, &rstate);
+        if(rstate == FOUND)  {
+            ESP_LOGI(REST_TAG, " \"filename=\"\" found, buf_index = %d, remaining = %d", buf_index, remaining);
+        }
+
+        buf[buf_index] = '\0';  // terminate just for display
+        ESP_LOGI(REST_TAG, "buf = %s", buf);
+
+        read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, "\"", &buf_index, &rstate);
+        if(rstate == FOUND)  {
+            ESP_LOGI(REST_TAG, "\" found, remaining = %d", remaining);
+            ESP_LOGI(REST_TAG, " \" found, buf_index = %d, remaining = %d", buf_index, remaining);
+        }
+
+        buf[buf_index-1] = '\0';  // -1 to lose the \"
         ESP_LOGI(REST_TAG, "buf = %s", buf);
 
         /*
