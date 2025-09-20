@@ -407,18 +407,24 @@ static int parse_req_header_for_boundary(httpd_req_t *req, char *rb_str, int siz
  * was found.
  * 
  * the idea here is to avoid having to read all of the data from the 
- * web client, all at once into a huge buffer.
+ * web client, all at once into a huge buffer.  Currently one file is
+ * 160K.
  * 
- * We'll read up to a reasonable block size and write it to the
- * filesystem a chunk at a time.  (Don't want to stress the flash
- * by doing byte by byte writing)
+ * CAUTION: if part of the search string is in the data, just prior to the
+ * search string, then the beginning of real search string in the stream 
+ * can be used up and the search string will not be matched:
+ * search string: "ababfind-me"
+ * data stream: "mnopabababfind-me"
+ *                     ^---------^
+ * (encountered this with \n\r\n\r)
  * 
  * arguments:
  *  httpd_req_t *req : to get to the data sent from http client
  *  uint8_t *pbuf  : buf to use for i/o (probably scratch buffer)
  *  int size: size of buffer pointed to by pbuf
- *  int bytes_left: bytes left in the http buffer process
+ *  int bytes_left: bytes left in the http buffer process (updated here for calling function to use)
  *  char *search_string: the string to be searched for
+ *  int *buf_index : number of characters added to pbuf, including the search string
  *  rstate_t &rstate : pointer to the place to deposit the exit state (i.e. found or not)
  *                     (should always be FOUND or READING since, if it found any part of the ss, it'll finish)
  */
@@ -427,19 +433,16 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
     esp_err_t ret = ESP_OK;
     int search_index = 0;  // where are we in the search string during searching
     rstate_t state = READING;  // state of the search
-    int max_buf_index = 0;
-    int timeouts = NUM_TIMEOUTS;
-    int received;
+    int max_buf_index = 0;  // size arg adjusted for search string and margin
+    int timeouts = NUM_TIMEOUTS;  // allowed http read timeouts per attempt
+    int received;  // bytes returned on a given http read
 
     max_buf_index = size - strlen(search_string) - _MBI_MARGIN_;  // leave room for holdoff condition
-    *buf_index = 0;  // counting bytes in buf
+    *buf_index = 0;  // counting bytes added to buf
 
     /*
      * read a buffer full of data or until the search string is found in it's entirety
-     * stop also if all of the characters from the client are used up:
-     * 
-     * "if there is space in the buffer/block or I'm using up the reserve for searchstring,
-     * and there are bytes left to read"
+     * stop also if all of the characters from the client are used up or if an error is generated.
      */
     while((state != FOUND) && ((*buf_index < max_buf_index) || (state == STARTED)) && (*pbytes_left > 0) && (ret == ESP_OK))  {
 
@@ -522,6 +525,20 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
 }
 
 
+/*
+ * handle a file upload to littlefs/esp32
+ *
+ * the req->content_len provides the total number of characters in the POST.
+ * the req header provides the delimiting boundary string, which is made
+ * up of an obscure string of characters that is intended to not appear in the
+ * data.
+ * 
+ * The filename is parsed from the stream and used to create the place to 
+ * which to deposit the upload data.  If a file exists, it is deleted before
+ * the new version is uploaded.  The basepath is prepended.
+ * 
+ * 
+ */
 static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
     char filepath[FILE_PATH_MAX] = {0};
@@ -553,6 +570,35 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
      * insert two '-''s since the client seems to do that
      * also insert the blank lines just to eat them in the process
      * this is used for end of data
+     * 
+     * This function can handle multi-part forms (i.e. multiple file dropped in the box on the cient)
+     * 
+     * #define DUMPTHEREST, midway down, provides a useful way to observe the pattern below.
+     * Uncomment it
+     * use the xxx.xxx.xxx.xxx/upload command and drag at least two files on the client web browser screen
+     * observe the raw data of the first, followed by the balance of the stream for the second.
+     * 
+     * The pattern seems to be something like this:
+     * 
+     * POST ....
+     * Content Type ... boundary="<boundary-string>" ...
+     * \n\r\n\r
+     * 
+     * <boundary-string>
+     * Content Disposition ... filename="<filename_1>" ...
+     * Content-Type: application/json
+     * \n\r\n\r
+     * <actual file data/contents>
+     * \n\r\n\r
+     * <boundary-string>
+     * Content Disposition ... filename="<filename_2>"
+     * Content-Type: application/json
+     * \n\r\n\r
+     * <actual file data contents>
+     * \n\r\n\r
+     * <boundary-string>
+     * --\n\r
+     * 
      */
     b_str_len = parse_req_header_for_boundary(req, rb_str, sizeof(rb_str));
     for(int i = strlen(rb_str); i >= 0; i--)  {  // include the '\0'
@@ -560,11 +606,14 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     }
     rb_str[1] = '-';
     rb_str[0] = '-';
-    b_str_len +=2;
+    b_str_len += 2;
     ESP_LOGI(REST_TAG, "rb_str after insertion = \"%s\"", rb_str);
     ESP_LOGI(REST_TAG, "strlen(rb_str) after insertion = %d", b_str_len);
 
-
+    /*
+     * if there are characters to be read (remaining counts down bytes taken from the input stream)
+     * and no error has yet occured, download the data and deposit it in the indicated file.
+     */
     esp_err_t err = ESP_OK; // exit status of the while
     while((remaining > 0) && (err == ESP_OK))  {
         ESP_LOGI(REST_TAG, "Remaining bytes at top of while() = %d", remaining);
