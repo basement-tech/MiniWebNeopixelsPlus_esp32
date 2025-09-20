@@ -1493,7 +1493,10 @@ int8_t neo_new_sequence(void)  {
       /*
         * was it the stop button
         */
-      if(strcmp(l_neo.sequence, "STOP") == 0)  {
+      if(strcmp(l_neo.sequence, "none") == 0)  {
+        neoerr = NEO_NEW_SUCCESS;
+      }
+      else if(strcmp(l_neo.sequence, "STOP") == 0)  {
         if((neo_state != NEO_SEQ_STOPPED) && (neo_state != NEO_SEQ_STOPPING))  {
           neoerr = NEO_NEW_SUCCESS;
           neo_cycle_stop();
