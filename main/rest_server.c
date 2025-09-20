@@ -213,6 +213,7 @@ static esp_err_t light_brightness_post_handler(httpd_req_t *req)
 #define BODY_HEADER_END_STR "\r\n\r\n"
 //#define DEBUG_DUMP_RAW 1 // if defined, dump the raw data in post request
 #define FINAL_EXTRA_CHARS_AT_END 2
+#define FINAL_TERM_STRING  "--\n\r"  // after the last of multipart boundary strings has this
 
 /*
  * look for the filename in the stream of data from the browser (buf).
@@ -286,7 +287,6 @@ void hex_ascii_dump(const char *data, size_t len, size_t perline) {
 /*
  * find the length of the boundary string and the punctuation
  * that comes after.
- * NOTE: the returned number is longer than the length of the actual boundary string
  * 
  * arguments:
  *  httpd_req_t *req : the request/response header (different that the body heater)
@@ -313,11 +313,9 @@ static int parse_req_header_for_boundary(httpd_req_t *req, char *rb_str, int siz
             b_str = strchr(boundary, '-');  // assume at least one dash ... find the start
             /*
              * length of actual boundary string
-             * plus 2 leading dashes
-             * plus 2 trailing dashes
-             * plus 2 terminating \r\n
              */
-            b_str_len = strlen(b_str) + 6 + FINAL_EXTRA_CHARS_AT_END;
+            //b_str_len = strlen(b_str) + 6 + FINAL_EXTRA_CHARS_AT_END;
+            b_str_len = strlen(b_str);
             ESP_LOGI(REST_TAG, "boundary string length = %d", b_str_len);
             ESP_LOGI(REST_TAG, "boundary string: \"%s\"", b_str);
             if(rb_str != NULL)
@@ -553,14 +551,18 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
      * to be read.  this is in the http/req header, not the data itself.
      * 
      * insert two '-''s since the client seems to do that
+     * also insert the blank lines just to eat them in the process
+     * this is used for end of data
      */
     b_str_len = parse_req_header_for_boundary(req, rb_str, sizeof(rb_str));
-    for(int i = (strlen(rb_str)); i >= 0; i--)  {  // include the '\0'
+    for(int i = strlen(rb_str); i >= 0; i--)  {  // include the '\0'
         rb_str[i+2] = rb_str[i];
     }
     rb_str[1] = '-';
     rb_str[0] = '-';
+    b_str_len +=2;
     ESP_LOGI(REST_TAG, "rb_str after insertion = \"%s\"", rb_str);
+    ESP_LOGI(REST_TAG, "strlen(rb_str) after insertion = %d", b_str_len);
 
 
     esp_err_t err = ESP_OK; // exit status of the while
@@ -648,15 +650,43 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
             buf[buf_index-1] = '\0';  // -1 to lose the \"
             ESP_LOGI(REST_TAG, "buf = %s", buf);
 
+
+//#define DUMPTHEREST
+#ifdef DUMPTHEREST
+            while(remaining > 0)  {
+                timeouts = NUM_TIMEOUTS;
+                do  {
+                    received = httpd_req_recv(req, buf, MIN(remaining, (SCRATCH_BUFSIZE-1)));
+                    ESP_LOGI(REST_TAG, "Number of bytes received in chunk = %d in countdown %d", received, timeouts);
+                    if(received == HTTPD_SOCK_ERR_TIMEOUT)
+                        timeouts--;
+                    else
+                        timeouts = received;  // exit with error status (always negative)
+                }  while((received <= 0) && (timeouts > 0));
+                remaining -= received;
+    #define DEBUG_DUMP_RAW
+                #ifdef DEBUG_DUMP_RAW
+                ESP_LOGI(REST_TAG, "Raw contents of received buffer:");
+                hex_ascii_dump(buf, received, 32);
+            }
+#endif
+#else
             /*
              * read until the end of data is found,
              * writing to the file while going
+             * the final boundary string seems to have  "--\n\r" at the end
              */
             do  {
                 err = read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, rb_str, &buf_index, &rstate);
                 if(rstate == FOUND)  {
                     ESP_LOGI(REST_TAG, "boundary string found, buf_index = %d, remaining = %d", buf_index, remaining);
-                    buf_index -= strlen(rb_str);
+                    /*
+                     * boundary string is prefixed by \r\n
+                     * but just prepending that and searching for the whole
+                     * thing can be frought with peril since that pattern is 
+                     * very common ... chose this math approach.
+                     */
+                    buf_index -= (strlen(rb_str)+2);
                 }
                 else
                     ESP_LOGI(REST_TAG, "buffer full ... %d bytes copied", buf_index);
@@ -668,7 +698,25 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
                     unlink(filepath);
                     err = ESP_FAIL;
                 }
+
+                /*
+                 * the last boundary string has a few trailing characters - eat them
+                 */
+                if(remaining <= strlen(FINAL_TERM_STRING)) {
+                    ESP_LOGI(REST_TAG, "Dumping last %d bytes", remaining);
+                    do  {
+                        received = httpd_req_recv(req, buf, MIN(remaining, (SCRATCH_BUFSIZE-1)));
+                        ESP_LOGI(REST_TAG, "Number of bytes received in chunk = %d in countdown %d", received, timeouts);
+                        if(received == HTTPD_SOCK_ERR_TIMEOUT)
+                            timeouts--;
+                        else
+                            timeouts = received;  // exit with error status (always negative)
+                    }  while((received <= 0) && (timeouts > 0));
+                    remaining -= received;
+                }
+
             } while((rstate != FOUND)  && (remaining > 0) && (err == ESP_OK));
+#endif
             if(fd != NULL)
                 fclose(fd);
         }
