@@ -49,7 +49,14 @@ R"==(
       /*
        * the fetch() sends the uri, method, filename and contents of the file
        */
-      fetch('/upload', { method: 'POST', body: formData }).then(function () {
+      fetch('/upload', {
+        method: 'POST',
+        headers: {
+          "Connection": "keep-alive"
+        },
+        body: formData
+      })
+      .then(function () {
         window.alert('done.');
       });
     }
