@@ -567,6 +567,10 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     while((remaining > 0) && (err == ESP_OK))  {
         ESP_LOGI(REST_TAG, "Remaining bytes at top of while() = %d", remaining);
 
+        /*
+         * parse out the filename
+         * ... Content-Disposition ... filename= ... filename is in quotes
+         */
         read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, "Content-Disposition", &buf_index, &rstate);
         if(rstate == FOUND)  {
             ESP_LOGI(REST_TAG, "\"Content-Disposition\" found, buf_index = %d, remaining = %d", buf_index, remaining);
@@ -588,194 +592,89 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
             ESP_LOGI(REST_TAG, " \" found, buf_index = %d, remaining = %d", buf_index, remaining);
         }
 
-        buf[buf_index-1] = '\0';  // -1 to lose the \"
+        buf[buf_index-1] = '\0';  // -1 to lose the \" ... leave the filename in buf
         ESP_LOGI(REST_TAG, "buf = %s", buf);
-
-        read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, BODY_HEADER_END_STR, &buf_index, &rstate);
-        if(rstate == FOUND)  {
-            ESP_LOGI(REST_TAG, "start of data found, remaining = %d", remaining);
-        }
-
-        buf[buf_index-1] = '\0';  // -1 to lose the \"
-        ESP_LOGI(REST_TAG, "buf = %s", buf);
-
-        read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, rb_str, &buf_index, &rstate);
-        if(rstate == FOUND)  {
-            ESP_LOGI(REST_TAG, "boundary string found, buf_index = %d, remaining = %d", buf_index, remaining);
-        }
-
-        buf[buf_index-strlen(rb_str)] = '\0';  // to lose the boundary string
-        ESP_LOGI(REST_TAG, "buf = %s", buf);
-
-
-#ifdef OG_HTTP_PARSE
-        /*
-         * read buffer full of data 
-         * leave room for the safety '\0'
-         * - up to 5 timeouts per read attempt are not fatal
-         */
-        timeouts = NUM_TIMEOUTS;
-        do  {
-            received = httpd_req_recv(req, buf, MIN(remaining, (SCRATCH_BUFSIZE-1)));
-            ESP_LOGI(REST_TAG, "Number of bytes received in chunk = %d in countdown %d", received, timeouts);
-            if(received == HTTPD_SOCK_ERR_TIMEOUT)
-                timeouts--;
-            else
-                timeouts = received;  // exit with error status (always negative)
-        }  while((received <= 0) && (timeouts > 0));
-#define DEBUG_DUMP_RAW
-        #ifdef DEBUG_DUMP_RAW
-        ESP_LOGI(REST_TAG, "Raw contents of received buffer:");
-        hex_ascii_dump(buf, received, 32);
-#endif
 
         /*
-         * if a successful read, parse out the filename
-         * NOTE: assume that the first successful read it big enough to contain
-         * the filename and body header information.
+         * add the basepath to the extracted filename
          */
-        if(timeouts > 0)  {
-            buf[received] = '\0';  // safety to make string functions work ... should be one beyond real data
-            remaining -= received;  // subtract the amount that was read ... read the balance below (if any)
+        strncpy(filepath, ((rest_server_context_t *)req->user_ctx)->base_path, FILE_PATH_MAX);
+        strncat(filepath, buf, FILE_PATH_MAX-strlen(filepath));
+        ESP_LOGI(REST_TAG, "Upload: parsed filepath = >%s<", filepath);
 
-            /*
-             * detect if this is the final buffer chunk
-             * NOTE: the boundary string could be split across two reads
-             * ... detect that as well
-             */
-            if(remaining > 0)  {
-                if(remaining >= b_str_len)  // full boundary string in some subsequent read
-                    b_str_bytes_to_skip = 0;
-                else  // split across reads ... skip the portion read in this chunk
-                    b_str_bytes_to_skip = b_str_len - remaining;
-            }
-            else
-                b_str_bytes_to_skip = b_str_len - b_str_bytes_to_skip;  //subtract number skipped last time
-
-            if(first_read == true)  {
-                first_read = false;
-
-                /*
-                * parse out the filename from the first buffer full
-                */
-                next = get_filename_from_body(filename, buf);  // leaves next just after the filename
-                if((next != NULL) && (strlen(filename) > 0))  {
-                    strncpy(filepath, ((rest_server_context_t *)req->user_ctx)->base_path, FILE_PATH_MAX);
-                    strncat(filepath, filename, FILE_PATH_MAX-strlen(filepath));
-                    ESP_LOGI(REST_TAG, "Upload: parsed filepath = >%s<", filepath);
-                }
-                else  {
-                    err = ESP_FAIL;
-                    break;
-                }
-
-                /*
-                * adjust char *next to point to the start of actual file contents
-                *
-                * adjust int received to be equal to the number of bytes left to process
-                * 
-                * int b_str_len equals the size of the boundary string i.e. the number of
-                * bytes to skip at the end.b_str_len.b_str_len.
-                */
-                next = strstr(next, BODY_HEADER_END_STR); //search for the best marker between filename and end of body header
-                next += strlen(BODY_HEADER_END_STR); // next is now pointing to the start of actual file data
-                received -= (next-buf);  // used up some number of bytes looking for filename and start of data
-                ESP_LOGI(REST_TAG, "Subtracted %d bytes for filename extraction", next-buf);
-
-                /*
-                 * starting to set up for processing multipart forms
-                 * i.e. dragging/uploading two files at once
-                 */
-                char *b_ptr;
-                if((b_ptr = strstr(next, rb_str)) != NULL)
-                    ESP_LOGI(REST_TAG, "Found boundary string in body at position %d", (int)(b_ptr-next));
-
-                /*
-                 * make sure we have a validly constructed filepath
-                 */
-                if (filepath[0] == '\0') {
-                    /* Respond with 500 Internal Server Error */
-                    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "filename not found");
-                    err = ESP_FAIL;
-                    break;
-                }
-
-                /* Filename cannot have a trailing '/' */
-                if (filepath[strlen(filepath) - 1] == '/') {
-                    ESP_LOGE(REST_TAG, "Invalid filename : %s", filepath);
-                    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Invalid filename");
-                    err = ESP_FAIL;
-                    break;
-                }
-
-                /*
-                 * File cannot be larger than a limit (arbitrary)
-                 */
-                if (req->content_len > MAX_FILE_SIZE) {
-                    ESP_LOGE(REST_TAG, "File(s) too large : %d bytes", req->content_len);
-                    /* Respond with 400 Bad Request */
-                    httpd_resp_send_err(req, HTTPD_400_BAD_REQUEST,
-                                        "File size must be less than "
-                                        MAX_FILE_SIZE_STR "!");
-                    /*
-                     * Return failure to close underlying connection else the
-                     * incoming file content will keep the socket busy
-                     */
-                    err = ESP_FAIL;
-                    break;
-                }
-
-                /*
-                 * if file exists in the flash FS, delete it and continue
-                 */
-                if (stat(filepath, &file_stat) == 0) {
-                    ESP_LOGI(REST_TAG, "File already exists ... deleting : %s", filepath);
-                    unlink(filepath);
-                }
-
-                if ((fd = fopen(filepath, "w")) == NULL) {
-                    ESP_LOGE(REST_TAG, "Failed to create file : %s", filepath);
-                    /* Respond with 500 Internal Server Error */
-                    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create file");
-                    err = ESP_FAIL;
-                    break;
-                }
-
-                ESP_LOGI(REST_TAG, "Ready to receiving file : %s...", filename);
-            } // if first read
-            else
-                next = buf;  // no header characters to skip after first
-
-            /*
-             * subtract the full or partial boundary string length
-             */
-            received -= b_str_bytes_to_skip;  // don't read past the actual data into the boundary string
-            ESP_LOGI(REST_TAG, "Applying b_str_bytes value of = %d", b_str_bytes_to_skip);
-
-            /*
-             * if we've gotten this far:b_str_len
-             * - req header parsed for total number of bytes and boundary string set
-             * - first bunch of data read
-             * - file name/path validated
-             * - file opened and ready to receive data
-             * now: copy the data to the newly opened file
-             */
-            if(fwrite(next, 1, received, fd) != received) {
-                ESP_LOGE(REST_TAG, "Error writing chunk of data to file");
-                httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create file");
-                fclose(fd);
-                unlink(filepath);
-                return ESP_FAIL;
-            }
-        }  // if successful read i.e. timeouts > 0
-        else
+        /*
+         * make sure the filename is valid
+         */
+        if (filepath[0] == '\0') {
+            /* Respond with 500 Internal Server Error */
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "filename not found");
             err = ESP_FAIL;
-#endif
+        }
+
+        /* Filename cannot have a trailing '/' */
+        else if (filepath[strlen(filepath) - 1] == '/') {
+            ESP_LOGE(REST_TAG, "Invalid filename : %s", filepath);
+            httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Invalid filename");
+            err = ESP_FAIL;
+        }
+
+        /*
+         * copy the actual file contents
+         */
+        else if(remaining > 0) {
+            /*
+             * if file exists in the flash FS, delete it and continue
+             */
+            if (stat(filepath, &file_stat) == 0) {
+                ESP_LOGI(REST_TAG, "File already exists ... deleting : %s", filepath);
+                unlink(filepath);
+            }
+
+            if ((fd = fopen(filepath, "w")) == NULL) {
+                ESP_LOGE(REST_TAG, "Failed to create file : %s", filepath);
+                /* Respond with 500 Internal Server Error */
+                httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create file");
+                err = ESP_FAIL;
+            }
+
+            /*
+             * search for the start of data
+             */
+            read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, BODY_HEADER_END_STR, &buf_index, &rstate);
+            if(rstate == FOUND)  {
+                ESP_LOGI(REST_TAG, "start of data found, remaining = %d", remaining);
+            }
+
+            buf[buf_index-1] = '\0';  // -1 to lose the \"
+            ESP_LOGI(REST_TAG, "buf = %s", buf);
+
+            /*
+             * read until the end of data is found,
+             * writing to the file while going
+             */
+            do  {
+                err = read_while_searching(req, buf, (SCRATCH_BUFSIZE-1), &remaining, rb_str, &buf_index, &rstate);
+                if(rstate == FOUND)  {
+                    ESP_LOGI(REST_TAG, "boundary string found, buf_index = %d, remaining = %d", buf_index, remaining);
+                    buf_index -= strlen(rb_str);
+                }
+                else
+                    ESP_LOGI(REST_TAG, "buffer full ... %d bytes copied", buf_index);
+
+                if(fwrite(buf, 1, buf_index, fd) != buf_index) {
+                    ESP_LOGE(REST_TAG, "Error writing chunk of data to file");
+                    httpd_resp_send_err(req, HTTPD_500_INTERNAL_SERVER_ERROR, "Failed to create file");
+                    fclose(fd);
+                    unlink(filepath);
+                    err = ESP_FAIL;
+                }
+            } while((rstate != FOUND)  && (remaining > 0) && (err == ESP_OK));
+            if(fd != NULL)
+                fclose(fd);
+        }
+        else
+            ESP_LOGD(REST_TAG, "Warning: ran out of data in http buffer");
     }  // while() ... reading loop
-
-    /* Close file upon upload completion */
-    //fclose(fd);
-
 
     ESP_LOGI(REST_TAG, "File reception complete");
 
