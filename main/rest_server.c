@@ -645,7 +645,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
         buf[buf_index-1] = '\0';  // -1 to lose the \" ... leave the filename in buf
         ESP_LOGI(REST_TAG, "buf = %s", buf);
-
+#ifdef __TB_WBANYWAY__
         /*
          * add the basepath to the extracted filename
          */
@@ -1035,7 +1035,7 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
             xSemaphoreGive(xrespMutex);
         }
     }
-
+#endif
     /*
      * send the http response
      */
