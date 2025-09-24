@@ -216,6 +216,9 @@ static esp_err_t light_brightness_post_handler(httpd_req_t *req)
 #define FINAL_TERM_STRING  "--\n\r"  // after the last of multipart boundary strings has this
 
 /*
+ * *** DEPRICATED ***
+ * char *get_filename_from_body(char *filename, char *buf)
+ *
  * look for the filename in the stream of data from the browser (buf).
  * copy the filename to the provided filename buffer (filename) and return
  * a pointer to the character of the next data byte.
@@ -257,7 +260,9 @@ char *get_filename_from_body(char *filename, char *buf)  {
     return(++end);
 }
 
-
+/*
+ * dunp the char *data buffer into a useful visual table for debug
+ */
 void hex_ascii_dump(const char *data, size_t len, size_t perline) {
     size_t i, j;
 
@@ -334,66 +339,14 @@ static int parse_req_header_for_boundary(httpd_req_t *req, char *rb_str, int siz
  * parse the response to a drag/drop event by parsing the
  * multipart form stream.
  * 
- * *** NOTE: at this writing, this function can only read a multipart
- * form with one part (i.e. one file drag/dropped).  Next step will be to
- * wrap all of this in another loop to rinse and repeat. ***
- * 
- * utilize (rest_server_context_t *)req->user_ctx)->scratch for temp storage
- * - read buffers of max size size of SCRATCH_BUFSIZE
- * - read until req->content_len is satisfied (from the request header)
- * 
- * #define DEBUG_DUMP_RAW to get a hex dump of the raw buffers
- * 
- * From the request header:
- * - total number of bytes to read (req->content_len)
- * - the boundary string (separates parts of the multipart form) is contained in the request header,
- *   Content-Type field.
- *   (e.g. Content-Type: multipart/form-data; boundary=----WebKitFormBoundary7MA4YWxkTrZu0gW)
- * 
- * Typical multipart POST:
- * Boundary String (start of part 1)
- *   Body Header
- *     Content-Disposition ...
- *     ...
- *   BODY_HEADER_END_STR , typically "\r\n\r\n"
- *   Contents
- * Boundary String (start of part 2)
- *   Body Header
- *     Content-Disposition ...
- *     ...
- *   BODY_HEADER_END_STR , typically "\r\n\r\n"
- *   Contents
- * Boundary String (end of data)
- * 
- * From the body:
- * - look for the "Content Disposition:" section of the data stream learn the filename from "filename="
- *   (note: in looking for this first, ignoring the first boundary string)
- * - look for the end of the body header (BODY_HEADER_END_STR, typically "\r\n\r\n")
- * - construct the local filename (do some filename validation)
- * - don't copy the final boundary string to the local file contents
- * - close the file
- * 
- * Typical debug output:
- * I (167654) esp-rest: Total size of content = 1456
- * I (167654) esp-rest: Content-Type header: multipart/form-data; boundary=----WebKitFormBoundaryclQUhk6aZKhpIFBI
- * I (167664) esp-rest: boundary string length = 46
- * I (167664) esp-rest: Remaining bytes before read = 1456
- * I (167674) esp-rest: Number of bytes received in chunk = 1456 in countdown 5
- * I (167674) esp-rest: Found filename >/index.js< in body
- * I (167684) esp-rest: Upload: parsed filepath = >/littlefs/index.js<
- * I (167684) esp-rest: Subtracted 142 bytes for filename extraction
- * I (167704) esp-rest: File already exists ... deleting : /littlefs/index.js
- * I (167714) esp-rest: Ready to receiving file : /index.js...
- * I (167714) esp-rest: Applying b_str_bytes value of = 46
- * I (167794) esp-rest: File reception complete
- * 
- * Care must be taken to detect when a searched-for string straddles two buffer/read chunks:
- * 
  * NOTE: this function in written so that it processes in chunks and doesn't need a buffer
  * as big as the file.  e.g. the background image is >150K.  
  * 
  */
 
+ /*
+  * states of the state maching that is used for parsing
+  */
  typedef enum {
     READING,
     STARTED,
@@ -536,6 +489,46 @@ esp_err_t read_while_searching(httpd_req_t *req, char *pbuf, int size, int *pbyt
  * The filename is parsed from the stream and used to create the place to 
  * which to deposit the upload data.  If a file exists, it is deleted before
  * the new version is uploaded.  The basepath is prepended.
+ *
+ * Here is the basic parsing strategy:
+ * 
+ * Using parse_req_header_for_boundary(req, rb_str, sizeof(rb_str)):
+ * find the length of the multiform boundary string
+ * so that it can be subtracted from the number of characters
+ * to be read.  this is in the http/req header, not the data itself.
+ * 
+ * insert two '-''s since the client seems to do that
+ * also insert the blank lines just to eat them in the process
+ * this is used for end of data
+ * 
+ * (This function can handle multi-part forms (i.e. multiple file dropped in the box on the cient))
+ * Note:
+ * #define DUMPTHEREST, midway down, provides a useful way to observe the pattern below.
+ * Uncomment it
+ * use the xxx.xxx.xxx.xxx/upload command and drag at least two files on the client web browser screen
+ * observe the raw data of the first, followed by the balance of the stream for the second.
+ * 
+ * use read_while_searching() to work through this pattern:
+ * The pattern seems to be something like this:
+ * 
+ * POST ....
+ * Content Type ... boundary="<boundary-string>" ...
+ * \n\r\n\r
+ * 
+ * <boundary-string>
+ * Content Disposition ... filename="<filename_1>" ...
+ * Content-Type: application/json
+ * \n\r\n\r
+ * <actual file data/contents>
+ * \n\r\n\r
+ * <boundary-string>
+ * Content Disposition ... filename="<filename_2>"
+ * Content-Type: application/json
+ * \n\r\n\r
+ * <actual file data contents>
+ * \n\r\n\r
+ * <boundary-string>
+ * --\n\r
  * 
  * 
  */
@@ -562,44 +555,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     remaining = req->content_len;  // number of bytes in total from the browser
     ESP_LOGI(REST_TAG, "Total size of content = %d", remaining);
 
-    /*
-     * find the length of the multiform boundary string
-     * so that it can be subtracted from the number of characters
-     * to be read.  this is in the http/req header, not the data itself.
-     * 
-     * insert two '-''s since the client seems to do that
-     * also insert the blank lines just to eat them in the process
-     * this is used for end of data
-     * 
-     * This function can handle multi-part forms (i.e. multiple file dropped in the box on the cient)
-     * 
-     * #define DUMPTHEREST, midway down, provides a useful way to observe the pattern below.
-     * Uncomment it
-     * use the xxx.xxx.xxx.xxx/upload command and drag at least two files on the client web browser screen
-     * observe the raw data of the first, followed by the balance of the stream for the second.
-     * 
-     * The pattern seems to be something like this:
-     * 
-     * POST ....
-     * Content Type ... boundary="<boundary-string>" ...
-     * \n\r\n\r
-     * 
-     * <boundary-string>
-     * Content Disposition ... filename="<filename_1>" ...
-     * Content-Type: application/json
-     * \n\r\n\r
-     * <actual file data/contents>
-     * \n\r\n\r
-     * <boundary-string>
-     * Content Disposition ... filename="<filename_2>"
-     * Content-Type: application/json
-     * \n\r\n\r
-     * <actual file data contents>
-     * \n\r\n\r
-     * <boundary-string>
-     * --\n\r
-     * 
-     */
+    
     b_str_len = parse_req_header_for_boundary(req, rb_str, sizeof(rb_str));
     for(int i = strlen(rb_str); i >= 0; i--)  {  // include the '\0'
         rb_str[i+2] = rb_str[i];
