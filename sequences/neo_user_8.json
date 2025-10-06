@@ -1,0 +1,11 @@
+{"filetype" : "SCRIPT", "jsonlen": -1, "__comment" : "calls multiple sequences"}
+{
+    "label" : "USER-8",
+    "strategy" : "script",
+    "bonus" : {"__comment" : "testfile_1"},
+    "steps" : [
+      {"source" : "builtin", "name" : "pong", "repeat" : 5 },
+      {"source" : "file", "name" : "neo_user_4.json", "repeat" : 1}
+      {"source" : "file", "name" : "neo_user_1.json", "repeat" : -1}
+    ]
+}

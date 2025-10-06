@@ -97,7 +97,8 @@
  * https://docs.espressif.com/projects/esp-idf/en/stable/esp32/api-reference/system/esp_timer.html
  * 
  * Todo:
- * o Implement multifile upload
+ * x Implement multifile upload
+ * o upload: temp file until success is confirmed
  * o handle multiple sequence responses in a queue ... is there an index in the fetch header?
  * o rainbow sequence: finish port from adafruit, including 32bit stacked colors
  * o check all esp-idf ESP_ERROR_CHECK() fatal errors for sanity, possible change

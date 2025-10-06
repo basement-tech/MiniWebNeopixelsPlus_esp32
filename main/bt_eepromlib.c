@@ -462,6 +462,7 @@ void eeprom_user_input(bool out)  {
   if(eeprom_validation((char *)EEPROM_VALID) == true)  {
     eeprom_get();  /* if the EEPROM is valid, get the whole contents */
     CLI_PRINTF("\n");
+    init_eeprom_input();
     dispall_eeprom_parms();
   }
   else  {
