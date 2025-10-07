@@ -1387,6 +1387,35 @@ void neo_bitwise_stopping(void)  {
 }
 // end of SEQ_STRAT_BWISE
 
+// start of SEQ_STRAT_SCRIPT
+
+void neo_script_start(bool clear)  {
+  neo_state = NEO_SEQ_STOPPING;
+}
+
+void neo_script_stopping(void)  {
+   /*
+    * move to top to avoid potential collision with late
+    * coming meo_cycle_next()
+    */
+  neo_state = NEO_SEQ_STOPPED;
+
+  pixels_clear(); // Set all pixel colors to 'off'
+  pixels_show();   // Send the updated pixel colors to the hardware.
+
+  if(neo_sequences[seq_index].alt_points != NULL)  {
+    free(neo_sequences[seq_index].alt_points);
+    ESP_LOGI(TAG, "binary point data free()'ed");
+  }
+
+  current_index = 0;  // housekeeping
+  seq_index = -1; // so it doesn't match
+  current_strategy = SEQ_STRAT_POINTS;  // housekeeping
+}
+
+// end of SEQ_STRAT_SCRIPT
+
+
 /*
  * function calls by filetype
  * one of these functions are called to process the char *buf 
@@ -1415,7 +1444,7 @@ seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
   { SEQ_STRAT_SLOWP,     "slowp",     parse_pts_OG,     neo_slowp_start,    neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,     noop},
   { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_BW,       start_noop,            noop,               noop,          neo_bitwise_stopping,    noop},
   { SEQ_STRAT_BBWISE,    "bbitwise",  parse_pts_BBW,    neo_bitwise_start,  neo_bitwise_wait,  neo_bitwise_write,     neo_bitwise_stopping,  noop},
-  { SEQ_STRAT_SCRIPT,    "script",    parse_pts_SCRIPT,   start_noop,            noop,              noop,                   noop,            noop},
+  { SEQ_STRAT_SCRIPT,    "script",    parse_pts_SCRIPT,  neo_script_start,       noop,              noop,             neo_script_stopping,   noop},
 };
 
 

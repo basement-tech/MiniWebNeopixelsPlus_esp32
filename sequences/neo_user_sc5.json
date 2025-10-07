@@ -1,9 +1,9 @@
 {"filetype" : "SCRIPT", "jsonlen": -1, "__comment" : "calls multiple sequences"}
 {
-    "label" : "USER-8",
+    "label" : "USER-5",
     "strategy" : "script",
     "bonus" : {"__comment" : "testfile_1"},
-    "__comment" : "first test script"
+    "__comment" : "first test script",
     "steps" : [
       {"source" : "builtin", "name" : "pong", "repeat" : 5 },
       {"source" : "file", "name" : "neo_user_4.json", "repeat" : 1}

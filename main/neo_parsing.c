@@ -246,11 +246,6 @@ int8_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
     "t"
   };
 
-  int r = 0;
-  int g = 0;
-  int b = 0;
-  int w = 0;
-  int t = 0;
   int cbits = 0;  // number of rows of "bits" in the json
   uint32_t p, d, c;  // traversing down the json
 
@@ -305,9 +300,6 @@ int8_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
           if(json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str)) != OS_SUCCESS)  // because json doesn't support hex
             ESP_LOGE(TAG, "json_obj_get_string(pjctx, jcolors[c], color_str, sizeof(color_str)) error");
           ESP_LOGI(TAG, "  %s: %s", jcolors[c], color_str);
-          //*(bpoint  += (r * sizeof(neo_seq_cpoint_t)) + (c * sizeof(uint16_t))) = atoi(color_str);
-          // Convert hex strings to values, if needed
-          //uint16_t r_val = strtol(r, NULL, 0); // base 0 auto-detects "0x"
         }
         if(json_arr_leave_object(pjctx) != OS_SUCCESS)  // leave the row array element
           ESP_LOGE(TAG, "json_arr_leave_object(pjctx) error");
@@ -634,6 +626,7 @@ int8_t parse_pts_SCRIPT(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
     count = SCRIPT_MAX_STEPS;
   }
 
+  ESP_LOGI(TAG, "Allocating space for %d steps:", count);
   if((neo_sequences[seq_idx].alt_points = malloc(count*sizeof(neo_script_step_t))) == NULL)  {
     ESP_LOGE(TAG, "Error: malloc() for steps failed");
     ret = NEO_FILE_LOAD_OTHER;
@@ -645,6 +638,7 @@ int8_t parse_pts_SCRIPT(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
       json_obj_get_string(pjctx, "source", script_steps[i].source, SCRIPT_MAX_SOURCE_SIZE);
       json_obj_get_string(pjctx, "name", script_steps[i].name, SCRIPT_MAX_NAME_SIZE);
       json_obj_get_int(pjctx, "repeat", &(script_steps[i].repeat));
+      ESP_LOGI(TAG, "step[%u] source: %s, name: %s, repeat: %d", i, script_steps[i].source, script_steps[i].name, script_steps[i].repeat);
       json_arr_leave_object(pjctx);
     }
   }
