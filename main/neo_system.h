@@ -24,6 +24,6 @@ static inline void cli_printf(const char *format, ...) {
 #define RESP_TASK_HANDLE_NAME "resp_process"
 #define SERVO_TASK_HANDLE_NAME "servo_process"
 
-//# define __TB_WBANYWAY__
+# define __TB_WBANYWAY__
 
 #endif

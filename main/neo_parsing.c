@@ -2,6 +2,18 @@
  * neo_parsing.c
  *
  * functions to parse various types of sequence file formats
+ * 
+ * these functions are executed by a switch table in neo_play.c based on filetype
+ * 
+ * general functionality:
+ *  data_valid_XX()  called prior to parsing to validate file contents
+ *                   (e.g. binary size against expectations)
+ *  data_proc_XX()   called typically after data_valid_XX() returns true
+ *                   data is expected to have been read from file by calling program
+ *                   and passed in as buf
+ *                   after parsing the headers, this function calls parse_points_XX()
+ * parse_points_XX() parse the sequences points and deposit them in the place the sequence engine expects
+ * 
  */
 #include <stdio.h>
 
@@ -476,3 +488,14 @@ int8_t parse_pts_BBW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
 
   return(ret);
 }
+
+/*
+ * filetype SCRIPT
+ */
+/*
+ * data validation for type "OG"
+ */
+bool data_valid_SCRIPT(void *user)  {
+  return(true);
+}
+

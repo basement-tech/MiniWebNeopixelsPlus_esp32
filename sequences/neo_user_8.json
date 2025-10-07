@@ -3,6 +3,7 @@
     "label" : "USER-8",
     "strategy" : "script",
     "bonus" : {"__comment" : "testfile_1"},
+    "__comment" : "first test script"
     "steps" : [
       {"source" : "builtin", "name" : "pong", "repeat" : 5 },
       {"source" : "file", "name" : "neo_user_4.json", "repeat" : 1}
