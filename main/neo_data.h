@@ -13,7 +13,7 @@
 
 
 #define NEO_MAX_SEQ_FILE_SIZE 2*4096 // maximum size of a sequence file
-#define NEO_SEQ_STRATEGIES 7       // number of strategies defined (i.e. size of array of strategy callbacks)
+#define NEO_SEQ_STRATEGIES 8       // number of strategies defined (i.e. size of array of strategy callbacks)
 #define MAX_USER_SEQ       5       // maximum number of user buttons/files
 #define MAX_SEQUENCES      11      // number of sequences to allocate
 #define MAX_NUM_SEQ_POINTS 256     // maximum number of points per sequence
@@ -134,6 +134,18 @@ typedef struct {
 } neo_seq_cpoint_t;
 
 /*
+ * used for filetype SCRIPT parsing/storage
+ */
+#define SCRIPT_MAX_SOURCE_SIZE  8
+#define SCRIPT_MAX_NAME_SIZE    32
+#define SCRIPT_MAX_STEPS        64
+typedef struct  {
+  char source[SCRIPT_MAX_SOURCE_SIZE];
+  char name[SCRIPT_MAX_NAME_SIZE];
+  int repeat; // doesn't need to be int, but that's what json parser wants
+} neo_script_step_t;
+
+/*
  * binary/bitwise representation of neopixels
  */
 typedef struct __attribute__((packed)) {
@@ -172,6 +184,7 @@ typedef enum {
   SEQ_STRAT_SLOWP,    // slow pulse - calculated sequence
   SEQ_STRAT_BWISE,    // bitwise: individual pixel addressing possible
   SEQ_STRAT_BBWISE,
+  SEQ_STRAT_SCRIPT,
   SEQ_STRAT_UNDEFINED
 }  seq_strategy_t;
 

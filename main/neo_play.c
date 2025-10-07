@@ -1397,7 +1397,7 @@ void neo_bitwise_stopping(void)  {
 neo_ftype_t neo_file_procs[] = {
   {"OG", neo_proc_OG, data_valid_OG},
   {"BIN_BW", neo_proc_BIN_BBW, data_valid_BIN_BBW},
-  {"SCRIPT", NULL, NULL},
+  {"SCRIPT", neo_proc_SCRIPT, data_valid_SCRIPT},
   {"\0", NULL, NULL}
 };
 
@@ -1413,8 +1413,9 @@ seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES] = {
   { SEQ_STRAT_PONG,      "pong",      parse_pts_OG,     neo_pong_start,     neo_slowp_wait,    neo_pong_write,      neo_points_stopping,     noop},
 //  { SEQ_STRAT_RAINBOW,   "rainbow", parse_pts_OG,      neo_rainbow_start, neo_rainbow_wait,  neo_rainbow_write,    neo_rainbow_stopping,     noop},
   { SEQ_STRAT_SLOWP,     "slowp",     parse_pts_OG,     neo_slowp_start,    neo_slowp_wait,    neo_slowp_write,     neo_points_stopping,     noop},
-  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_BW,       start_noop,            noop,                noop,          neo_bitwise_stopping,    noop},
-  { SEQ_STRAT_BBWISE,    "bbitwise",  parse_pts_BBW,    neo_bitwise_start,  neo_bitwise_wait,  neo_bitwise_write,     neo_bitwise_stopping,    noop},
+  { SEQ_STRAT_BWISE,     "bitwise",   parse_pts_BW,       start_noop,            noop,               noop,          neo_bitwise_stopping,    noop},
+  { SEQ_STRAT_BBWISE,    "bbitwise",  parse_pts_BBW,    neo_bitwise_start,  neo_bitwise_wait,  neo_bitwise_write,     neo_bitwise_stopping,  noop},
+  { SEQ_STRAT_SCRIPT,    "script",    parse_pts_SCRIPT,   start_noop,            noop,              noop,                   noop,            noop},
 };
 
 

@@ -345,8 +345,10 @@ bool data_valid_BIN_BBW(void *pbin_len)  {
 /*
  * parse file for type "BIN_BBW"
  * arguments:
- *  char *buf    : buffer containing the balance of the file after filetype json header
- *  uint16_t len : the number of bytes of json in the balance of the file
+ *  char *buf    : buffer containing the balance of the file after filetype json header (preamble line)
+ *  int json_len : the number of bytes of json before the binary data starts
+ *  int binsize  : the number of bytes of binary data that follows all of the json headers
+ * 
  */
 int8_t neo_proc_BIN_BBW(char *buf, int json_len, int binsize)  {
   int8_t ret = -1;
@@ -499,3 +501,153 @@ bool data_valid_SCRIPT(void *user)  {
   return(true);
 }
 
+/*
+ * parse file for type "BIN_SCRIPT"
+ * 
+ * SCRIPT is interpreted, so all "points" are just stored in a malloc()'ed buffer for later
+ * 
+ * arguments:
+ *  char *buf    : buffer containing the balance of the file after filetype json header
+ *  int json_len : not used
+ *  int binsize  : not used
+ */
+int8_t neo_proc_SCRIPT(char *buf, int json_len, int binsize)  {
+  int8_t ret = -1;
+
+  jparse_ctx_t jctx;  // for json parsing
+  int8_t seq_idx = -1;
+  char label[MAX_NUM_LABEL] = {0};
+  char strategy[MAX_NEO_STRATEGY] = {0};
+  char bonus[MAX_NEO_BONUS-B_RESERVE] = {0};
+  char comment[MAX_NEO_COMMENT] = {0};
+
+  ESP_LOGI(TAG, "Balance of the file :\n%s", buf);
+
+  /*
+   * deserialize the json contents of the file which
+   * is now in buf and is all json (no binary, i.e. "OG")
+   */
+  if(json_parse_start(&jctx, buf, strlen(buf)) != OS_SUCCESS)  {
+    ESP_LOGE(TAG, "ERROR: Deserialization of file failed at the start ... no change in sequence\n");
+    ret = NEO_FILE_LOAD_DESERR;
+  }
+
+  /*
+   * parse it into the place indicated by the "label" in the file contents.
+   */
+  else  {
+    json_obj_get_string(&jctx, "label", label, sizeof(label));  // used to point to place in sequence array
+    json_obj_get_string(&jctx, "strategy", strategy, sizeof(strategy));  // copied to the sequence array
+    json_obj_get_object_str(&jctx, "bonus", bonus, sizeof(bonus));  // reserialized for later use
+    json_obj_get_string(&jctx, "__comment", comment, sizeof(comment));  // extract the comment for display only
+
+    ESP_LOGI(TAG, "For sequence \"%s\" : ", label);
+
+    /*
+     * find the place in neo_sequences[] where the file contents should be copied/stored
+     * (will also test for validity of label)
+     */
+    seq_idx = neo_find_sequence(label);  // use LABEL
+
+    /*
+     * iterate over the points in the array
+     */
+    if(seq_idx < 0)  {
+      ret = NEO_FILE_LOAD_NOPLACE;
+      ESP_LOGE(TAG, "ERROR: neo_proc_BIN_SCRIPT: no placeholder for %s in sequence array\n", label);
+    }
+
+    /*
+     * if the label was found, load the points from the json file
+     * into the neo_sequences[] array to be played out
+     *
+     * TODO: super-verbose for now for debugging
+     */
+    else  {
+      /*
+       * reserialize bonus for later use
+       * Note: printf() is already in use to the memory footprint is blown already.
+       */
+      snprintf(neo_sequences[seq_idx].bonus,  MAX_NEO_BONUS, "%s", bonus);  // save BONUS
+      ESP_LOGI(TAG, "Reserialized bonus: %s", neo_sequences[seq_idx].bonus);
+
+      /*
+       * save the strategy in the sequence array
+       * NOTE: this will be more meaningful when the functionality
+       * to detect if a file is alreadly loaded/don't reload is implemented
+       * NOTE: neo_set_sequence(label, strategy) sets the active strategy (below).
+       */
+      strncpy(neo_sequences[seq_idx].strategy, strategy, sizeof(neo_sequences[seq_idx].strategy));  // save STRATEGY
+
+      /*
+       * validate strategy
+       */
+      seq_strategy_t strat = neo_set_strategy(strategy);
+      if(strat == SEQ_STRAT_UNDEFINED)  {
+        ret = NEO_STRAT_ERR;
+        ESP_LOGE(TAG, "ERROR: neo_load_sequence: specified strategy not found");
+      }
+      else  {
+        ESP_LOGI(TAG, "Using Strategy %s (%d)", strategy, strat);
+        ESP_LOGI(TAG, "comment: %s", comment);
+
+        /*
+        * move the color data into the sequence array using the function
+        * appropriate for and registered in the jump table under the strategy.
+        */
+        if((ret = seq_callbacks[strat].parse_pts(&jctx, seq_idx, NULL)) == NEO_SUCCESS)  {
+          /*
+          * launch the newly loaded sequence
+          */
+          ret = neo_set_sequence(label, strategy);  // LAUNCH
+        }
+      }
+    }
+    json_parse_end(&jctx);  // done with json
+  }
+  return(ret);
+}
+
+/*
+ *
+ * parse_pts_SCRIPT : 
+ * 
+ * semidigest the script steps into a array of neo_script_step_t structure
+ * that have been malloc'ed and attached to the identified sequences
+ * alt_points pointer indicated by the seq_idx argument.
+ * 
+ * arguments:
+ *   jparse_ctx_t *pjctx : pointer to the jctx json parsing context
+ *   uint8_t seq_idx     : the index of the seqence slot in neo_sequences to deposit steps
+ *   void *bin_data      : not used
+ * 
+ */
+int8_t parse_pts_SCRIPT(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
+
+  int8_t ret = NEO_SUCCESS;
+  int count = 0; // number of points
+
+  json_obj_get_array(pjctx, "steps", &count);  // down one level into the array of points
+
+  if(count > SCRIPT_MAX_STEPS)  {
+    ESP_LOGI(TAG, "Too many steps in script file ... truncating");
+    count = SCRIPT_MAX_STEPS;
+  }
+
+  if((neo_sequences[seq_idx].alt_points = malloc(count*sizeof(neo_script_step_t))) == NULL)  {
+    ESP_LOGE(TAG, "Error: malloc() for steps failed");
+    ret = NEO_FILE_LOAD_OTHER;
+  }
+  else  {
+    neo_script_step_t *script_steps = (neo_script_step_t *)(neo_sequences[seq_idx].alt_points);  // helper
+    for(uint16_t i = 0; i < count; i++)  {
+      json_arr_get_object(pjctx, i); // index into the array, set jctx
+      json_obj_get_string(pjctx, "source", script_steps[i].source, SCRIPT_MAX_SOURCE_SIZE);
+      json_obj_get_string(pjctx, "name", script_steps[i].name, SCRIPT_MAX_NAME_SIZE);
+      json_obj_get_int(pjctx, "repeat", &(script_steps[i].repeat));
+      json_arr_leave_object(pjctx);
+    }
+  }
+  json_obj_leave_array(pjctx);  // pop back out of the points array
+  return(ret);
+}
