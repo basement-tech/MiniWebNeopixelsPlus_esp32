@@ -196,19 +196,22 @@ int8_t neo_is_user(const char *label)  {
 }
 
 /*
- * test if the strategy is of the type where the memory
- * for points will be malloc'ed and the alt_points pointer used
+ * display the printable contents of char buf[],
+ * and a count of the number of other binary data
+ * (good for bitwise binary for example)
  */
-int8_t neo_is_seq_malloc(seq_strategy_t sequence)  {
-  int8_t ret = NEO_FILE_LOAD_NOTUSER;
+void disp_printable(char *buf, int16_t size)  {
+  int16_t nonprint = 0;
 
-  if(sequence == SEQ_STRAT_BWISE)
-    ret = NEO_SUCCESS;
-
-  return(ret);
+  while(size-- > 0)  {
+    if(isprint((int)(*buf)) || (*buf == '\n')  || (*buf == '\r'))
+      putc(*buf, stdout);
+    else
+      nonprint++;
+    buf++;
+  }
+  printf("\n... plus %d unprintable\n\n", nonprint);
 }
-
-
 
 /*
  * look for a label matching the argument, label,
@@ -217,6 +220,17 @@ int8_t neo_is_seq_malloc(seq_strategy_t sequence)  {
  * requested must exist in neo_sequences[] for this to succeed.
  * 
  * finally set the newly loaded sequence as current and start it.
+ * 
+ * details:
+ *   - stat the filesystem to make sure it's readable
+ *   - make sure the file exists and open
+ *   - read the file contents, close
+ *   - mark the end of the first line
+ *   - json parse the first line to determine file type
+ *   - using the switch table neo_file_procs[filetype_idx], call the .data_valid() to validate data
+ *   - using the switch table neo_file_procs[filetype_idx], call the .neo_proc_seqfile()
+ *     to parse the balance of the file  (buffer pointer passed is pointing after preamble line)
+ *   - launch the newly loaded sequence
  *
  * return:   0: successfully loaded
  *          -1: file not found or error opening
@@ -293,7 +307,12 @@ int8_t neo_load_sequence(const char *file)  {
       int read_bytes = fread(buf, 1, sizeof(buf), fp);
       buf[read_bytes] = '\0';  // terminate the char string
       fclose(fp);                      // -> CLOSE FILE
-      ESP_LOGI(TAG, "Raw file contents:\n%s\n", buf);  // char *buf takes it from here
+      //ESP_LOGI(TAG, "Raw file contents:\n%s\n", buf);  // char *buf takes it from here
+      /*
+       * show the printable parts of the file
+       */
+      ESP_LOGI(TAG, "Raw file contents:");
+      disp_printable(buf, read_bytes);
 
       /*
        * mark the start of the data after the preamble line with char *pbuf_data
@@ -1378,6 +1397,7 @@ void neo_bitwise_stopping(void)  {
 neo_ftype_t neo_file_procs[] = {
   {"OG", neo_proc_OG, data_valid_OG},
   {"BIN_BW", neo_proc_BIN_BBW, data_valid_BIN_BBW},
+  {"SCRIPT", NULL, NULL},
   {"\0", NULL, NULL}
 };
 
