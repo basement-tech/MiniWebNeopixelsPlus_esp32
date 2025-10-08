@@ -135,6 +135,7 @@
 #include "rest_server.h"
 #include "neo_ll_api.h"
 #include "neo_data.h"
+#include "neo_script.h"
 
 #include "driver/i2c_types.h"
 #include "driver/i2c_master.h"
@@ -502,6 +503,13 @@ static void servo_process(void *pvParameters)  {
     }
 #endif  // SERVO_DEMO
 
+}
+
+static void script_process(void *pvParameters)  {
+    while(1)  {
+        script_update();
+        vTaskDelay(100 / portTICK_PERIOD_MS);
+    }
 }
 
 /*
