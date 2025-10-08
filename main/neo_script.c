@@ -14,7 +14,7 @@ static uint8_t script_state = NEO_SCRIPT_STOPPED;
 /*
  * see if the script needs to move to the next step
  */
-int8_t script_update(void)  {
+int8_t script_update(bool new_data)  {
 
     switch(script_state)  {
 

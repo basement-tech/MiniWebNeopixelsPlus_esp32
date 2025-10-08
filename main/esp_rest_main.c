@@ -175,6 +175,7 @@ static void initialise_mdns(void)
                                      sizeof(serviceTxtData) / sizeof(serviceTxtData[0])));
 }
 
+// WARNING: OPTION NOT TESTED
 #if CONFIG_EXAMPLE_WEB_DEPLOY_SEMIHOST
 esp_err_t init_fs(void)
 {
@@ -187,6 +188,7 @@ esp_err_t init_fs(void)
 }
 #endif
 
+// WARNING: OPTION NOT TESTED
 #if CONFIG_EXAMPLE_WEB_DEPLOY_SD
 esp_err_t init_fs(void)
 {
@@ -221,6 +223,7 @@ esp_err_t init_fs(void)
 }
 #endif
 
+// WARNING: OPTION NOT TESTED
 #if CONFIG_EXAMPLE_WEB_DEPLOY_SF
 esp_err_t init_fs(void)
 {
@@ -254,6 +257,7 @@ esp_err_t init_fs(void)
 }
 #endif
 
+// NOTE: DEVELOPMENT AND TESTING DONE ONLY WITH THIS FS OPTION
 #if CONFIG_EXAMPLE_WEB_DEPLOY_LITTLE_FS
 esp_err_t init_fs(void)  {
     esp_vfs_littlefs_conf_t conf = {
@@ -505,9 +509,45 @@ static void servo_process(void *pvParameters)  {
 
 }
 
+/*
+ * script process startup and IPC communication constructs
+ */
+SemaphoreHandle_t xscriptMutex;  // used to protect communication to script engine
+script_mutex_data_t script_mutex_data;  // data to be sent to script engine from neo_play
+
 static void script_process(void *pvParameters)  {
+
+    bool new_data = false;  // copy from mutex protected data: was new request sent
+
+    /*
+     * create the binary mutex that will protect
+     * the new sequence request data structure
+     */
+    xscriptMutex = xSemaphoreCreateMutex();
+
+    if(xscriptMutex == NULL)  {
+        ESP_LOGE(NEO_TAG, "Error creating xscriptMutex");
+    }
+    else{
+        ESP_LOGI(NEO_TAG, "xscriptMutex created successfully");
+    }
+
+    if(xSemaphoreTake(xscriptMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
+        ESP_LOGE(NEO_TAG, "Failed to take mutex on initial data init");
+    else  {
+        script_mutex_data.filename[0] = '\0';
+        xSemaphoreGive(xneoMutex);
+    }
+
+    /*
+     * run the script engine
+     */
     while(1)  {
-        script_update();
+        if(xSemaphoreTake(xscriptMutex, 0) == pdTRUE)  {
+            new_data = script_mutex_data.new_data;
+            xSemaphoreGive(xscriptMutex);
+        }
+        script_update(new_data);
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }

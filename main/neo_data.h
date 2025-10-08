@@ -82,6 +82,7 @@ extern SemaphoreHandle_t xneo_cycle_next_flag;  // neo state machine cycle timer
 extern SemaphoreHandle_t xseq_upd_flag;  // new sequence requested
 
 
+
 /*
  * filetypes structure
  * jump table based on char[] based file types
