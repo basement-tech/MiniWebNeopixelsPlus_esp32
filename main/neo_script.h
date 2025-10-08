@@ -13,12 +13,18 @@
 #define NEO_SCRIPT_WAIT     3
 #define NEO_SCRIPT_WRITE    4
 
-
+typedef enum  {
+    NEO_CMD_SCRIPT_START,      // start a new script please
+    NEO_CMD_SCRIPT_STEP_NEXT,  // next step (e.g. seq ended or other)
+    NEO_CMD_SCRIPT_STOP_REQ,   // stop the current script please
+    NEO_CMD_SCRIPT_UNDEFINED   // for init and error checking
+} neo_script_cmd_t;
 
 /*
  * script process startup and IPC communication constructs
  */
 typedef struct  {
+    neo_script_cmd_t cmd_type;  // what is the neo process trying to say
     char filename[MAX_FILENAME];
     bool new_data;   // true if new sequence request has been made
 } script_mutex_data_t;
