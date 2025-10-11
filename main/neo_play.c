@@ -1,8 +1,20 @@
 /*
  * neo_play.c
  *
- * functions to play out the neo_pixel patterns
- * (mostly the state machine)
+ * functions to play out the neo_pixel patterns using the state machine
+ * implemented in void neo_cycle_next(void).  this function is expected to be called/controlled
+ * by an process external to this file.
+ * 
+ * the various sequence strategies are handled via the pointers to
+ * functions provided in the switch table seq_callbacks_t seq_callbacks[NEO_SEQ_STRATEGIES].
+ * 
+ * Other functions are provided to handle the interface with the web server (via IPC) and
+ * utility functions to open, read and parse the contents of file driven sequences.
+ * 
+ * hooks to a script engine can be included by definining INCLUDE_SCRIPT_HOOKS.  otherwise
+ * this function should stand alone for processing requests from web server to play out
+ * sequences.
+ * 
  */
 
 #include <string.h>

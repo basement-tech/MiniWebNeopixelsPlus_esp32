@@ -89,7 +89,7 @@
  * wifi passwd
  * FREERTOS frequency to 1000 (from 100)
  * filesystem type to LittleFS
- * FreeRTOS item to expose process information
+ * FreeRTOS item to expose process information: configUSE_STATS_FORMATTING_FUNCTIONS
  * 
  * Timers
  * ------
@@ -107,6 +107,7 @@
  * o softAP for configuration on hardware button
  * o decide whether to eliminate other fs options
  * o OTA : decide whether to implement, do it
+ * o replace ESP_LOGx() with something less bloated and use EEPROM setting
  * 
  * 
  *
@@ -393,8 +394,13 @@ static void neopixel_process(void *pvParameters)  {
         ESP_LOGI(NEO_TAG, "neoMutex created successfully");
     }
 
+    /*
+     * start the default sequence
+     * has to be built-in so no filename
+     */
     if(xSemaphoreTake(xneoMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
         ESP_LOGE(NEO_TAG, "Failed to take mutex on initial sequence set ... no change");
+    
     else  {
         strncpy(neo_mutex_data.sequence, pmon_config->neodefault, MAX_NEO_SEQUENCE);
         ESP_LOGI(NEO_TAG, "%s to be sent as initial sequence", neo_mutex_data.sequence);
@@ -515,6 +521,8 @@ static void servo_process(void *pvParameters)  {
 SemaphoreHandle_t xscriptMutex;  // used to protect communication to script engine
 script_mutex_data_t script_mutex_data;  // data to be sent to script engine from neo_play
 
+SemaphoreHandle_t xscript_running_flag;  // true if a script is running (e.g. used to sync stop of script and start of seq)
+
 static void script_process(void *pvParameters)  {
 
     bool new_data = false;  // copy from mutex protected data: was new request sent
@@ -540,9 +548,25 @@ static void script_process(void *pvParameters)  {
     }
 
     /*
+     * create the binary semaphore that will
+     * synchronize the stopping of a script and start of
+     * a new sequence from another master
+     */
+    if((xscript_running_flag = xSemaphoreCreateBinary()) == NULL)
+        ESP_LOGE(NEO_TAG, "Error creating xscript_running_flag semaphore");
+    else  {
+        ESP_LOGI(NEO_TAG, "xscript_running_flag semaphore created successfully");
+        xSemaphoreGive(xscript_running_flag);  // make it available
+    }
+
+    /*
      * run the script engine
      */
     while(1)  {
+        /*
+         * if a request for a new script is received,
+         * tell the script engine
+         */
         if(xSemaphoreTake(xscriptMutex, 0) == pdTRUE)  {
             new_data = script_mutex_data.new_data;
             xSemaphoreGive(xscriptMutex);
@@ -616,9 +640,54 @@ void init_wifi(void)  {
 }
 
 
-/*
+// From espressif reference material:
+// This example demonstrates how a human readable table of run time stats
+// information is generated from raw data provided by uxTaskGetSystemState().
+// The human readable table is written to pcWriteBuffer
+void vTaskGetRunTimeStats(char *pcWriteBuffer)  {
 
- * 
+    TaskStatus_t *pxTaskStatusArray;
+    volatile UBaseType_t uxArraySize, x;
+    configRUN_TIME_COUNTER_TYPE ulTotalRunTime, ulStatsAsPercentage;
+
+    // Make sure the write buffer does not contain a string.
+    *pcWriteBuffer = '\0';
+
+    // Take a snapshot of the number of tasks in case it changes while this
+    // function is executing.
+    uxArraySize = uxTaskGetNumberOfTasks();
+    ESP_LOGI(TAG, "Number of tasks = %u", uxArraySize);
+
+    // Allocate a TaskStatus_t structure for each task.  An array could be
+    // allocated statically at compile time.
+    pxTaskStatusArray = pvPortMalloc( uxArraySize * sizeof( TaskStatus_t ) );
+
+    if( pxTaskStatusArray != NULL )  {
+        // Generate raw status information about each task.
+        uxArraySize = uxTaskGetSystemState( pxTaskStatusArray, uxArraySize, &ulTotalRunTime );
+        /*
+         * NOTE: seems that ulTotalRunTime is always 0, so deleting
+         */
+
+        // For each populated position in the pxTaskStatusArray array,
+        // format the raw data as human readable ASCII data
+        for( x = 0; x < uxArraySize; x++ )  {
+
+            sprintf( pcWriteBuffer, "%20s (%3u)  %u\n", pxTaskStatusArray[ x ].pcTaskName,
+                                                        pxTaskStatusArray[ x ].xTaskNumber,
+                                                        pxTaskStatusArray[ x ].uxBasePriority );
+            pcWriteBuffer += strlen( ( char * ) pcWriteBuffer );
+        }
+
+
+        // The array is no longer needed, free the memory it consumes.
+        vPortFree( pxTaskStatusArray );
+        *pcWriteBuffer = '\0';
+    }
+}
+
+/*
+ * let's get this party started
  */
 void app_main(void)
 {
@@ -684,4 +753,20 @@ void app_main(void)
      */
     ESP_LOGI(TAG, "Starting servo process from main() ...");
     xTaskCreate(servo_process, SERVO_TASK_HANDLE_NAME, 4096, NULL, 10, NULL);
+
+    /*
+     * report processes and memory
+     */
+    vTaskDelay(100 / portTICK_PERIOD_MS);
+    char *report;
+    if((report = malloc(1024)) != NULL)  {
+        vTaskGetRunTimeStats(report);
+        CLI_PRINTF("\nfreeRTOS running yasks:\n");
+        CLI_PRINTF("Name (number)  Base Priority\n");
+        CLI_PRINTF("%s\n", report);
+        CLI_PRINTF("*** end of report ***\n\n");
+        free(report);
+    }
+
+    heap_caps_print_heap_info(MALLOC_CAP_8BIT || MALLOC_CAP_RTCRAM || MALLOC_CAP_DEFAULT);
 }
