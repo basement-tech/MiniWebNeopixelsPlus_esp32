@@ -428,7 +428,9 @@ static void neopixel_process(void *pvParameters)  {
 
     while(1)  {
         /*
-         * wait at most e.g. 200 mS for the cycle next flag.  After the timeout,
+         * CYCLE THE STATE MACHING (e.g. display the next pixel color in the sequence)
+
+         * wait at most e.g. NEO_CHK_NEWS_INTERVAL mS (typically 200 mS) for the cycle next flag.  After the timeout,
          * check to see if a new sequence was requested.  If a sequence is 
          * running, this might be very often.  If not, it will be at the timeout
          * interval and prevent the rtos from starving and panicing.
@@ -439,6 +441,10 @@ static void neopixel_process(void *pvParameters)  {
         gpio_set_level(GPIO_OUTPUT_IO_1, 0);
 
         /*
+         * *SEQUENCIALLY*, SEE IF A NEW SEQUENCE WAS REQUESTED (e.g. did the webserver set neo_mutex_data.new_data = true)
+         *
+         * note: since this is sequential and polled, we *can* set up a new sequence without stopping
+         *
          * check to see of a new sequence was requested
          * NOTE: a sequence triggered from a c function
          * (e.g. setting the initial sequence at startup)
@@ -447,7 +453,7 @@ static void neopixel_process(void *pvParameters)  {
          * a button was not pressed (just polling).
          */
         err = neo_new_sequence();
-        if(err == NEO_OLD_SUCCESS)
+        if(err == NEO_OLD_SUCCESS)  // e.g. STOP received while stopped
             rest_response_setGo(ESP_OK, "ignored, no change");
         else if(err == NEO_NEW_SUCCESS)  // new sequence started
             rest_response_setGo(ESP_OK, "sequence change successful");

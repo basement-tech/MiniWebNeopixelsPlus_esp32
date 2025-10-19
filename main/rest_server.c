@@ -1064,7 +1064,7 @@ void rest_init_resp_data(void)  {
 
 /*
  * set the value of the response in the global structure
- * and give the signalling semaphore to that the response
+ * and give the signalling semaphore so that the response
  * process/function notices.
  */
 void rest_response_setGo(esp_err_t err, char *msgtxt)  {

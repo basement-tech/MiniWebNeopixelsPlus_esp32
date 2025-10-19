@@ -632,6 +632,7 @@ int8_t parse_pts_SCRIPT(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
     ret = NEO_FILE_LOAD_OTHER;
   }
   else  {
+    
     neo_script_step_t *script_steps = (neo_script_step_t *)(neo_sequences[seq_idx].alt_points);  // helper
     for(uint16_t i = 0; i < count; i++)  {
       json_arr_get_object(pjctx, i); // index into the array, set jctx

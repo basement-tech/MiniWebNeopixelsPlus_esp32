@@ -35,6 +35,7 @@
 #include "neo_data.h"
 #include "neo_parsing.h"
 #include "servo_defs.h"
+#include "neo_script.h"
 
 #define TAG "neo_play"
 
@@ -151,7 +152,8 @@ int8_t neo_set_sequence(const char *label, const char *strategy)  {
     /*
      * is this a new sequence from the one running?
      */
-    if(new_index != seq_index)  {
+    if(new_index != seq_index)  {  // if true, yes
+      // ADD STOP HERE
       ret = NEO_NEW_SUCCESS;
       seq_index = new_index;  // set the sequence index that is to be played
 
@@ -264,6 +266,8 @@ int8_t neo_load_sequence(const char *file)  {
   int json_len = 0;  // size of the balance of the json part of the file
   uint16_t hdr_len;  // length of the preamble json string
   uint16_t bin_len;  // calculated size of binary data
+
+  script_mutex_data_t script_info;  // in case the file is a script
 
 
   /*
@@ -1545,21 +1549,24 @@ int8_t neo_new_sequence(void)  {
     xSemaphoreGive(xneoMutex);  // be done with it ASAP
   }
 
+  /*
+   * if a new request was sent
+   */
   if(l_neo.new_data == true)  {
     /*
     * process the button that was pressed based on the seq string
     */
-    if(l_neo.sequence[0] != '\0')  {
+    if(l_neo.sequence[0] != '\0')  {  // the request has a "non-zero" sequence
       ESP_LOGI(TAG, "neo_new_sequence:  %s", l_neo.sequence);
 
       /*
-        * was it the stop button
+        * determine what kind of request was sent
         */
-      if(strcmp(l_neo.sequence, "none") == 0)  {
+      if(strcmp(l_neo.sequence, "none") == 0)  {  // primarily used to indicate default/startup of "none"
         neoerr = NEO_NEW_SUCCESS;
       }
-      else if(strcmp(l_neo.sequence, "STOP") == 0)  {
-        if((neo_state != NEO_SEQ_STOPPED) && (neo_state != NEO_SEQ_STOPPING))  {
+      else if(strcmp(l_neo.sequence, "STOP") == 0)  {  // STOP button pressed
+        if((neo_state != NEO_SEQ_STOPPED) && (neo_state != NEO_SEQ_STOPPING))  {  // sequence is running
           neoerr = NEO_NEW_SUCCESS;
           neo_cycle_stop();
         }
