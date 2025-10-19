@@ -136,7 +136,9 @@
 #include "rest_server.h"
 #include "neo_ll_api.h"
 #include "neo_data.h"
+#ifdef SCRIPT_ENGINE_ENABLE
 #include "neo_script.h"
+#endif
 
 #include "driver/i2c_types.h"
 #include "driver/i2c_master.h"
@@ -521,6 +523,7 @@ static void servo_process(void *pvParameters)  {
 
 }
 
+#ifdef SCRIPT_ENGINE_ENABLE
 /*
  * script process startup and IPC communication constructs
  */
@@ -581,6 +584,7 @@ static void script_process(void *pvParameters)  {
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
+#endif
 
 /*
  * start the wifi station - helper to unclutter main()
@@ -759,6 +763,14 @@ void app_main(void)
      */
     ESP_LOGI(TAG, "Starting servo process from main() ...");
     xTaskCreate(servo_process, SERVO_TASK_HANDLE_NAME, 4096, NULL, 10, NULL);
+
+#ifdef SCRIPT_ENGINE_ENABLE
+    /*
+     * start the servo move engine in a separate task
+     */
+    ESP_LOGI(TAG, "Starting script process from main() ...");
+    xTaskCreate(script_process, SCRIPT_TASK_HANDLE_NAME, 4096, NULL, 10, NULL);
+#endif
 
     /*
      * report processes and memory

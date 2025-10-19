@@ -21,7 +21,7 @@ static uint8_t script_state = NEO_SCRIPT_STOPPED;
  */
 BaseType_t send_script_msg(script_mutex_data_t msg)  {
     BaseType_t ret = pdFALSE;
-    if(xSemaphoreTake(xscriptMutex, 0) == pdTRUE)  {
+    if((ret = xSemaphoreTake(xscriptMutex, 10)) == pdTRUE)  {
         memcpy(&script_mutex_data, &msg, sizeof(script_mutex_data));
         xSemaphoreGive(xscriptMutex);
     }

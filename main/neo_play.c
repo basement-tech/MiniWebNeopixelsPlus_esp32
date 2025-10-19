@@ -35,7 +35,10 @@
 #include "neo_data.h"
 #include "neo_parsing.h"
 #include "servo_defs.h"
+
+#ifdef SCRIPT_ENGINE_ENABLE
 #include "neo_script.h"
+#endif
 
 #define TAG "neo_play"
 
@@ -128,6 +131,20 @@ int8_t neo_find_filetype(const char *filetype)  {
   }
   return(ret);
 }
+
+/*
+ * take actions necessary to inform whoever cares
+ * that a sequence is ending
+ */
+#ifdef SCRIPT_ENGINE_ENABLE
+void neo_stop_handler(void)  {
+
+}
+#else
+void neo_stop_handler(void)  {
+
+}
+#endif
 
 
 /*
@@ -267,7 +284,9 @@ int8_t neo_load_sequence(const char *file)  {
   uint16_t hdr_len;  // length of the preamble json string
   uint16_t bin_len;  // calculated size of binary data
 
+  #ifdef SCRIPT_ENGINE_ENABLE
   script_mutex_data_t script_info;  // in case the file is a script
+  #endif
 
 
   /*

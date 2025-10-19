@@ -36,11 +36,10 @@ extern script_mutex_data_t script_mutex_data;  // data to be sent to script engi
 
 extern SemaphoreHandle_t xscript_running_flag;  // true if a script is running (e.g. used to sync stop of script and start of seq)
 
-
-
 /*
  * public functions
  */
 int8_t script_update(bool new_data);
+BaseType_t send_script_msg(script_mutex_data_t msg);
 
 #endif
