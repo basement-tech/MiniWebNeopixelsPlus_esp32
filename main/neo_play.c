@@ -35,6 +35,7 @@
 #include "neo_data.h"
 #include "neo_parsing.h"
 #include "servo_defs.h"
+#include "neo_script.h"
 
 #ifdef SCRIPT_ENGINE_ENABLE
 #include "neo_script.h"
@@ -1424,28 +1425,55 @@ void neo_bitwise_stopping(void)  {
 
 // start of SEQ_STRAT_SCRIPT
 
+/*
+ * had off execution of the script to the script engine
+ * and stop its execution here
+ */
 void neo_script_start(bool clear)  {
   neo_state = NEO_SEQ_STOPPING;
 }
 
 void neo_script_stopping(void)  {
-   /*
-    * move to top to avoid potential collision with late
-    * coming meo_cycle_next()
-    */
+
+  /*
+   * stop anything that was going on here in the pixel engine.
+   *
+   * (move to top to avoid potential collision with late
+   * coming neo_cycle_next())
+   */
   neo_state = NEO_SEQ_STOPPED;
 
   pixels_clear(); // Set all pixel colors to 'off'
   pixels_show();   // Send the updated pixel colors to the hardware.
 
-  if(neo_sequences[seq_index].alt_points != NULL)  {
-    free(neo_sequences[seq_index].alt_points);
-    ESP_LOGI(TAG, "binary point data free()'ed");
-  }
+  /*
+   * set up the command to tell the sciprt engine to get started
 
+   * note: do not free neo_sequences[seq_index].alt_points 
+   * in this case since the script engine will use it
+   * 
+   * note: do this before resetting the sequence indexes
+   */
+  script_mutex_data_t script_cmd;
+  script_cmd.cmd_type = NEO_CMD_SCRIPT_START;
+  script_cmd.new_data = true;
+  script_cmd.steps = (neo_script_step_t *)(neo_sequences[seq_index].alt_points);
+
+  /*
+   * housekeeping (prepping for the first sequence that the script
+   * engine will run)
+   */
   current_index = 0;  // housekeeping
   seq_index = -1; // so it doesn't match
   current_strategy = SEQ_STRAT_POINTS;  // housekeeping
+
+  /*
+   * inform the script engine to get started
+   */
+  if(send_script_msg(script_cmd) == pdTRUE)
+    ESP_LOGI(TAG, "script command (%d) sent successfully", script_cmd.cmd_type);
+  else
+    ESP_LOGE(TAG, "error sending script command (%d)", script_cmd.cmd_type);
 }
 
 // end of SEQ_STRAT_SCRIPT

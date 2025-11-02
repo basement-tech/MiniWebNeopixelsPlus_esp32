@@ -584,9 +584,8 @@ int8_t neo_proc_SCRIPT(char *buf, int json_len, int binsize)  {
         ESP_LOGI(TAG, "comment: %s", comment);
 
         /*
-        * move the color data into the sequence array using the function
-        * appropriate for and registered in the jump table under the strategy.
-        */
+         * digest the point data.
+         */
         if((ret = seq_callbacks[strat].parse_pts(&jctx, seq_idx, NULL)) == NEO_SUCCESS)  {
           /*
           * launch the newly loaded sequence
@@ -607,6 +606,9 @@ int8_t neo_proc_SCRIPT(char *buf, int json_len, int binsize)  {
  * semidigest the script steps into a array of neo_script_step_t structure
  * that have been malloc'ed and attached to the identified sequences
  * alt_points pointer indicated by the seq_idx argument.
+ * 
+ * do this here so that we're not messing with json decoding during the
+ * execution of the script.
  * 
  * arguments:
  *   jparse_ctx_t *pjctx : pointer to the jctx json parsing context

@@ -974,7 +974,7 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
     /*
      * if the button processing (not the execution of the button's request)
      * was successful, wait for the return error code from executing
-     * the buttons request and send the appropriate http response
+     * the button's request and send the appropriate http response
      * to the web client
      * 
      * NOTE: err is repurposed to hold the return error code

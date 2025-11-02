@@ -8,5 +8,6 @@
       {"source" : "builtin", "name" : "pong", "repeat" : 5 },
       {"source" : "file", "name" : "neo_user_4.json", "repeat" : 1}
       {"source" : "file", "name" : "neo_user_1.json", "repeat" : -1}
+      {"source" : "end", "name" : "na", "repeat" : -1}
     ]
 }

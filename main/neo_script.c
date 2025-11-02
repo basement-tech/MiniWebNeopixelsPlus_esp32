@@ -37,22 +37,28 @@ BaseType_t send_script_msg(script_mutex_data_t msg)  {
  *  return: a NEO_* status to the calling program
  * 
  */
-int8_t script_update(bool new_data)  {
+
+neo_script_step_t *script_steps;  // actual step data (for persistence)
+int8_t script_update()  {
     int8_t ret = NEO_SUCCESS;
     char filename[MAX_FILENAME];  // the filename of the script file
-    neo_script_cmd_t cmd_type = NEO_CMD_SCRIPT_UNDEFINED;
-    
-    if(new_data == true)  {
+    script_mutex_data_t script_cmd;
 
-        /*
-         * copy the data so as not to hold the mutex too long
-         */
-        if(xSemaphoreTake(xscriptMutex, 0) == pdTRUE)  {
-            cmd_type = script_mutex_data.cmd_type;
-            strncpy(filename, script_mutex_data.filename, sizeof(filename));
-            new_data = false;
-            xSemaphoreGive(xscriptMutex);
-        }
+    script_cmd.new_data = false;
+
+    /*
+     * poll the semaphore and copy the structure if we got it
+     */
+    if(xSemaphoreTake(xscriptMutex, 0) == pdTRUE)  {
+        memcpy(&script_cmd, &script_mutex_data, sizeof(script_mutex_data_t));
+        xSemaphoreGive(xscriptMutex);
+    }
+
+    /*
+     * if a new command has arrived, process it
+     */
+    if(script_cmd.new_data == true)  {
+        ESP_LOGI(TAG, "new script command received (%d)", script_cmd.cmd_type);
 
         /*
          * cycle the script engine state machine
@@ -64,21 +70,27 @@ int8_t script_update(bool new_data)  {
                 /*
                  *_START is the only valid command from _STOP
                  */
-                if(cmd_type != NEO_CMD_SCRIPT_START)
+                if(script_cmd.cmd_type != NEO_CMD_SCRIPT_START)
                     ESP_LOGI(TAG, "invalid cmd_type received while stopped ... ignored");
                 else  {
                     ESP_LOGI(TAG, "starting new script %s from STOPPED", filename);
+                    script_steps = script_cmd.steps;  // remember in case someone messes with it
                     script_state = NEO_SCRIPT_START;
                 }
                 break;
 
             case NEO_SCRIPT_STOPPING:  // cleaning up and stopping
                 script_state = NEO_SCRIPT_STOPPED;
+                if(script_steps != NULL)  {
+                    ESP_LOGI(TAG, "free()ing script step memory");
+                    free(script_steps);
+                    script_steps = NULL;
+                }
                 xSemaphoreGive(xscript_running_flag);  // last action
                 break;
 
             case NEO_SCRIPT_START:  // initializing new script and sending first step
-
+#ifdef NOTYET
                 if(xSemaphoreTake(xscript_running_flag, 0) != pdTRUE)
                     ESP_LOGE(TAG, "Error taking xscript_running_flag at start of script");
                 else  {
@@ -98,6 +110,7 @@ int8_t script_update(bool new_data)  {
                     neo_mutex_data.new_data = false;
                     xSemaphoreGive(xneoMutex);
                 }
+#endif
                 script_state = NEO_SCRIPT_STOPPING;
                 break;
             

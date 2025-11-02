@@ -438,7 +438,7 @@ static void neopixel_process(void *pvParameters)  {
          * interval and prevent the rtos from starving and panicing.
          */
         xSemaphoreTake(xneo_cycle_next_flag, NEO_CHK_NEWS_INTERVAL);  // wait for the signal from timer
-        gpio_set_level(GPIO_OUTPUT_IO_1, 1);
+        gpio_set_level(GPIO_OUTPUT_IO_1, 1); // debugging with i/o pin and scope
         neo_cycle_next();  // cycle the neopixel state machine, noop if not running
         gpio_set_level(GPIO_OUTPUT_IO_1, 0);
 
@@ -552,7 +552,6 @@ static void script_process(void *pvParameters)  {
     if(xSemaphoreTake(xscriptMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
         ESP_LOGE(NEO_TAG, "Failed to take mutex on initial data init");
     else  {
-        script_mutex_data.filename[0] = '\0';
         xSemaphoreGive(xneoMutex);
     }
 
@@ -572,15 +571,8 @@ static void script_process(void *pvParameters)  {
      * run the script engine
      */
     while(1)  {
-        /*
-         * if a request for a new script is received,
-         * tell the script engine
-         */
-        if(xSemaphoreTake(xscriptMutex, 0) == pdTRUE)  {
-            new_data = script_mutex_data.new_data;
-            xSemaphoreGive(xscriptMutex);
-        }
-        script_update(new_data);
+
+        script_update();
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
 }
