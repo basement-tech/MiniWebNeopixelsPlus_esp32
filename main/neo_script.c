@@ -51,6 +51,7 @@ int8_t script_update()  {
      */
     if(xSemaphoreTake(xscriptMutex, 0) == pdTRUE)  {
         memcpy(&script_cmd, &script_mutex_data, sizeof(script_mutex_data_t));
+        script_mutex_data.new_data = false; // in case it was set; so that cmd is processed once
         xSemaphoreGive(xscriptMutex);
     }
 

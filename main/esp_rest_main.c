@@ -552,7 +552,7 @@ static void script_process(void *pvParameters)  {
     if(xSemaphoreTake(xscriptMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
         ESP_LOGE(NEO_TAG, "Failed to take mutex on initial data init");
     else  {
-        xSemaphoreGive(xneoMutex);
+        xSemaphoreGive(xscriptMutex);
     }
 
     /*
@@ -571,7 +571,6 @@ static void script_process(void *pvParameters)  {
      * run the script engine
      */
     while(1)  {
-
         script_update();
         vTaskDelay(100 / portTICK_PERIOD_MS);
     }
