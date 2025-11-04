@@ -7,7 +7,7 @@
     "steps" : [
       {"source" : "builtin", "label" : "RED-MED", "filename" : "na",              "repeat" : 1 },
       {"source" : "file",    "label" : "USER-4",  "filename" : "neo_user_4.json", "repeat" : 1 },
-      {"source" : "file",    "label" : "USER-4",  "filename" : "neo_user_1.json", "repeat" : 1 },
+      {"source" : "file",    "label" : "USER-1",  "filename" : "neo_user_1.json", "repeat" : 1 },
       {"source" : "end",     "label" : "USER-4",  "filename" : "na",              "repeat" :-1}
     ]
 }

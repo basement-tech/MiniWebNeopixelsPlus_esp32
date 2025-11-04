@@ -37,9 +37,7 @@
 #include "servo_defs.h"
 #include "neo_script.h"
 
-#ifdef SCRIPT_ENGINE_ENABLE
 #include "neo_script.h"
-#endif
 
 #define TAG "neo_play"
 
@@ -134,18 +132,29 @@ int8_t neo_find_filetype(const char *filetype)  {
 }
 
 /*
- * take actions necessary to inform whoever cares
- * that a sequence is ending
+ * send an update command to the script engine
+ * adjust behavior based on whether a script is running
  */
-#ifdef SCRIPT_ENGINE_ENABLE
-void neo_stop_handler(void)  {
+BaseType_t neo_script_progress_msg(neo_script_cmd_t cmd)  {
 
-}
-#else
-void neo_stop_handler(void)  {
+  BaseType_t ret = pdFALSE;
 
+  script_mutex_data_t script_cmd;
+  script_cmd.cmd_type = cmd;
+  script_cmd.new_data = true;
+  script_cmd.steps = NULL;
+
+  if(xSemaphoreTake(xscript_running_flag, 0) == pdFALSE)  {  // script is running: held by script engine
+      if((ret = send_script_msg(script_cmd)) == pdTRUE)
+        ESP_LOGI(TAG, "script command (%d) sent successfully", script_cmd.cmd_type);
+      else
+        ESP_LOGE(TAG, "error sending script command (%d)", script_cmd.cmd_type);
+  }
+  else
+    xSemaphoreGive(xscript_running_flag); // I don't want it really... just testing
+
+  return(ret);
 }
-#endif
 
 
 /*
@@ -285,9 +294,7 @@ int8_t neo_load_sequence(const char *file)  {
   uint16_t hdr_len;  // length of the preamble json string
   uint16_t bin_len;  // calculated size of binary data
 
-  #ifdef SCRIPT_ENGINE_ENABLE
   script_mutex_data_t script_info;  // in case the file is a script
-  #endif
 
 
   /*
@@ -1543,6 +1550,7 @@ void neo_cycle_next(void)  {
 
     case NEO_SEQ_STOPPING:
       seq_callbacks[current_strategy].stopping();
+      neo_script_progress_msg(NEO_CMD_SCRIPT_STEP_NEXT);  //signal the script engine if it's running
       break;
 
     case NEO_SEQ_START:

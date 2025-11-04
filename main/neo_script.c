@@ -107,6 +107,7 @@ int8_t script_update()  {
                 ESP_LOGI(TAG, "sent step %d start label: %s, filename: %s to sequence engine",
                                 script_step, neo_mutex_data.sequence, neo_mutex_data.file);
                 script_state = NEO_SCRIPT_WAIT;
+                xSemaphoreTake(xscript_running_flag, 10);  // script is running
             }
             break;
         
@@ -116,16 +117,16 @@ int8_t script_update()  {
                 if(strcmp(script_steps[script_step].source, "end") == 0)  {  // last step?
                     script_state = NEO_SCRIPT_STOPPING;
                 }
-            }
-            else  {  // start the new step
-                strncpy(neo_mutex_data.sequence, script_steps[script_step].label, MAX_NEO_SEQUENCE);
-                strncpy(neo_mutex_data.file, script_steps[script_step].filename, MAX_FILENAME);
-                neo_mutex_data.resp_reqd = false;  // this sequence not coming from web client
-                neo_mutex_data.new_data = true;
-                xSemaphoreGive(xneoMutex);
-                ESP_LOGI(TAG, "sent step %d start label: %s, filename: %s to sequence engine",
-                                script_step, neo_mutex_data.sequence, neo_mutex_data.file);
-                script_state = NEO_SCRIPT_WAIT;
+                else  {  // start the new step
+                    strncpy(neo_mutex_data.sequence, script_steps[script_step].label, MAX_NEO_SEQUENCE);
+                    strncpy(neo_mutex_data.file, script_steps[script_step].filename, MAX_FILENAME);
+                    neo_mutex_data.resp_reqd = false;  // this sequence not coming from web client
+                    neo_mutex_data.new_data = true;
+                    xSemaphoreGive(xneoMutex);
+                    ESP_LOGI(TAG, "sent next step %d start label: %s, filename: %s to sequence engine",
+                                    script_step, neo_mutex_data.sequence, neo_mutex_data.file);
+                    script_state = NEO_SCRIPT_WAIT;
+                }
             }
 
             break;
