@@ -134,17 +134,7 @@ typedef struct {
   uint32_t white;  // not always used
 } neo_seq_cpoint_t;
 
-/*
- * used for filetype SCRIPT parsing/storage
- */
-#define SCRIPT_MAX_SOURCE_SIZE  8
-#define SCRIPT_MAX_NAME_SIZE    32
-#define SCRIPT_MAX_STEPS        64
-typedef struct  {
-  char source[SCRIPT_MAX_SOURCE_SIZE];
-  char name[SCRIPT_MAX_NAME_SIZE];
-  int repeat; // doesn't need to be int, but that's what json parser wants
-} neo_script_step_t;
+
 
 /*
  * binary/bitwise representation of neopixels

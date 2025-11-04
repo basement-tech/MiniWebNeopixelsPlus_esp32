@@ -23,6 +23,7 @@
 #include "neo_system.h"
 #include "neo_ll_api.h"
 #include "neo_data.h"
+#include "neo_script.h"
 #include "neo_parsing.h"
 
 #define TAG "neo_parsing"

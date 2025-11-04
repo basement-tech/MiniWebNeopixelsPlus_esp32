@@ -89,16 +89,9 @@ int8_t script_update()  {
             break;
 
         case NEO_SCRIPT_START:  // initializing new script and sending first step
-#ifdef NOTYET
-            if(xSemaphoreTake(xscript_running_flag, 0) != pdTRUE)
-                ESP_LOGE(TAG, "Error taking xscript_running_flag at start of script");
-            else  {
-
-            }
-
             /*
-            * start the new script (i.e. send the first sequence)
-            */
+             * start the new script (i.e. send the first sequence)
+             */
             if(xSemaphoreTake(xneoMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
                 ESP_LOGE(TAG, "Failed to take mutex on initial sequence set ... no change");
             
@@ -108,9 +101,8 @@ int8_t script_update()  {
                 neo_mutex_data.file[0] = '\0';  // default sequence has to be a built-in
                 neo_mutex_data.new_data = false;
                 xSemaphoreGive(xneoMutex);
+                script_state = NEO_SCRIPT_WAIT;
             }
-#endif
-            script_state = NEO_SCRIPT_STOPPING;
             break;
         
         case NEO_SCRIPT_WAIT:  // waiting for signal that step has completed, send next step
