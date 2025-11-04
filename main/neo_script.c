@@ -13,6 +13,7 @@
 static const char *TAG = "neo_script";
 
 static uint8_t script_state = NEO_SCRIPT_STOPPED;
+static int16_t script_step = -1;  // current step in the script
 
 /*
  * grab the mutex, set a command in the global/shared structure
@@ -38,7 +39,7 @@ BaseType_t send_script_msg(script_mutex_data_t msg)  {
  * 
  */
 
-neo_script_step_t *script_steps;  // actual step data (for persistence)
+neo_script_step_t *script_steps;  // pointer to actual step data (for persistence)
 int8_t script_update()  {
     int8_t ret = NEO_SUCCESS;
     script_mutex_data_t script_cmd;
@@ -71,6 +72,7 @@ int8_t script_update()  {
             if (script_cmd.cmd_type == NEO_CMD_SCRIPT_START)  {
                 ESP_LOGI(TAG, "starting new script from STOPPED");
                 script_steps = script_cmd.steps;  // remember in case someone messes with it
+                script_step = 0;  // start with the first step
                 script_state = NEO_SCRIPT_START;
             }
             break;
@@ -92,21 +94,40 @@ int8_t script_update()  {
             /*
              * start the new script (i.e. send the first sequence)
              */
+            script_step = 0;
             if(xSemaphoreTake(xneoMutex, 10/portTICK_PERIOD_MS) == pdFALSE)
                 ESP_LOGE(TAG, "Failed to take mutex on initial sequence set ... no change");
             
             else  {
-                strncpy(neo_mutex_data.sequence, "<newfile>", MAX_NEO_SEQUENCE);
-                ESP_LOGI(TAG, "%s to be sent as initial sequence", neo_mutex_data.sequence);
-                neo_mutex_data.file[0] = '\0';  // default sequence has to be a built-in
-                neo_mutex_data.new_data = false;
+                strncpy(neo_mutex_data.sequence, script_steps[script_step].label, MAX_NEO_SEQUENCE);
+                strncpy(neo_mutex_data.file, script_steps[script_step].filename, MAX_FILENAME);
+                neo_mutex_data.resp_reqd = false;  // this sequence not coming from web client
+                neo_mutex_data.new_data = true;
                 xSemaphoreGive(xneoMutex);
+                ESP_LOGI(TAG, "sent step %d start label: %s, filename: %s to sequence engine",
+                                script_step, neo_mutex_data.sequence, neo_mutex_data.file);
                 script_state = NEO_SCRIPT_WAIT;
             }
             break;
         
         case NEO_SCRIPT_WAIT:  // waiting for signal that step has completed, send next step
-            script_state = NEO_SCRIPT_STOPPING;
+            if (script_cmd.cmd_type == NEO_CMD_SCRIPT_STEP_NEXT)  {
+                script_step++;  // next step
+                if(strcmp(script_steps[script_step].source, "end") == 0)  {  // last step?
+                    script_state = NEO_SCRIPT_STOPPING;
+                }
+            }
+            else  {  // start the new step
+                strncpy(neo_mutex_data.sequence, script_steps[script_step].label, MAX_NEO_SEQUENCE);
+                strncpy(neo_mutex_data.file, script_steps[script_step].filename, MAX_FILENAME);
+                neo_mutex_data.resp_reqd = false;  // this sequence not coming from web client
+                neo_mutex_data.new_data = true;
+                xSemaphoreGive(xneoMutex);
+                ESP_LOGI(TAG, "sent step %d start label: %s, filename: %s to sequence engine",
+                                script_step, neo_mutex_data.sequence, neo_mutex_data.file);
+                script_state = NEO_SCRIPT_WAIT;
+            }
+
             break;
         
         default:

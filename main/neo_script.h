@@ -25,11 +25,13 @@ typedef enum  {
  */
 #define SCRIPT_MAX_SOURCE_SIZE  8
 #define SCRIPT_MAX_NAME_SIZE    32
+#define SCRIPT_MAX_LABEL        16
 #define SCRIPT_MAX_STEPS        64
 typedef struct  {
   char source[SCRIPT_MAX_SOURCE_SIZE];  // "builtin", "file", "end"
-  char name[SCRIPT_MAX_NAME_SIZE];      // name of the file or builin
-  int repeat; // number of times to repeat the step (doesn't need to be int, but that's what json parser wants)
+  char label[SCRIPT_MAX_LABEL];         // label in sequence data array
+  char filename[SCRIPT_MAX_NAME_SIZE];  // name of the file or builin
+  int  repeat; // number of times to repeat the step (doesn't need to be int, but that's what json parser wants)
 } neo_script_step_t;
 
 /*

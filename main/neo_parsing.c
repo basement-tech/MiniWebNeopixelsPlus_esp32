@@ -640,9 +640,11 @@ int8_t parse_pts_SCRIPT(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
     for(uint16_t i = 0; i < count; i++)  {
       json_arr_get_object(pjctx, i); // index into the array, set jctx
       json_obj_get_string(pjctx, "source", script_steps[i].source, SCRIPT_MAX_SOURCE_SIZE);
-      json_obj_get_string(pjctx, "name", script_steps[i].name, SCRIPT_MAX_NAME_SIZE);
+      json_obj_get_string(pjctx, "label", script_steps[i].label, SCRIPT_MAX_LABEL);
+      json_obj_get_string(pjctx, "filename", script_steps[i].filename, SCRIPT_MAX_NAME_SIZE);
       json_obj_get_int(pjctx, "repeat", &(script_steps[i].repeat));
-      ESP_LOGI(TAG, "step[%u] source: %s, name: %s, repeat: %d", i, script_steps[i].source, script_steps[i].name, script_steps[i].repeat);
+      ESP_LOGI(TAG, "step[%u] source: %s, label: %s, filename: %s, repeat: %d",
+                    i,script_steps[i].source, script_steps[i].label, script_steps[i].filename, script_steps[i].repeat);
       json_arr_leave_object(pjctx);
     }
   }
