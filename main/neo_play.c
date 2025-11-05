@@ -1615,14 +1615,18 @@ int8_t neo_new_sequence(void)  {
           neoerr = NEO_OLD_SUCCESS;  // no change
       }
 
-      else if(strcmp(l_neo.sequence, "NEXT") == 0)  {  // NEXT button pressed
-        /*
-         * if a sequence is running, stop it
-         * sequences stop function may notify the script engine if running
-         */
-        if((neo_state != NEO_SEQ_STOPPED) && (neo_state != NEO_SEQ_STOPPING))  {  // sequence is running
-          neoerr = NEO_NEW_SUCCESS;
-          neo_cycle_stop();
+      else if(strcmp(l_neo.sequence, "NEXT") == 0)  {  // NEXT button pressed ... ignore if no script running
+        if(neo_script_is_running(0) == true)  {
+          /*
+          * if a sequence is running, stop it
+          * sequences stop function may notify the script engine if running
+          */
+          if((neo_state != NEO_SEQ_STOPPED) && (neo_state != NEO_SEQ_STOPPING))  {  // sequence is running
+            neoerr = NEO_NEW_SUCCESS;
+            neo_cycle_stop();
+          }
+          else
+            neoerr = NEO_OLD_SUCCESS;  // no change
         }
         else
           neoerr = NEO_OLD_SUCCESS;  // no change
@@ -1664,7 +1668,7 @@ int8_t neo_new_sequence(void)  {
           neo_script_progress_msg(NEO_CMD_SCRIPT_STOP_REQ);
           neo_script_verify_stop();  // blocks up to SCRIPT_STOP_PER_INTERVAL * SCRIPT_STOP_INTERVALS mS
         }
-        
+
         if((neoerr = neo_set_sequence(l_neo.sequence, "")) < NEO_SUCCESS)
           ESP_LOGI(TAG, "ERROR: Error setting sequence after proper detection");
       }
