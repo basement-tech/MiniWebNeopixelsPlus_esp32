@@ -20,13 +20,72 @@ static int16_t script_step = -1;  // current step in the script
  * and send the command/msg to the script engine
  * (e.g. neo process informing script process that a step has ended)
  */
-BaseType_t send_script_msg(script_mutex_data_t msg)  {
+BaseType_t neo_script_send_msg(script_mutex_data_t msg)  {
     BaseType_t ret = pdFALSE;
     if((ret = xSemaphoreTake(xscriptMutex, 10)) == pdTRUE)  {
         memcpy(&script_mutex_data, &msg, sizeof(script_mutex_data));
         xSemaphoreGive(xscriptMutex);
     }
     return(ret);
+}
+
+/*
+ * return true if a script is running, otherwise false
+ * arguments:
+ *   blocktime : xBlockTime – The time in ticks to wait for the semaphore to become available.
+ *                            The macro portTICK_PERIOD_MS can be used to convert this to a real time.
+ *                            A block time of zero can be used to poll the semaphore.
+ *                            A block time of portMAX_DELAY can be used to block indefinitely
+ *                            (provided INCLUDE_vTaskSuspend is set to 1 in FreeRTOSConfig.h).
+ */
+bool neo_script_is_running(int blocktime)  {
+    if(xSemaphoreTake(xscript_running_flag, blocktime) == pdTRUE)  {
+        xSemaphoreGive(xscript_running_flag);
+        return(false);
+    }
+    else
+        return(true);
+}
+
+/*
+ * send an update command to the script engine
+ * adjust behavior based on whether a script is running
+ */
+BaseType_t neo_script_progress_msg(neo_script_cmd_t cmd)  {
+
+  BaseType_t ret = pdFALSE;
+
+  script_mutex_data_t script_cmd;
+  script_cmd.cmd_type = cmd;
+  script_cmd.new_data = true;
+  script_cmd.steps = NULL;
+
+  if(neo_script_is_running(0) == true)  {  // script is running: held by script engine
+      if((ret = neo_script_send_msg(script_cmd)) == pdTRUE)
+        ESP_LOGI(TAG, "script command (%d) sent successfully", script_cmd.cmd_type);
+      else
+        ESP_LOGE(TAG, "error sending script command (%d)", script_cmd.cmd_type);
+  }
+
+  return(ret);
+}
+
+/*
+ * wait for the script engine to stop the script
+ * note: this is, to some degree, blocking.
+ */
+BaseType_t neo_script_verify_stop(void)  {
+  bool ret = true;
+  int8_t timeouts = SCRIPT_STOP_INTERVALS;
+
+  while((ret == true) && (timeouts > 0))  {
+    ret = neo_script_is_running(SCRIPT_STOP_PER_INTERVAL);
+    //ret = xSemaphoreTake(xscript_running_flag, portMAX_DELAY);
+    //ESP_LOGI(TAG, "xSemaphoreTake() returned %s on iteration %d", ((ret == pdFALSE) ? "pdFALSE" : "pdTRUE"), timeouts);
+    timeouts--;
+  }
+
+  return(ret);
 }
 
 /*
@@ -41,7 +100,7 @@ BaseType_t send_script_msg(script_mutex_data_t msg)  {
 
 neo_script_step_t *script_steps;  // pointer to actual step data (for persistence)
 uint8_t last_state = NEO_SCRIPT_UNDEFINED; // mostly for debugging
-int8_t script_update()  {
+int8_t neo_script_update()  {
     int8_t ret = NEO_SUCCESS;
     script_mutex_data_t script_cmd;
 

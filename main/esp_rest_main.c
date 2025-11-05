@@ -571,7 +571,7 @@ static void script_process(void *pvParameters)  {
      * run the script engine
      */
     while(1)  {
-        script_update();
+        neo_script_update();
         vTaskDelay(SCRIPT_UPDATE_INTERVAL);
     }
 }

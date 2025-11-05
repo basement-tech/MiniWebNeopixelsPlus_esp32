@@ -31,7 +31,11 @@ label {
 }
 
 #stop {
-  background-color: rgb(248, 244, 7);
+  background-color: rgb(248, 35, 7);
+}
+
+#next {
+  background-color: rgb(35, 248, 7);
 }
 
 li {

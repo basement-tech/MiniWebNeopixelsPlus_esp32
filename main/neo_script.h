@@ -66,7 +66,10 @@ extern SemaphoreHandle_t xscript_running_flag;  // true if a script is running (
 /*
  * public functions
  */
-int8_t script_update(void);
-BaseType_t send_script_msg(script_mutex_data_t msg);
+int8_t     neo_script_update(void);                       // cycle the script engine state machine
+BaseType_t neo_script_send_msg(script_mutex_data_t msg);  // send message to script engine
+bool       neo_script_is_running(int blocktime);          // returns true if a script is running, false if not
+BaseType_t neo_script_progress_msg(neo_script_cmd_t cmd); // send command-only (no data pointer) to script engine
+BaseType_t neo_script_verify_stop(void);                  // wait for script running mutex to be available
 
 #endif

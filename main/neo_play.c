@@ -131,51 +131,7 @@ int8_t neo_find_filetype(const char *filetype)  {
   return(ret);
 }
 
-/*
- * send an update command to the script engine
- * adjust behavior based on whether a script is running
- */
-BaseType_t neo_script_progress_msg(neo_script_cmd_t cmd)  {
 
-  BaseType_t ret = pdFALSE;
-
-  script_mutex_data_t script_cmd;
-  script_cmd.cmd_type = cmd;
-  script_cmd.new_data = true;
-  script_cmd.steps = NULL;
-
-  if(xSemaphoreTake(xscript_running_flag, 0) == pdFALSE)  {  // script is running: held by script engine
-      if((ret = send_script_msg(script_cmd)) == pdTRUE)
-        ESP_LOGI(TAG, "script command (%d) sent successfully", script_cmd.cmd_type);
-      else
-        ESP_LOGE(TAG, "error sending script command (%d)", script_cmd.cmd_type);
-  }
-  else
-    xSemaphoreGive(xscript_running_flag); // I don't want it really... just testing
-
-  return(ret);
-}
-
-/*
- * wait for the script engine to stop the script
- * note: this is, to some degree
- */
-BaseType_t neo_script_verify_stop(void)  {
-  BaseType_t ret = pdFALSE;
-  int8_t timeouts = SCRIPT_STOP_INTERVALS;
-
-  while((ret == pdFALSE) && (timeouts > 0))  {
-    ret = xSemaphoreTake(xscript_running_flag, SCRIPT_STOP_PER_INTERVAL);
-    //ret = xSemaphoreTake(xscript_running_flag, portMAX_DELAY);
-    //ESP_LOGI(TAG, "xSemaphoreTake() returned %s on iteration %d", ((ret == pdFALSE) ? "pdFALSE" : "pdTRUE"), timeouts);
-    timeouts--;
-  }
-
-  if(ret == pdTRUE)
-    xSemaphoreGive(xscript_running_flag);
-
-  return(ret);
-}
 
 
 /*
@@ -1499,7 +1455,7 @@ void neo_script_stopping(void)  {
   /*
    * inform the script engine to get started
    */
-  if(send_script_msg(script_cmd) == pdTRUE)
+  if(neo_script_send_msg(script_cmd) == pdTRUE)
     ESP_LOGI(TAG, "script command (%d) sent successfully", script_cmd.cmd_type);
   else
     ESP_LOGE(TAG, "error sending script command (%d)", script_cmd.cmd_type);
@@ -1642,6 +1598,24 @@ int8_t neo_new_sequence(void)  {
         neoerr = NEO_NEW_SUCCESS;
       }
       else if(strcmp(l_neo.sequence, "STOP") == 0)  {  // STOP button pressed
+        /*
+         * stop a script (subsequent logic tests to see if its running)
+         */
+        neo_script_progress_msg(NEO_CMD_SCRIPT_STOP_REQ);
+        neo_script_verify_stop();  // blocks up to SCRIPT_STOP_PER_INTERVAL * SCRIPT_STOP_INTERVALS mS
+
+        /*
+         * if a sequence is running, stop it
+         */
+        if((neo_state != NEO_SEQ_STOPPED) && (neo_state != NEO_SEQ_STOPPING))  {  // sequence is running
+          neoerr = NEO_NEW_SUCCESS;
+          neo_cycle_stop();
+        }
+        else
+          neoerr = NEO_OLD_SUCCESS;  // no change
+      }
+
+      else if(strcmp(l_neo.sequence, "NEXT") == 0)  {  // NEXT button pressed
         /*
          * stop a script (subsequent logic tests to see if its running)
          */
