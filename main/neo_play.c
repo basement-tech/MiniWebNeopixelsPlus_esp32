@@ -156,6 +156,23 @@ BaseType_t neo_script_progress_msg(neo_script_cmd_t cmd)  {
   return(ret);
 }
 
+BaseType_t neo_script_verify_stop(void)  {
+  BaseType_t ret = pdFALSE;
+  int8_t timeouts = SCRIPT_STOP_INTERVALS;
+
+  while((ret == pdFALSE) && (timeouts > 0))  {
+    ret = xSemaphoreTake(xscript_running_flag, SCRIPT_STOP_PER_INTERVAL);
+    //ret = xSemaphoreTake(xscript_running_flag, portMAX_DELAY);
+    ESP_LOGI(TAG, "xSemaphoreTake() returned %s on iteration %d", ((ret == pdFALSE) ? "pdFALSE" : "pdTRUE"), timeouts);
+    timeouts--;
+  }
+
+  if(ret == pdTRUE)
+    xSemaphoreGive(xscript_running_flag);
+
+  return(ret);
+}
+
 
 /*
  * which/set sequence are we playing out
@@ -559,6 +576,7 @@ void neo_points_stopping(void)  {
   current_index = 0;  // housekeepinb
   seq_index = -1; // so it doesn't match
   current_strategy = SEQ_STRAT_POINTS;  // housekeeping
+  neo_script_progress_msg(NEO_CMD_SCRIPT_STEP_NEXT);  //signal the script engine if it's running
 }
 
 // end of SEQ_STRAT_POINTS callbacks
@@ -1550,7 +1568,6 @@ void neo_cycle_next(void)  {
 
     case NEO_SEQ_STOPPING:
       seq_callbacks[current_strategy].stopping();
-      neo_script_progress_msg(NEO_CMD_SCRIPT_STEP_NEXT);  //signal the script engine if it's running
       break;
 
     case NEO_SEQ_START:
@@ -1621,6 +1638,15 @@ int8_t neo_new_sequence(void)  {
         neoerr = NEO_NEW_SUCCESS;
       }
       else if(strcmp(l_neo.sequence, "STOP") == 0)  {  // STOP button pressed
+        /*
+         * stop a script (subsequent logic tests to see if its running)
+         */
+        neo_script_progress_msg(NEO_CMD_SCRIPT_STOP_REQ);
+        neo_script_verify_stop();  // blocks up to SCRIPT_STOP_PER_INTERVAL * SCRIPT_STOP_INTERVALS mS
+
+        /*
+         * if a sequence is running, stop it
+         */
         if((neo_state != NEO_SEQ_STOPPED) && (neo_state != NEO_SEQ_STOPPING))  {  // sequence is running
           neoerr = NEO_NEW_SUCCESS;
           neo_cycle_stop();

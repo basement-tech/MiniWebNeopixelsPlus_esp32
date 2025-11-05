@@ -7,11 +7,12 @@
 #include "stdint.h"
 #include "neo_data.h"
 
-#define NEO_SCRIPT_STOPPED  0
-#define NEO_SCRIPT_STOPPING 1
-#define NEO_SCRIPT_START    2
-#define NEO_SCRIPT_WAIT     3
-#define NEO_SCRIPT_WRITE    4
+#define NEO_SCRIPT_STOPPED   0
+#define NEO_SCRIPT_STOPPING  1
+#define NEO_SCRIPT_START     2
+#define NEO_SCRIPT_WAIT      3
+#define NEO_SCRIPT_WRITE     4
+#define NEO_SCRIPT_UNDEFINED 5
 
 typedef enum  {
     NEO_CMD_SCRIPT_START,      // start a new script please
@@ -23,10 +24,12 @@ typedef enum  {
 /*
  * used for filetype SCRIPT parsing/storage
  */
-#define SCRIPT_MAX_SOURCE_SIZE  8
-#define SCRIPT_MAX_NAME_SIZE    32
-#define SCRIPT_MAX_LABEL        16
-#define SCRIPT_MAX_STEPS        64
+#define SCRIPT_MAX_SOURCE_SIZE   8
+#define SCRIPT_MAX_NAME_SIZE     32
+#define SCRIPT_MAX_LABEL         16
+#define SCRIPT_MAX_STEPS         64
+#define SCRIPT_STOP_PER_INTERVAL 2  // mS to wait for stop confirm
+#define SCRIPT_STOP_INTERVALS    100  // number of times to wait SCRIPT_STOP_PER_INTERVAL
 typedef struct  {
   char source[SCRIPT_MAX_SOURCE_SIZE];  // "builtin", "file", "end"
   char label[SCRIPT_MAX_LABEL];         // label in sequence data array

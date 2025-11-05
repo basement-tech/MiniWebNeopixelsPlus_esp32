@@ -560,7 +560,7 @@ static void script_process(void *pvParameters)  {
      * synchronize the stopping of a script and start of
      * a new sequence from another master
      */
-    if((xscript_running_flag = xSemaphoreCreateBinary()) == NULL)
+    if((xscript_running_flag = xSemaphoreCreateMutex()) == NULL)
         ESP_LOGE(NEO_TAG, "Error creating xscript_running_flag semaphore");
     else  {
         ESP_LOGI(NEO_TAG, "xscript_running_flag semaphore created successfully");

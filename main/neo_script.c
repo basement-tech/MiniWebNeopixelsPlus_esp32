@@ -40,6 +40,7 @@ BaseType_t send_script_msg(script_mutex_data_t msg)  {
  */
 
 neo_script_step_t *script_steps;  // pointer to actual step data (for persistence)
+uint8_t last_state = NEO_SCRIPT_UNDEFINED; // mostly for debugging
 int8_t script_update()  {
     int8_t ret = NEO_SUCCESS;
     script_mutex_data_t script_cmd;
@@ -56,8 +57,18 @@ int8_t script_update()  {
             script_mutex_data.new_data = false; // in case it was set; so that cmd is processed once
         }
         xSemaphoreGive(xscriptMutex);
+        if(script_cmd.new_data == true)
+            ESP_LOGI(TAG, "new command %d received", script_cmd.cmd_type);
     }
 
+    /*
+     * display changes of state
+     * (this function gets called in a fast loop)
+     */
+    if(script_state != last_state)  {
+        ESP_LOGI(TAG, "script_state = %u", script_state);
+        last_state = script_state;
+    }
 
     /*
      * cycle the script engine state machine
@@ -127,6 +138,10 @@ int8_t script_update()  {
                                     script_step, neo_mutex_data.sequence, neo_mutex_data.file);
                     script_state = NEO_SCRIPT_WAIT;
                 }
+            }
+            else if(script_cmd.cmd_type == NEO_CMD_SCRIPT_STOP_REQ)  {
+                ESP_LOGI(TAG, "stop request received while script waiting");
+                script_state = NEO_SCRIPT_STOPPING;
             }
 
             break;
