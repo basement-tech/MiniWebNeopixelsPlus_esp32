@@ -98,16 +98,21 @@
  * 
  * Todo:
  * x Implement multifile upload
- * o upload: temp file until success is confirmed
+ * * upload: temp file until success is confirmed
  * o handle multiple sequence responses in a queue ... is there an index in the fetch header?
  * o rainbow sequence: finish port from adafruit, including 32bit stacked colors
  * o check all esp-idf ESP_ERROR_CHECK() fatal errors for sanity, possible change
  * o gamma32 : decide whether to implement or not, do it
- * o tie in all eeprom parameters
+ * * tie in all eeprom parameters
  * o softAP for configuration on hardware button
  * o decide whether to eliminate other fs options
  * o OTA : decide whether to implement, do it
  * o replace ESP_LOGx() with something less bloated and use EEPROM setting
+ * * notification when file upload complete
+ * o dynamic neo_pixel engine timer (depending on whether a sequence is running)
+ * o servo speed using servo process
+ * o continuous rotation servo (probably hardware only)
+ * o AJAX driven (ie dynamic updates) script control screen
  * 
  * 
  *

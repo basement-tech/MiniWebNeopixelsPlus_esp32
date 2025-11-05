@@ -1432,7 +1432,7 @@ void neo_script_stopping(void)  {
   pixels_show();   // Send the updated pixel colors to the hardware.
 
   /*
-   * set up the command to tell the sciprt engine to get started
+   * set up the command to tell the script engine to get started
 
    * note: do not free neo_sequences[seq_index].alt_points 
    * in this case since the script engine will use it
@@ -1592,8 +1592,8 @@ int8_t neo_new_sequence(void)  {
       ESP_LOGI(TAG, "neo_new_sequence:  %s", l_neo.sequence);
 
       /*
-        * determine what kind of request was sent
-        */
+       * determine what kind of request was sent
+       */
       if(strcmp(l_neo.sequence, "none") == 0)  {  // primarily used to indicate default/startup of "none"
         neoerr = NEO_NEW_SUCCESS;
       }
@@ -1633,6 +1633,17 @@ int8_t neo_new_sequence(void)  {
         * if so, load the file and set the sequence and strategy
         */
       else if((neo_is_user(l_neo.sequence)) == NEO_SUCCESS)  {
+        /*
+         * if this is a sequence button press from the UI,
+         * stop the script if running.  wait for it to stop.
+         * note: if a script is not running, the command will be
+         * ignored and the verify will return instantly.
+         */
+        if(l_neo.resp_reqd == true)  {
+          neo_script_progress_msg(NEO_CMD_SCRIPT_STOP_REQ);
+          neo_script_verify_stop();  // blocks up to SCRIPT_STOP_PER_INTERVAL * SCRIPT_STOP_INTERVALS mS
+        }
+
         if((neoerr = neo_load_sequence(l_neo.file)) < NEO_SUCCESS)
           ESP_LOGE(TAG, "Error loading sequence file after proper detection");
       }
@@ -1643,6 +1654,17 @@ int8_t neo_new_sequence(void)  {
         * strategies are hardcoded for built in sequences.
         */
       else  {
+        /*
+         * if this is a sequence button press from the UI,
+         * stop the script if running.  wait for it to stop.
+         * note: if a script is not running, the command will be
+         * ignored and the verify will return instantly.
+         */
+        if(l_neo.resp_reqd == true)  {
+          neo_script_progress_msg(NEO_CMD_SCRIPT_STOP_REQ);
+          neo_script_verify_stop();  // blocks up to SCRIPT_STOP_PER_INTERVAL * SCRIPT_STOP_INTERVALS mS
+        }
+        
         if((neoerr = neo_set_sequence(l_neo.sequence, "")) < NEO_SUCCESS)
           ESP_LOGI(TAG, "ERROR: Error setting sequence after proper detection");
       }
