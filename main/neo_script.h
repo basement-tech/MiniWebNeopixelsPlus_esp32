@@ -28,8 +28,20 @@ typedef enum  {
 #define SCRIPT_MAX_NAME_SIZE     32
 #define SCRIPT_MAX_LABEL         16
 #define SCRIPT_MAX_STEPS         64
-#define SCRIPT_STOP_PER_INTERVAL 2  // mS to wait for stop confirm
-#define SCRIPT_STOP_INTERVALS    100  // number of times to wait SCRIPT_STOP_PER_INTERVAL
+
+/*
+ * script engine timing parameters
+ *
+ * note: the update interval for the script engine in general, 
+ * SCRIPT_UPDATE_INTERVAL is the fastest that a running script
+ * will be shut down.  (SCRIPT_STOP_PER_INTERVAL * SCRIPT_STOP_INTERVALS)
+ * is the total time that the pixel process will wait after asking it to 
+ * shut down the script.  the wait-for-stop time should be adjusted with the
+ * script engine interval in mind.
+ */
+#define SCRIPT_UPDATE_INTERVAL   (5/portTICK_PERIOD_MS)  // state machine update interval in mS
+#define SCRIPT_STOP_PER_INTERVAL (2/portTICK_PERIOD_MS)  // mS to wait for stop confirm
+#define SCRIPT_STOP_INTERVALS    10  // number of times to wait SCRIPT_STOP_PER_INTERVAL
 typedef struct  {
   char source[SCRIPT_MAX_SOURCE_SIZE];  // "builtin", "file", "end"
   char label[SCRIPT_MAX_LABEL];         // label in sequence data array

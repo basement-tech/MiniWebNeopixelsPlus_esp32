@@ -572,7 +572,7 @@ static void script_process(void *pvParameters)  {
      */
     while(1)  {
         script_update();
-        vTaskDelay(100 / portTICK_PERIOD_MS);
+        vTaskDelay(SCRIPT_UPDATE_INTERVAL);
     }
 }
 #endif

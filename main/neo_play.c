@@ -156,6 +156,10 @@ BaseType_t neo_script_progress_msg(neo_script_cmd_t cmd)  {
   return(ret);
 }
 
+/*
+ * wait for the script engine to stop the script
+ * note: this is, to some degree
+ */
 BaseType_t neo_script_verify_stop(void)  {
   BaseType_t ret = pdFALSE;
   int8_t timeouts = SCRIPT_STOP_INTERVALS;
@@ -163,7 +167,7 @@ BaseType_t neo_script_verify_stop(void)  {
   while((ret == pdFALSE) && (timeouts > 0))  {
     ret = xSemaphoreTake(xscript_running_flag, SCRIPT_STOP_PER_INTERVAL);
     //ret = xSemaphoreTake(xscript_running_flag, portMAX_DELAY);
-    ESP_LOGI(TAG, "xSemaphoreTake() returned %s on iteration %d", ((ret == pdFALSE) ? "pdFALSE" : "pdTRUE"), timeouts);
+    //ESP_LOGI(TAG, "xSemaphoreTake() returned %s on iteration %d", ((ret == pdFALSE) ? "pdFALSE" : "pdTRUE"), timeouts);
     timeouts--;
   }
 
