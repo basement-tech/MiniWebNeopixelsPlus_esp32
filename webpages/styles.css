@@ -14,6 +14,16 @@ label {
   cursor: pointer;
 }
 
+.function-control-button {
+  width: 50%;
+  border-radius: 12px;
+  border: none;
+  padding: 1rem;
+  font-weight: bold;
+  font-size: 1.125rem;
+  cursor: pointer;
+}
+
 #red-med {
   background-color: red;
 }
