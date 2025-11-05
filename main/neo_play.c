@@ -1617,13 +1617,8 @@ int8_t neo_new_sequence(void)  {
 
       else if(strcmp(l_neo.sequence, "NEXT") == 0)  {  // NEXT button pressed
         /*
-         * stop a script (subsequent logic tests to see if its running)
-         */
-        neo_script_progress_msg(NEO_CMD_SCRIPT_STOP_REQ);
-        neo_script_verify_stop();  // blocks up to SCRIPT_STOP_PER_INTERVAL * SCRIPT_STOP_INTERVALS mS
-
-        /*
          * if a sequence is running, stop it
+         * sequences stop function may notify the script engine if running
          */
         if((neo_state != NEO_SEQ_STOPPED) && (neo_state != NEO_SEQ_STOPPING))  {  // sequence is running
           neoerr = NEO_NEW_SUCCESS;
