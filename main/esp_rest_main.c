@@ -729,6 +729,7 @@ void app_main(void)
     ESP_LOGI(TAG, "Setting hostname to \"%s\" ...", CONFIG_EXAMPLE_MDNS_HOST_NAME);
     netbiosns_set_name(CONFIG_EXAMPLE_MDNS_HOST_NAME);
 
+    vTaskDelay(1000/portTICK_PERIOD_MS);  // make sure the eeprom init is done and stable
     ESP_LOGI(TAG, "Initializing wifi ...");
     init_wifi();
 
