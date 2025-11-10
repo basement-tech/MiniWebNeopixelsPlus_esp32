@@ -42,6 +42,7 @@
 #include "nvs.h"
 
 #include "neo_system.h"
+#include "eeprom_valid.h"  // include if you have created validation functions
 
 static nvs_handle_t eeprom_nvs_handle;  // points to the open nvs partition
 #define STORAGE_NAMESPACE "nvs_as_eeprom"
@@ -71,6 +72,7 @@ struct eeprom_in  {
   char prompt[64];   // user visible prompt
   char label[32];    // label when echoing contents of eeprom
   char initial[64];  // sized at largest of net_config members
+  bool (*validation)(char *value); // placeholder for validation function
   char *value;       // pointer to the data in net_config (mon_config)
   int  buflen;       // length of size in EEPROM
 };
@@ -85,21 +87,21 @@ struct eeprom_in  {
  */
 #define EEPROM_ITEMS 15
 struct eeprom_in eeprom_input[EEPROM_ITEMS] = {
-  {"",                                           "Validation",    "",                                       mon_config.valid,            sizeof(mon_config.valid)},
-  {"DHCP Enable (true, false)",                  "WIFI_DHCP",     "false",                                  mon_config.dhcp_enable,      sizeof(mon_config.dhcp_enable)},
-  {"Enter WIFI SSID",                            "WIFI_SSID",     "my_ssid",                                mon_config.wlan_ssid,        sizeof(mon_config.wlan_ssid)},
-  {"Enter WIFI Password",                        "WIFI_Password", "my_passwd",                              mon_config.wlan_pass,        sizeof(mon_config.wlan_pass)},
-  {"Enter Fixed IP Addr",                        "Fixed_IP_Addr", "192.168.1.37",                           mon_config.ipaddr,           sizeof(mon_config.ipaddr)},
-  {"Enter GW IP Addr",                           "GW_IP_Addr",    "192.168.1.1",                            mon_config.gwaddr,           sizeof(mon_config.gwaddr)},
-  {"Enter Netmask",                              "Netmask",       "255.255.255.1",                          mon_config.netmask,          sizeof(mon_config.netmask)},
-  {"WiFi timeout (# of 500 mS tries)",           "WIFI_timeout",  "10",                                     mon_config.wifitries,        sizeof(mon_config.wifitries)},
-  {"Enter GMT offset (POSIX string)",            "GMT_offset",    "CST6CDT,M3.2.0/2:00:00,M11.1.0/2:00:00", mon_config.tz_offset_gmt,    sizeof(mon_config.tz_offset_gmt)},
-  {"Enter debug level (-1(none) -> 4(verbose))", "debug_level",   "4",                                      mon_config.debug_level,      sizeof(mon_config.debug_level)},
-  {"Enter # of neopixels",                       "npixel_cnt",    "24",                                     mon_config.neocount,         sizeof(mon_config.neocount)},
-  {"Neopixel gamma (true, false)",               "neo_gamma",     "true",                                   mon_config.neogamma,         sizeof(mon_config.neogamma)},
-  {"Enter default seq label (or \"none\")",      "def_neo_seq",   "none",                                   mon_config.neodefault,       sizeof(mon_config.neodefault)},
-  {"Reformat FS (true, false)",                  "FS_reformat",   "false",                                  mon_config.reformat,         sizeof(mon_config.reformat)},
-  {"Servo move authorized (true, false)",        "Servo auth",    "false",                                  mon_config.servo_auth,       sizeof(mon_config.servo_auth)}
+  {"",                                           "Validation",    "",                                       tORf_valid, mon_config.valid,            sizeof(mon_config.valid)},
+  {"DHCP Enable (true, false)",                  "WIFI_DHCP",     "false",                                  NULL,       mon_config.dhcp_enable,      sizeof(mon_config.dhcp_enable)},
+  {"Enter WIFI SSID",                            "WIFI_SSID",     "my_ssid",                                NULL,       mon_config.wlan_ssid,        sizeof(mon_config.wlan_ssid)},
+  {"Enter WIFI Password",                        "WIFI_Password", "my_passwd",                              NULL,       mon_config.wlan_pass,        sizeof(mon_config.wlan_pass)},
+  {"Enter Fixed IP Addr",                        "Fixed_IP_Addr", "192.168.1.37",                           isGoodIP4,  mon_config.ipaddr,           sizeof(mon_config.ipaddr)},
+  {"Enter GW IP Addr",                           "GW_IP_Addr",    "192.168.1.1",                            NULL,       mon_config.gwaddr,           sizeof(mon_config.gwaddr)},
+  {"Enter Netmask",                              "Netmask",       "255.255.255.1",                          NULL,       mon_config.netmask,          sizeof(mon_config.netmask)},
+  {"WiFi timeout (# of 500 mS tries)",           "WIFI_timeout",  "10",                                     NULL,       mon_config.wifitries,        sizeof(mon_config.wifitries)},
+  {"Enter GMT offset (POSIX string)",            "GMT_offset",    "CST6CDT,M3.2.0/2:00:00,M11.1.0/2:00:00", NULL,       mon_config.tz_offset_gmt,    sizeof(mon_config.tz_offset_gmt)},
+  {"Enter debug level (-1(none) -> 4(verbose))", "debug_level",   "4",                                      NULL,       mon_config.debug_level,      sizeof(mon_config.debug_level)},
+  {"Enter # of neopixels",                       "npixel_cnt",    "24",                                     NULL,       mon_config.neocount,         sizeof(mon_config.neocount)},
+  {"Neopixel gamma (true, false)",               "neo_gamma",     "true",                                   NULL,       mon_config.neogamma,         sizeof(mon_config.neogamma)},
+  {"Enter default seq label (or \"none\")",      "def_neo_seq",   "none",                                   NULL,       mon_config.neodefault,       sizeof(mon_config.neodefault)},
+  {"Reformat FS (true, false)",                  "FS_reformat",   "false",                                  NULL,       mon_config.reformat,         sizeof(mon_config.reformat)},
+  {"Servo move authorized (true, false)",        "Servo auth",    "false",                                  NULL,       mon_config.servo_auth,       sizeof(mon_config.servo_auth)}
 };
 
 /*
