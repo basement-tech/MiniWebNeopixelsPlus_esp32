@@ -184,8 +184,24 @@ void getall_eeprom_inputs()  {
   i = 0;
   ret = 0;
   while((i < EEPROM_ITEMS) && (ret != -2))  {
+#ifdef NEWSTUFF
+    if((ret = getone_eeprom_input(i)) >= 0)  {  // valid input
+      if(eeprom_input[i].validation != NULL)  {  // is there a validation function for this parameter?
+        if(eeprom_input[i].validation(eeprom_input[i].value) == true)  // if so, use it
+          i++;  // if valid input, go to the next parameter
+        else 
+          CLI_PRINTF(" <== Invalid Input, try again");
+      }
+      else
+        i++;
+    }
+    else if(ret == -1)
+      CLI_PRINTF(" <== Input too long, try again");
+#else
     ret = getone_eeprom_input(i);
+    CLI_PRINTF("ret = %d\n", ret);
     i++;
+#endif
   }
 }
 

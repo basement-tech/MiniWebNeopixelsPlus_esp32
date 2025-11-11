@@ -39,7 +39,7 @@
  * net_config struct below.
  */
 #define MAX_VERSION_STRING_LEN 32
-#define EEPROM_VALID  "valid_v0.8.3"
+#define EEPROM_VALID  "valid_v0.8.4"
 
 /*
  * map of the parameters stored in EEPROM
