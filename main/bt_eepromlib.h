@@ -47,6 +47,7 @@
  * custom types, so even if things are added here,
  * the rest of the code should work.
  */
+#define EEPROM_MAX_PARM_SIZE 64  // set this to the longest parameter length
 typedef struct  {
 char valid[32];          // eeprom version validation string
 char dhcp_enable[8];     // enable/disable dhcp

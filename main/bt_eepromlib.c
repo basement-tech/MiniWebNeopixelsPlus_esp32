@@ -143,9 +143,14 @@ net_config_t *get_mon_config_ptr(void) {
  * prompt for and set one input in eeprom_input[].value.
  * return: that which comes back from l_read_string()
  * return what l_read_string() returns.
+ * 
+ * if the entered string is too long for the target buffer,
+ * the parameter string value is unchanged and the return value
+ * is set to -1.
+ * 
  */
 int getone_eeprom_input(int i)  {
-  char inbuf[64];
+  char inbuf[EEPROM_MAX_PARM_SIZE];
   int  insize = 0;
 
   /*
@@ -160,6 +165,7 @@ int getone_eeprom_input(int i)  {
       if(insize < (eeprom_input[i].buflen))
         strcpy(eeprom_input[i].value, inbuf);
       else  {
+        insize = -1;
         CLI_PRINTF("\n"); 
         CLI_PRINTF("Error: too many characters; value will be unchanged\n");fflush(stdout);
       }
@@ -172,6 +178,7 @@ int getone_eeprom_input(int i)  {
 void getall_eeprom_inputs()  {
   int i;
   int ret;
+  char holdthis[EEPROM_MAX_PARM_SIZE];
   
   CLI_PRINTF("\n");    
   CLI_PRINTF("Press <enter> alone to accept previous EEPROM value shown\n");
@@ -190,19 +197,26 @@ void getall_eeprom_inputs()  {
      * > 0 indicates new input, validate it; if invalid, try again
      * 0   indicates no new input, skip to the next parameter
      * -1  indicates entered string too long, try again
+     * 
+     * the existing value of the parameter is stored and 
+     * restored if the validation fails.
      */
+    strncpy(holdthis, eeprom_input[i].value, sizeof(holdthis));
     if((ret = getone_eeprom_input(i)) > 0)  {  // valid input
       if(eeprom_input[i].validation != NULL)  {  // is there a validation function for this parameter?
         if(eeprom_input[i].validation(eeprom_input[i].value) == true)  // if so, use it
           i++;  // if valid input, go to the next parameter
-        else 
+        else  {
           CLI_PRINTF(" *** Invalid Input, try again\n");
+          strncpy(eeprom_input[i].value, holdthis, sizeof(eeprom_input[i].value));
+        }
       }
       else
         i++;  // next parameter
     }
-    else if(ret == -1)
+    else if(ret == -1)  {  // parameter value is unchanged by input routine in this case
       CLI_PRINTF(" *** Input too long, try again\n");
+    }
     else if(ret == 0)  // just a <CR> to indicate no change (and parameters with no prompt)
       i++;  // next parameter
   }
