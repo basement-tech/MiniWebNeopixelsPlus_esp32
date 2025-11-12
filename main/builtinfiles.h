@@ -22,7 +22,7 @@ R"==(
   <h1>Upload</h1>
   <div><a href="/">Home</a></div>
   <hr>
-  <div id='zone' style='width:16em;height:12em;padding:10px;background-color:#ddd'>Drop files here...</div>
+  <div id='zone' style='width:16em;height:12em;padding:10px;background-color:#ddd'>Drop files here (wait for response popup)...</div>
 
   <script>
     // allow drag&drop of file objects 
@@ -56,9 +56,17 @@ R"==(
         },
         body: formData
       })
-      .then(function () {
-        window.alert('done.');
-      });
+      .then(response => {
+        if(response.status != 200) {
+          throw new Error("Error uploading file");
+        }
+        return response.text();
+      })
+      .then(result => {
+        console.log(result);
+        window.alert(result)
+      })
+      .catch(error => console.error('Error:', error));
     }
     var z = document.getElementById('zone');
     z.addEventListener('dragenter', dragHelper, false);

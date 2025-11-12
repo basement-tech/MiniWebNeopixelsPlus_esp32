@@ -547,6 +547,7 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
     int b_str_len = 0;  // number of bytes in boundary string
     int b_str_bytes_to_skip = 0;
     int buf_index = 0; // number of chars read in buffer
+    int file_counter = 0;
 
     /* Retrieve the pointer to scratch buffer for temporary storage */
     char *buf = ((rest_server_context_t *)req->user_ctx)->scratch;
@@ -722,14 +723,40 @@ static esp_err_t file_upload_post_handler(httpd_req_t *req)  {
 
             } while((rstate != FOUND)  && (remaining > 0) && (err == ESP_OK));
 #endif
-            if(fd != NULL)
+            /*
+             * if we get this far and the status is still good,
+             * the file upload was successful.  Increment the file
+             * counter for the http response message.
+             */
+            if(fd != NULL)  {
                 fclose(fd);
+                if(err == ESP_OK)
+                    file_counter++;
+            }
         }
         else
             ESP_LOGD(REST_TAG, "Warning: ran out of data in http buffer");
     }  // while() ... reading loop
 
     ESP_LOGI(REST_TAG, "File reception complete");
+
+    /*
+     * send the http response
+     */
+    char http_msg[64];  // adjust size for below
+    if(err == ESP_OK)  {
+        snprintf(http_msg, sizeof(http_msg), "%d files uploaded successfully", file_counter);
+        httpd_resp_set_status(req, "200 Complete");
+        httpd_resp_set_type(req, "text/plain");  // Or "application/json", etc.
+        httpd_resp_send(req, http_msg, HTTPD_RESP_USE_STRLEN);
+        ESP_LOGI(REST_TAG, "upload handler sent 200 response");
+    }
+    else  {
+        httpd_resp_set_status(req, "405 Error");
+        httpd_resp_set_type(req, "text/plain");  // Or "application/json", etc.
+        httpd_resp_send(req, "upload error", HTTPD_RESP_USE_STRLEN);
+        ESP_LOGI(REST_TAG, "upload handler sent 405 response");
+    }
 
     return(err);
 }
