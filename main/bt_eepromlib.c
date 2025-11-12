@@ -87,21 +87,21 @@ struct eeprom_in  {
  */
 #define EEPROM_ITEMS 15
 struct eeprom_in eeprom_input[EEPROM_ITEMS] = {
-  {"",                                           "Validation",    "",                                       tORf_valid, mon_config.valid,            sizeof(mon_config.valid)},
-  {"DHCP Enable (true, false)",                  "WIFI_DHCP",     "false",                                  NULL,       mon_config.dhcp_enable,      sizeof(mon_config.dhcp_enable)},
+  {"",                                           "Validation",    "",                                       NULL,       mon_config.valid,            sizeof(mon_config.valid)},
+  {"DHCP Enable (true, false)",                  "WIFI_DHCP",     "false",                                  tORf_valid, mon_config.dhcp_enable,      sizeof(mon_config.dhcp_enable)},
   {"Enter WIFI SSID",                            "WIFI_SSID",     "my_ssid",                                NULL,       mon_config.wlan_ssid,        sizeof(mon_config.wlan_ssid)},
   {"Enter WIFI Password",                        "WIFI_Password", "my_passwd",                              NULL,       mon_config.wlan_pass,        sizeof(mon_config.wlan_pass)},
   {"Enter Fixed IP Addr",                        "Fixed_IP_Addr", "192.168.1.37",                           isGoodIP4,  mon_config.ipaddr,           sizeof(mon_config.ipaddr)},
-  {"Enter GW IP Addr",                           "GW_IP_Addr",    "192.168.1.1",                            NULL,       mon_config.gwaddr,           sizeof(mon_config.gwaddr)},
-  {"Enter Netmask",                              "Netmask",       "255.255.255.1",                          NULL,       mon_config.netmask,          sizeof(mon_config.netmask)},
+  {"Enter GW IP Addr",                           "GW_IP_Addr",    "192.168.1.1",                            isGoodIP4,  mon_config.gwaddr,           sizeof(mon_config.gwaddr)},
+  {"Enter Netmask",                              "Netmask",       "255.255.255.1",                          isGoodIP4,  mon_config.netmask,          sizeof(mon_config.netmask)},
   {"WiFi timeout (# of 500 mS tries)",           "WIFI_timeout",  "10",                                     NULL,       mon_config.wifitries,        sizeof(mon_config.wifitries)},
   {"Enter GMT offset (POSIX string)",            "GMT_offset",    "CST6CDT,M3.2.0/2:00:00,M11.1.0/2:00:00", NULL,       mon_config.tz_offset_gmt,    sizeof(mon_config.tz_offset_gmt)},
   {"Enter debug level (-1(none) -> 4(verbose))", "debug_level",   "4",                                      NULL,       mon_config.debug_level,      sizeof(mon_config.debug_level)},
   {"Enter # of neopixels",                       "npixel_cnt",    "24",                                     NULL,       mon_config.neocount,         sizeof(mon_config.neocount)},
-  {"Neopixel gamma (true, false)",               "neo_gamma",     "true",                                   NULL,       mon_config.neogamma,         sizeof(mon_config.neogamma)},
+  {"Neopixel gamma (true, false)",               "neo_gamma",     "true",                                   tORf_valid, mon_config.neogamma,         sizeof(mon_config.neogamma)},
   {"Enter default seq label (or \"none\")",      "def_neo_seq",   "none",                                   NULL,       mon_config.neodefault,       sizeof(mon_config.neodefault)},
-  {"Reformat FS (true, false)",                  "FS_reformat",   "false",                                  NULL,       mon_config.reformat,         sizeof(mon_config.reformat)},
-  {"Servo move authorized (true, false)",        "Servo auth",    "false",                                  NULL,       mon_config.servo_auth,       sizeof(mon_config.servo_auth)}
+  {"Reformat FS (true, false)",                  "FS_reformat",   "false",                                  tORf_valid, mon_config.reformat,         sizeof(mon_config.reformat)},
+  {"Servo move authorized (true, false)",        "Servo auth",    "false",                                  tORf_valid, mon_config.servo_auth,       sizeof(mon_config.servo_auth)}
 };
 
 /*
@@ -142,6 +142,7 @@ net_config_t *get_mon_config_ptr(void) {
 /*
  * prompt for and set one input in eeprom_input[].value.
  * return: that which comes back from l_read_string()
+ * return what l_read_string() returns.
  */
 int getone_eeprom_input(int i)  {
   char inbuf[64];
@@ -149,7 +150,7 @@ int getone_eeprom_input(int i)  {
 
   /*
    * if there is no prompt associated with the subject
-   * parameter, skip it
+   * parameter, skip it (e.g. validation string)
    */
   if(eeprom_input[i].prompt[0] != '\0')  {
     CLI_PRINTF("%s", eeprom_input[i].prompt);
@@ -184,24 +185,26 @@ void getall_eeprom_inputs()  {
   i = 0;
   ret = 0;
   while((i < EEPROM_ITEMS) && (ret != -2))  {
-#ifdef NEWSTUFF
-    if((ret = getone_eeprom_input(i)) >= 0)  {  // valid input
+    /*
+     * process all except the ret = -2 (handled by the while)
+     * > 0 indicates new input, validate it; if invalid, try again
+     * 0   indicates no new input, skip to the next parameter
+     * -1  indicates entered string too long, try again
+     */
+    if((ret = getone_eeprom_input(i)) > 0)  {  // valid input
       if(eeprom_input[i].validation != NULL)  {  // is there a validation function for this parameter?
         if(eeprom_input[i].validation(eeprom_input[i].value) == true)  // if so, use it
           i++;  // if valid input, go to the next parameter
         else 
-          CLI_PRINTF(" <== Invalid Input, try again");
+          CLI_PRINTF(" *** Invalid Input, try again\n");
       }
       else
-        i++;
+        i++;  // next parameter
     }
     else if(ret == -1)
-      CLI_PRINTF(" <== Input too long, try again");
-#else
-    ret = getone_eeprom_input(i);
-    CLI_PRINTF("ret = %d\n", ret);
-    i++;
-#endif
+      CLI_PRINTF(" *** Input too long, try again\n");
+    else if(ret == 0)  // just a <CR> to indicate no change (and parameters with no prompt)
+      i++;  // next parameter
   }
 }
 
@@ -230,6 +233,7 @@ void dispall_eeprom_parms()  {
  * of some sort is encountered.
  * 
  * I used minicom under ubuntu to interact with this function successfully.
+ * Also works with vscode esp-idf mon and putty under windows 10.
  * 
  * buf : is a buffer to which to store the read data
  * blen : is meant to indicate the size of buf
@@ -447,8 +451,8 @@ esp_err_t prompt_countdown(bool *out)  {
         *out = true;
         // Disable UART0 logs for communication
         esp_log_level_set("*", ESP_LOG_NONE);
-        while( len-- > (size_t)0)
-            uart_ll_read_rxfifo(UART_LL_GET_HW(UART_NUM_0), &throw_away, 1);
+        while(uart_ll_get_rxfifo_len(UART_LL_GET_HW(UART_NUM_0)) > 0)
+          uart_ll_read_rxfifo(UART_LL_GET_HW(UART_NUM_0), &throw_away, 1);
         // Re-enable UART0 logging for monitoring
         esp_log_level_set("*", NEO_DEBUG_LEVEL);
     }
