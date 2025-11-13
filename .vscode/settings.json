@@ -28,6 +28,7 @@
         "neo_ll_api.h": "c",
         "format": "c",
         "string.h": "c",
-        "esp_system.h": "c"
+        "esp_system.h": "c",
+        "cstdio": "c"
     }
 }

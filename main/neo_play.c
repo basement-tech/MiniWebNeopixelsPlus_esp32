@@ -58,6 +58,21 @@ seq_strategy_t current_strategy = SEQ_STRAT_POINTS;
 
 uint64_t current_millis = 0; // mS of last update
 int32_t current_index = 0;   // index into the pattern array
+neo_script_cmd_t pending_script_cmd = NEO_CMD_SCRIPT_UNDEFINED; // async button input waiting for next state machine cycle
+
+/*
+ * set up and request a new sequence via the mutex protected global structure
+ */
+int8_t neo_request_sequence(char *label, char *filename)  {
+  int8_t ret = NEO_SUCCESS;
+  strncpy(neo_mutex_data.sequence, label, MAX_NEO_SEQUENCE);
+  strncpy(neo_mutex_data.file, filename, MAX_FILENAME);
+  neo_mutex_data.resp_reqd = false;  // this sequence not coming from web client
+  neo_mutex_data.new_data = true;
+  if(xSemaphoreGive(xneoMutex) != pdTRUE)
+    ret = NEO_MUTEX_ERR;
+  return(ret);
+}
 
 /*
  * compatibility/porting convenience
@@ -130,8 +145,6 @@ int8_t neo_find_filetype(const char *filetype)  {
   }
   return(ret);
 }
-
-
 
 
 /*
@@ -536,7 +549,6 @@ void neo_points_stopping(void)  {
   current_index = 0;  // housekeepinb
   seq_index = -1; // so it doesn't match
   current_strategy = SEQ_STRAT_POINTS;  // housekeeping
-  neo_script_progress_msg(NEO_CMD_SCRIPT_STEP_NEXT);  //signal the script engine if it's running
 }
 
 // end of SEQ_STRAT_POINTS callbacks
@@ -1528,6 +1540,8 @@ void neo_cycle_next(void)  {
 
     case NEO_SEQ_STOPPING:
       seq_callbacks[current_strategy].stopping();
+      neo_script_progress_msg(pending_script_cmd);  //signal the script engine if it's running
+      pending_script_cmd = NEO_SCRIPT_UNDEFINED;  // housekeeping for later
       break;
 
     case NEO_SEQ_START:
@@ -1585,6 +1599,8 @@ int8_t neo_new_sequence(void)  {
    * if a new request was sent
    */
   if(l_neo.new_data == true)  {
+    pending_script_cmd = NEO_CMD_SCRIPT_UNDEFINED;
+
     /*
     * process the button that was pressed based on the seq string
     */
@@ -1616,8 +1632,31 @@ int8_t neo_new_sequence(void)  {
       }
 
       else if(strcmp(l_neo.sequence, "NEXT") == 0)  {  // NEXT button pressed ... ignore if no script running
+        pending_script_cmd = NEO_CMD_SCRIPT_STEP_NEXT;  // script running tested in sending routine
         if(neo_script_is_running(0) == true)  {
-          /*
+         /*
+          * if a sequence is running, stop it
+          * sequences stop function may notify the script engine if running
+          */
+          if((neo_state != NEO_SEQ_STOPPED) && (neo_state != NEO_SEQ_STOPPING))  {  // sequence is running
+            neoerr = NEO_NEW_SUCCESS;
+            neo_cycle_stop();
+          }
+          else
+            neoerr = NEO_OLD_SUCCESS;  // no change
+        }
+        else
+          neoerr = NEO_OLD_SUCCESS;  // no change
+      }
+
+      /*
+       * return to the previous step in the script
+       * STUB FOR NOW
+       */
+      else if(strcmp(l_neo.sequence, "PREVIOUS") == 0)  {
+        pending_script_cmd = NEO_CMD_SCRIPT_STEP_PREV;  // script running tested in sending routine
+        if(neo_script_is_running(0) == true)  {
+         /*
           * if a sequence is running, stop it
           * sequences stop function may notify the script engine if running
           */

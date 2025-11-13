@@ -188,15 +188,20 @@ int8_t neo_script_update()  {
                     script_state = NEO_SCRIPT_STOPPING;
                 }
                 else  {  // start the new step
-                    strncpy(neo_mutex_data.sequence, script_steps[script_step].label, MAX_NEO_SEQUENCE);
-                    strncpy(neo_mutex_data.file, script_steps[script_step].filename, MAX_FILENAME);
-                    neo_mutex_data.resp_reqd = false;  // this sequence not coming from web client
-                    neo_mutex_data.new_data = true;
-                    xSemaphoreGive(xneoMutex);
-                    ESP_LOGI(TAG, "sent next step %d start label: %s, filename: %s to sequence engine",
-                                    script_step, neo_mutex_data.sequence, neo_mutex_data.file);
+                    neo_request_sequence(script_steps[script_step].label, script_steps[script_step].filename);
+                    ESP_LOGI(TAG, "sent NEXT step %d start label: %s, filename: %s to sequence engine",
+                                    script_step, script_steps[script_step].label, script_steps[script_step].filename);
                     script_state = NEO_SCRIPT_WAIT;
                 }
+            }
+            else if(script_cmd.cmd_type == NEO_CMD_SCRIPT_STEP_PREV)  {
+                script_step--; // previous step
+                if(script_step < 0)
+                    script_step = 0;
+                neo_request_sequence(script_steps[script_step].label, script_steps[script_step].filename);
+                ESP_LOGI(TAG, "sent PREV step %d start label: %s, filename: %s to sequence engine",
+                                script_step, script_steps[script_step].label, script_steps[script_step].filename);
+                script_state = NEO_SCRIPT_WAIT;
             }
             else if(script_cmd.cmd_type == NEO_CMD_SCRIPT_STOP_REQ)  {
                 ESP_LOGI(TAG, "stop request received while script waiting");

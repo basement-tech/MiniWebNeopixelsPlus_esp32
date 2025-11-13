@@ -17,6 +17,7 @@
 typedef enum  {
     NEO_CMD_SCRIPT_START,      // start a new script please
     NEO_CMD_SCRIPT_STEP_NEXT,  // next step (e.g. seq ended or other)
+    NEO_CMD_SCRIPT_STEP_PREV,  // previous step
     NEO_CMD_SCRIPT_STOP_REQ,   // stop the current script please
     NEO_CMD_SCRIPT_UNDEFINED   // for init and error checking
 } neo_script_cmd_t;

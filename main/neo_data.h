@@ -59,7 +59,8 @@
 #define   NEO_FILE_LOAD_NOFILE   -6  // requested sequence file doesn't exist
 #define   NEO_FILE_LOAD_DESERR   -7  // deserialization of file error
 #define   NEO_FILE_LOAD_NOPLACE  -8  // no placeholder for file load
-#define   NEO_FILE_LOAD_OTHER    -9
+#define   NEO_FILE_LOAD_OTHER    -9  // other file related error
+#define   NEO_MUTEX_ERR         -10  // mutex related errors
 
 
 /*
@@ -205,6 +206,8 @@ typedef struct {
 /*
  * public functions relating to neopixels
  */
+int8_t neo_request_sequence(char *label, char *filename);
+
 void neo_cycle_next(void);
 void neo_init(void);
 int8_t neo_is_user(const char *label);

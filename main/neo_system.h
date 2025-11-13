@@ -24,8 +24,7 @@ static inline void cli_printf(const char *format, ...) {
 #define RESP_TASK_HANDLE_NAME "resp_process"
 #define SERVO_TASK_HANDLE_NAME "servo_process"
 #define SCRIPT_TASK_HANDLE_NAME "script_process"
-//#define SCRIPT_ENGINE_ENABLE 1  // included code to start and use the script engine
 
-//# define __TB_WBANYWAY__
+# define __TB_WBANYWAY__
 
 #endif

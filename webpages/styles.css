@@ -42,12 +42,17 @@ label {
 
 #stop {
   background-color: rgb(248, 35, 7);
-  float: left
+  margin-top: 20px;
 }
 
 #next {
   background-color: rgb(35, 248, 7);
   float: right
+}
+
+#previous {
+  background-color: rgb(7, 220, 248);
+  float: left
 }
 
 li {

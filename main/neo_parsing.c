@@ -239,7 +239,7 @@ int8_t parse_pts_BW(jparse_ctx_t *pjctx, uint8_t seq_idx, void *bin_data)  {
 
   int8_t ret = -1;
   char color_str[16];
-  char *jcolors[4] = {
+  char *jcolors[5] = {
     "r",
     "g",
     "b",
