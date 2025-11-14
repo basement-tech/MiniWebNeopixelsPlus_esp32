@@ -4,9 +4,6 @@
 #include <stdbool.h>
 #include <ctype.h>
 
-uint16_t numLEDs = 20;
-uint8_t brightness = 255;
-
 /*!
   @brief   Change the pixel format of a previously-declared
            Adafruit_NeoPixel strip object. If format changes from one of
