@@ -30,7 +30,7 @@
 #define NEO_FLICKER_MIN    0       // value for dim flickers
 #define NEO_NUM_COLORS     4       // how many colors in data (not necessarily implemented)
 
-#define NEO_UPDATE_INTERVAL   2000  // neopixel strand update rate in uS i.e. speed of state machine updates uS
+#define NEO_UPDATE_INTERVAL   10000  // neopixel strand update rate in uS i.e. speed of state machine updates uS
 #define NEO_CHK_NEWS_INTERVAL 200/portTICK_PERIOD_MS   // timeout for state machine update semaphore, becomes check for new sequence interval (mS)
 
 /*

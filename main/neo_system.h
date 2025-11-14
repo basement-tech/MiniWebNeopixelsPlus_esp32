@@ -21,10 +21,17 @@ static inline void cli_printf(const char *format, ...) {
 #include "lwip/ip_addr.h"
 
 #define NEO_TASK_HANDLE_NAME "neo_process"
-#define RESP_TASK_HANDLE_NAME "resp_process"
 #define SERVO_TASK_HANDLE_NAME "servo_process"
 #define SCRIPT_TASK_HANDLE_NAME "script_process"
 
-//# define __TB_WBANYWAY__
+/*
+ * set task priorities here
+ * note: task priorities range from 0 to (configMAX_PRIORITIES-1) (expands to 25)
+ */
+#define NEO_TASK_PRIORITY    10
+#define SERVO_TASK_PRIORITY  10
+#define SCRIPT_TASK_PRIORITY 10
+
+# define __TB_WBANYWAY__
 
 #endif

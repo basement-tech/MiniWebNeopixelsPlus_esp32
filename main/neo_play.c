@@ -1312,7 +1312,7 @@ void Adafruit_NeoPixel_rainbow(uint16_t first_hue, int8_t reps,
 // end of Adafruit code
 #define NEO_RAINBOW_BRIGHTNESS 32  // Adafruit defined brightness
 #define NEO_RAINBOW_SATURATION 128 // Adafruit defined saturation
-#define NEO_RAINBOW_INTERVAL   10  // mS between updates
+#define NEO_RAINBOW_INTERVAL   16  // mS between updates (~60 Hz updates)
 #define NEO_RAINBOW_REPS       2   // number of replicants of color wheel across strand
 
 void neo_rainbow_start(bool clear)  {

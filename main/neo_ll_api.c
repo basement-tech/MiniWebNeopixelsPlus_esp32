@@ -14,12 +14,28 @@
  * 
  * No space is allocated for the local copy of neo_pixel color data.  That
  * is done separately by pixels_alloc() based on the configured number of pixels
+ * 
+ * NOTE: Increasing the .mem_block_symbols from 64 (default) to 256 eliminated
+ * little, random glitches in the neopixel playout.  This was apparently caused
+ * by the RMT isr having to refill a too small buffer too often.
+ * 
+ * "You currently reserve only 64 symbols (1 block).
+ * A NeoPixel frame needs a lot more than that (65 pixels × 24 bits = 1560 symbols).
+ * With only 1 block, the RMT ISR must refill constantly, 
+ * and any tiny delay from interrupts/WiFi/task switching 
+ * will cause timing glitches → flickering pixels." ... the internet
+ * 
+ * There are 8 maximum blocks (512), but it is bad practice to use them all.
+ * A value of 256 (4 blocks) is the recommended max, with an absolute maximum of 384 (6 blocks) 
+ * (leaving one block for other RMT channel activity).
+ * 
  */
 static rmt_channel_handle_t led_chan = NULL;
 rmt_tx_channel_config_t tx_chan_config = {
     .clk_src = RMT_CLK_SRC_DEFAULT, // select source clock
     .gpio_num = RMT_LED_STRIP_GPIO_NUM,
-    .mem_block_symbols = 64, // increase the block size can make the LED less flickering
+//    .mem_block_symbols = 64, // increase the block size can make the LED less flickering
+    .mem_block_symbols = 384, // increase the block size can make the LED less flickering
     .resolution_hz = RMT_LED_STRIP_RESOLUTION_HZ,
     .trans_queue_depth = 4, // set the number of transactions that can be pending in the background
 };

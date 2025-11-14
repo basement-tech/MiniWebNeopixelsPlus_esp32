@@ -29,6 +29,7 @@
         "format": "c",
         "string.h": "c",
         "esp_system.h": "c",
-        "cstdio": "c"
+        "cstdio": "c",
+        "rmt_tx.h": "c"
     }
 }

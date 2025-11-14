@@ -692,6 +692,8 @@ void vTaskGetRunTimeStats(char *pcWriteBuffer)  {
 
 /*
  * let's get this party started
+ *
+ * 
  */
 void app_main(void)
 {
@@ -751,19 +753,19 @@ void app_main(void)
      * NOTE: bbw seems to cause panic/reset if stack is less than 2*4096
      */
     ESP_LOGI(TAG, "Starting neopixel process from main() ...");
-    xTaskCreate(neopixel_process, NEO_TASK_HANDLE_NAME, (4096), NULL, 10, NULL);
+    xTaskCreate(neopixel_process, NEO_TASK_HANDLE_NAME, (4096), NULL, NEO_TASK_PRIORITY, NULL);
 
     /*
      * start the servo move engine in a separate task
      */
     ESP_LOGI(TAG, "Starting servo process from main() ...");
-    xTaskCreate(servo_process, SERVO_TASK_HANDLE_NAME, 4096, NULL, 10, NULL);
+    xTaskCreate(servo_process, SERVO_TASK_HANDLE_NAME, 4096, NULL, SERVO_TASK_PRIORITY, NULL);
 
     /*
      * start the servo move engine in a separate task
      */
     ESP_LOGI(TAG, "Starting script process from main() ...");
-    xTaskCreate(script_process, SCRIPT_TASK_HANDLE_NAME, 4096, NULL, 10, NULL);
+    xTaskCreate(script_process, SCRIPT_TASK_HANDLE_NAME, 4096, NULL, SCRIPT_TASK_PRIORITY, NULL);
 
     /*
      * report processes and memory
