@@ -55,6 +55,23 @@ label {
   float: left
 }
 
+
+.statusbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  width: 50%;
+  font-size: 1.125rem;
+  background-color: rgb(126, 177, 184);
+  border-color:rgb(7, 11, 248);
+  border-radius: 12px;
+  border-style:solid;
+  color: rgb(13, 14, 13);
+  padding: 1rem;
+  font-family: monospace;
+}
+
 li {
   list-style: none;
 }
@@ -92,6 +109,7 @@ li {
     0 5px 15px rgba(0, 0, 0, 0.5);
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }
+
 
 body {
   background: url('background.png') repeat center center fixed;
