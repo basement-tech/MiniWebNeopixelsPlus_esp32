@@ -16,7 +16,7 @@
  * is done separately by pixels_alloc() based on the configured number of pixels
  * 
  * NOTE: Increasing the .mem_block_symbols from 64 (default) to 256 eliminated
- * little, random glitches in the neopixel playout.  This was apparently caused
+ * most little, random glitches in the neopixel playout.  This was apparently caused
  * by the RMT isr having to refill a too small buffer too often.
  * 
  * "You currently reserve only 64 symbols (1 block).

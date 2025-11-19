@@ -32,6 +32,6 @@ static inline void cli_printf(const char *format, ...) {
 #define SERVO_TASK_PRIORITY  10
 #define SCRIPT_TASK_PRIORITY 10
 
-//# define __TB_WBANYWAY__
+# define __TB_WBANYWAY__
 
 #endif
