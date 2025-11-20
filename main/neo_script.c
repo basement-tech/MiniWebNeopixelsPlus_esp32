@@ -7,6 +7,8 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
 
+#include "rest_server.h"
+
 #include "neo_script.h"
 #include "neo_data.h"
 
@@ -103,6 +105,7 @@ uint8_t last_state = NEO_SCRIPT_UNDEFINED; // mostly for debugging
 int8_t neo_script_update()  {
     int8_t ret = NEO_SUCCESS;
     script_mutex_data_t script_cmd;
+    char status_msg[128];  // updating the UI status line
 
     script_cmd.new_data = false;
     script_cmd.cmd_type = NEO_CMD_SCRIPT_UNDEFINED;  // to detect if new command
@@ -145,6 +148,7 @@ int8_t neo_script_update()  {
                 script_step = 0;  // start with the first step
                 script_state = NEO_SCRIPT_START;
             }
+            send_status_update("Status: Script Stopped");
             break;
 
         /*
@@ -179,6 +183,7 @@ int8_t neo_script_update()  {
                 script_state = NEO_SCRIPT_WAIT;
                 xSemaphoreTake(xscript_running_flag, 10);  // script is running
             }
+            send_status_update("Status: Script Started");
             break;
         
         case NEO_SCRIPT_WAIT:  // waiting for signal that step has completed, send next step
@@ -191,6 +196,9 @@ int8_t neo_script_update()  {
                     neo_request_sequence(script_steps[script_step].label, script_steps[script_step].filename);
                     ESP_LOGI(TAG, "sent NEXT step %d start label: %s, filename: %s to sequence engine",
                                     script_step, script_steps[script_step].label, script_steps[script_step].filename);
+                    snprintf(status_msg, sizeof(status_msg), "Status: Moved to NEXT step (%d): %s",
+                                                                script_step, script_steps[script_step].label);
+                    send_status_update(status_msg);
                     script_state = NEO_SCRIPT_WAIT;
                 }
             }
@@ -201,6 +209,9 @@ int8_t neo_script_update()  {
                 neo_request_sequence(script_steps[script_step].label, script_steps[script_step].filename);
                 ESP_LOGI(TAG, "sent PREV step %d start label: %s, filename: %s to sequence engine",
                                 script_step, script_steps[script_step].label, script_steps[script_step].filename);
+                snprintf(status_msg, sizeof(status_msg), "Status: Moved to PREVIOUS step (%d): %s",
+                                                                script_step, script_steps[script_step].label);
+                send_status_update(status_msg);
                 script_state = NEO_SCRIPT_WAIT;
             }
             else if(script_cmd.cmd_type == NEO_CMD_SCRIPT_STOP_REQ)  {

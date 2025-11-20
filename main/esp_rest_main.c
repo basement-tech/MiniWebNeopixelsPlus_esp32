@@ -783,5 +783,4 @@ void app_main(void)
 
     heap_caps_print_heap_info(MALLOC_CAP_8BIT || MALLOC_CAP_RTCRAM || MALLOC_CAP_DEFAULT);
 
-    send_status_update("Status: Nominal");
 }

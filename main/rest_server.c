@@ -83,6 +83,12 @@ typedef struct rest_server_context {
 
 #define CHECK_FILE_EXTENSION(filename, ext) (strcasecmp(&filename[strlen(filename) - strlen(ext)], ext) == 0)
 
+/*
+ * this is the global pointer to the server instance
+ * (very important)
+ */
+static httpd_handle_t server = NULL;
+
 /* Set HTTP response content type according to file extension */
 static esp_err_t set_content_type_from_file(httpd_req_t *req, const char *filepath)
 {
@@ -1048,7 +1054,6 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
  * after the handler returns ESP_OK, esp-idf upgrades the connection to WebSocket mode.
  * from then on, new frames arrive without the HTTP_GET.
  */
-static httpd_handle_t server = NULL;
 static int ws_fd = -1;   // store WebSocket fd (supports single client; extendable)
 
 static esp_err_t ws_handler(httpd_req_t *req)
@@ -1059,6 +1064,7 @@ static esp_err_t ws_handler(httpd_req_t *req)
     if (req->method == HTTP_GET) {
         // WebSocket handshake
         ws_fd = httpd_req_to_sockfd(req);  // Save client fd for async use
+        ESP_LOGI(REST_TAG, "successful handshake resulted in %d ws_fd", ws_fd);
         return ESP_OK;
     }
 
@@ -1081,9 +1087,11 @@ static esp_err_t ws_handler(httpd_req_t *req)
 /*
  * send the status message via websocket to UI status bar
  */
-void send_status_update(const char *msg)
+int send_status_update(const char *msg)
 {
-    if (ws_fd < 0) return;
+    int err = ESP_ERR_INVALID_ARG;
+
+    if (ws_fd < 0) return (err);
 
     httpd_ws_frame_t ws_pkt = {
         .type = HTTPD_WS_TYPE_TEXT,
@@ -1091,7 +1099,10 @@ void send_status_update(const char *msg)
         .len = strlen(msg)
     };
 
-    httpd_ws_send_frame_async(server, ws_fd, &ws_pkt);
+    if((err = httpd_ws_send_frame_async(server, ws_fd, &ws_pkt)) != ESP_OK)
+        ESP_LOGE(REST_TAG, "async update to status bar failed");
+
+    return(err);
 }
 
 
@@ -1170,7 +1181,6 @@ esp_err_t start_rest_server(const char *base_path)
     REST_CHECK(rest_context, "No memory for rest context", err);
     strlcpy(rest_context->base_path, base_path, sizeof(rest_context->base_path));
 
-    httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.uri_match_fn = httpd_uri_match_wildcard;
     config.max_uri_handlers = 16;  // default was 8 ... too few

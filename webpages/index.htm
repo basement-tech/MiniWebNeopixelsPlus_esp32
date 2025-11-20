@@ -147,7 +147,7 @@
 		</footer>
 	</div>
 	<script>
-		let ws = new WebSocket("ws://" + "mini-webif.local" + "/ws");
+		let ws = new WebSocket("ws://" + window.location.host + "/ws");
 
 		ws.onopen = () => {
 			document.getElementById("statusbar").innerText = "Status: Connected";
