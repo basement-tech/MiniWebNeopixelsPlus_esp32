@@ -7,12 +7,13 @@
    CONDITIONS OF ANY KIND, either express or implied.
  *
  * The following are registered with the server:
- * "/api/v1/system/info"       GET  retrieve system information and return in json format
- * "/api/v1/temp/raw"          GET  example code to retrieve a sample value
- * "/api/v1/system/list"       GET  retrieve a list of files and return in json format
- * "/api/v1/light/brightness"  POST used with example frontend to post a value to simulated led brightness
+ * "sysinfo"                   GET  retrieve system information and return in json format
+ * "/api/v1/temp/raw"          GET  example code to retrieve a sample value (untested)
+ * "/list"                     GET  retrieve a list of files and return in json format
+ * "/api/v1/light/brightness"  POST used with example frontend to post a value to simulated led brightness (untested)
  * "/upload"                   GET  returns the builtin html/js for the upload drag/drop UI
  * "/upload"                   POST handles the drop event for uploading file to local embedded FS
+ * "/api/button"               POST handles ui button presse (e.g. neopixel sequence request)
  * "slash-star"                GET  i.e. / * no space, generic "all other" file handler; returns file contents with appropriate type
  * 
  */
@@ -32,6 +33,7 @@
 
 
 #include "esp_littlefs.h"
+#include "esp_http_server.h"
 
 #include "neo_system.h"
 #include "builtinfiles.h"
@@ -50,11 +52,12 @@ rest_resp_queue_t rest_resp_pending;  // place to hold the pending transaction
 /*
  * URI's that this server can handle
  */
-#define UPLOAD_POST_URI  "/upload"  // upload files
-#define DELETE_POST_URI  "/delete"  // delete files
-#define LIST_GET_URI     "/list" // list files in local filesystem
-#define SYS_INFO_GET_URI "/sysinfo" // list information about the system
+#define UPLOAD_POST_URI  "/upload"      // upload files
+#define DELETE_POST_URI  "/delete"      // delete files
+#define LIST_GET_URI     "/list"        // list files in local filesystem
+#define SYS_INFO_GET_URI "/sysinfo"     // list information about the system
 #define BUTTON_POST_URI  "/api/button"  // respond to a neopixel button from the browser
+#define WS_STAT_GET_URI  "/ws"          // status bar via web socket
 
 
 static const char *REST_TAG = "esp-rest";
@@ -1037,6 +1040,60 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
     return(ESP_OK);
 }
 
+/*
+ * handler for the websocket based status message
+ *
+ * the first request from the browser/client is sent with HTTP_GET;
+ * this is just a handshake request from the client, not a web socket frame.
+ * after the handler returns ESP_OK, esp-idf upgrades the connection to WebSocket mode.
+ * from then on, new frames arrive without the HTTP_GET.
+ */
+static httpd_handle_t server = NULL;
+static int ws_fd = -1;   // store WebSocket fd (supports single client; extendable)
+
+static esp_err_t ws_handler(httpd_req_t *req)
+{
+    /*
+     * first time request is made
+     */
+    if (req->method == HTTP_GET) {
+        // WebSocket handshake
+        ws_fd = httpd_req_to_sockfd(req);  // Save client fd for async use
+        return ESP_OK;
+    }
+
+    httpd_ws_frame_t ws_pkt;
+    memset(&ws_pkt, 0, sizeof(ws_pkt));
+
+    ws_pkt.type = HTTPD_WS_TYPE_TEXT;
+
+    char buf[128];
+    ws_pkt.payload = (uint8_t*)buf;
+    ws_pkt.len = req->content_len;
+
+    httpd_ws_recv_frame(req, &ws_pkt, req->content_len);
+    if(ws_pkt.type == HTTPD_WS_TYPE_CLOSE)
+        ws_fd = -1;  // reset the socket file descriptor
+
+    return ESP_OK;
+}
+
+/*
+ * send the status message via websocket to UI status bar
+ */
+void send_status_update(const char *msg)
+{
+    if (ws_fd < 0) return;
+
+    httpd_ws_frame_t ws_pkt = {
+        .type = HTTPD_WS_TYPE_TEXT,
+        .payload = (uint8_t*)msg,
+        .len = strlen(msg)
+    };
+
+    httpd_ws_send_frame_async(server, ws_fd, &ws_pkt);
+}
+
 
 
 /*
@@ -1130,6 +1187,15 @@ esp_err_t start_rest_server(const char *base_path)
     };
     httpd_register_uri_handler(server, &system_info_get_uri);
 
+    /* URI handler for status websocket */
+    httpd_uri_t ws_uri = {
+        .uri       = WS_STAT_GET_URI,
+        .method    = HTTP_GET,
+        .handler   = ws_handler,
+        .is_websocket = true
+    };
+    httpd_register_uri_handler(server, &ws_uri);
+
     /* URI handler for fetching temperature data */
     httpd_uri_t temperature_data_get_uri = {
         .uri = "/api/v1/temp/raw",
@@ -1191,6 +1257,7 @@ esp_err_t start_rest_server(const char *base_path)
         .user_ctx = rest_context
     };
     httpd_register_uri_handler(server, &delete_uri);
+
     /* URI handler for deleting locally stored files */
     httpd_uri_t file_delete_post_uri = {
         .uri = "/*",
@@ -1218,7 +1285,6 @@ esp_err_t start_rest_server(const char *base_path)
         .user_ctx = rest_context
     };
     httpd_register_uri_handler(server, &common_get_uri);
-
 
     return ESP_OK;
 err_start:

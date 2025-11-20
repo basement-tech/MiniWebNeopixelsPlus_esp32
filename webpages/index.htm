@@ -138,7 +138,7 @@
 			<<< STOP >>>
 		</button>
 	</div>
-	<div class="statusbar">
+	<div id="statusbar" class="statusbar">
 		Status: Under Construction ...
 	</div>
 	<div style="clear: both;">
@@ -146,5 +146,20 @@
 			neopixel fun by daniel@basementtech
 		</footer>
 	</div>
+	<script>
+		let ws = new WebSocket("ws://" + "mini-webif.local" + "/ws");
+
+		ws.onopen = () => {
+			document.getElementById("statusbar").innerText = "Status: Connected";
+		};
+
+		ws.onmessage = (event) => {
+			document.getElementById("statusbar").innerText = event.data;
+		};
+
+		ws.onclose = () => {
+			document.getElementById("statusbar").innerText = "Status: Disconnected";
+		};
+	</script>
 </html>
 

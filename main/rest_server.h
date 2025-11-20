@@ -18,6 +18,7 @@ typedef struct {
 
 void rest_init_resp_data(void);
 void rest_response_setGo(esp_err_t err, char *msgtxt);
+void send_status_update(const char *msg);
 
 
 #endif
