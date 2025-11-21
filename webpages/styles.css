@@ -86,9 +86,13 @@ label {
   font-family: monospace;
 }
 
-#command  {
-  width:75%;
-  font-size: 1.5rem;
+#cmdInput  {
+  width:60%;
+  font-size: 1.25rem;
+}
+
+#sendBtn  {
+    font-size: 1.5rem;
 }
 
 li {

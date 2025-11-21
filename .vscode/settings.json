@@ -30,6 +30,7 @@
         "string.h": "c",
         "esp_system.h": "c",
         "cstdio": "c",
-        "rmt_tx.h": "c"
+        "rmt_tx.h": "c",
+        "esp_http_server.h": "c"
     }
 }

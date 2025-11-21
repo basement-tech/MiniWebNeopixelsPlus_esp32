@@ -142,8 +142,9 @@
 		Status: Under Construction ...
 	</div>
 	<div id="mdibar" class="mdibar">
-		<label for="command">Command:</label>
-    	<input type="text" id="command" name="command">
+		<label for="cmdInput">MDI:</label>
+    	<input type="text" id="cmdInput" name="cmdInput" style= "text-transform: uppercase" placeholder="type command here ...">
+		<button id="sendBtn">Send</button>
 	</div>
 	<div style="clear: both;">
 		<footer>
@@ -164,6 +165,26 @@
 		ws.onclose = () => {
 			document.getElementById("statusbar").innerText = "Status: Disconnected";
 		};
+
+		// --- sending input text to server ---
+		const sendBtn = document.getElementById("sendBtn");
+		const cmdInput = document.getElementById("cmdInput");
+
+		sendBtn.onclick = function () {
+			const text = cmdInput.value.trim().toUpperCase();
+			if (text !== "" && ws.readyState === WebSocket.OPEN) {
+				ws.send(text);
+				cmdInput.value = "";
+			}
+		};
+
+		// Optional: Send when pressing Enter
+		cmdInput.addEventListener("keyup", function (event) {
+			if (event.key === "Enter") {
+				sendBtn.click();
+			}
+		}
+    );
 	</script>
 </html>
 

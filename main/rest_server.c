@@ -1055,15 +1055,19 @@ esp_err_t button_post_handler(httpd_req_t *req)  {
  * from then on, new frames arrive without the HTTP_GET.
  */
 static int ws_fd = -1;   // store WebSocket fd (supports single client; extendable)
+static httpd_req_t ws_req; // save the request for later close
 
 static esp_err_t ws_handler(httpd_req_t *req)
 {
+    char buf[128];
+
     /*
-     * first time request is made
+     * first time request is made, this is just a handshake
      */
     if (req->method == HTTP_GET) {
         // WebSocket handshake
         ws_fd = httpd_req_to_sockfd(req);  // Save client fd for async use
+        memcpy(&ws_req, req, sizeof(ws_req));
         ESP_LOGI(REST_TAG, "successful handshake resulted in %d ws_fd", ws_fd);
         return ESP_OK;
     }
@@ -1071,16 +1075,41 @@ static esp_err_t ws_handler(httpd_req_t *req)
     httpd_ws_frame_t ws_pkt;
     memset(&ws_pkt, 0, sizeof(ws_pkt));
 
+    /*
+     * call httpd_ws_recv_frame with size 0 to get
+     * the actual size of the frame
+     */
     ws_pkt.type = HTTPD_WS_TYPE_TEXT;
+    ws_pkt.len = 0;
+    httpd_ws_recv_frame(req, &ws_pkt, 0);
 
-    char buf[128];
-    ws_pkt.payload = (uint8_t*)buf;
-    ws_pkt.len = req->content_len;
-
-    httpd_ws_recv_frame(req, &ws_pkt, req->content_len);
-    if(ws_pkt.type == HTTPD_WS_TYPE_CLOSE)
+    /*
+     * if the packet was telling us that the connection
+     * closed, punt
+     */
+    if(ws_pkt.type == HTTPD_WS_TYPE_CLOSE)  {
+        ESP_LOGI(REST_TAG, "HTTPD_WS_TYPE_CLOSE received ... reseting ws_fd");
+        httpd_sess_trigger_close(req->handle, ws_fd);
         ws_fd = -1;  // reset the socket file descriptor
+        ws_req.handle = (void*)-1;  // reset the global memory of the session
+    }
+    else  {
+        if (ws_pkt.len >= 128) {
+            ESP_LOGE(REST_TAG, "Payload too large");
+            return ESP_FAIL;
+        }
+        else
+            ESP_LOGI(REST_TAG, "MDI size = %d", ws_pkt.len);
 
+
+        ws_pkt.payload = (uint8_t*)buf;
+
+        httpd_ws_recv_frame(req, &ws_pkt, ws_pkt.len);
+
+
+        buf[ws_pkt.len] = '\0';
+        ESP_LOGI(REST_TAG, "MDI Command received: %s", buf);
+    }
     return ESP_OK;
 }
 
@@ -1099,8 +1128,22 @@ int send_status_update(const char *msg)
         .len = strlen(msg)
     };
 
-    if((err = httpd_ws_send_frame_async(server, ws_fd, &ws_pkt)) != ESP_OK)
-        ESP_LOGE(REST_TAG, "async update to status bar failed");
+    /*
+     * if the web socket is not connected
+     * (e.g. if the embedded code rebooted and the client is stale)
+     * don't attempt to send the status or the server will go into
+     * an almost infinite loop trying to send the status.
+     */
+    if(ws_fd < 0)  
+        ESP_LOGI(REST_TAG, "Cannot attempt send of status message to disconnected client");
+    else if((err = httpd_ws_send_frame_async(server, ws_fd, &ws_pkt)) != ESP_OK)  {
+        ESP_LOGE(REST_TAG, "async update to status bar failed ... closing connection");
+        if(ws_req.handle >= 0)  {
+            httpd_sess_trigger_close(ws_req.handle, ws_fd);
+            ws_req.handle = (void*)-1;  // reset the global memory of the session
+        }
+        ws_fd = -1;
+    }
 
     return(err);
 }
