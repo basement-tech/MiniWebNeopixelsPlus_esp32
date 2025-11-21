@@ -60,8 +60,7 @@ label {
   position: fixed;
   bottom: 0;
   left: 0;
-  right: 0;
-  width: 50%;
+  width: 45%;
   font-size: 1.125rem;
   background-color: rgb(126, 177, 184);
   border-color:rgb(7, 11, 248);
@@ -70,6 +69,26 @@ label {
   color: rgb(13, 14, 13);
   padding: 1rem;
   font-family: monospace;
+}
+
+.mdibar {
+  position: fixed;
+  bottom: 0;
+  right:0;
+  width: 45%;
+  font-size: 1.125rem;
+  background-color: rgb(146, 219, 165);
+  border-color:rgb(9, 87, 13);
+  border-radius: 12px;
+  border-style:solid;
+  color: rgb(13, 14, 13);
+  padding: 1rem;
+  font-family: monospace;
+}
+
+#command  {
+  width:75%;
+  font-size: 1.5rem;
 }
 
 li {
