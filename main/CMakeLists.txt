@@ -1,4 +1,4 @@
-idf_component_register(SRCS "eeprom_valid.c" "neo_script.c" "neo_parsing.c" "station_example.c" "esp_rest_main.c"
+idf_component_register(SRCS "mdi_parse.c" "eeprom_valid.c" "neo_script.c" "neo_parsing.c" "station_example.c" "esp_rest_main.c"
                             "rest_server.c"
                             "bt_eepromlib.c"
                             "led_strip_encoder.c"
