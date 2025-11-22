@@ -39,6 +39,7 @@
 #include "builtinfiles.h"
 #include "rest_server.h"
 #include "neo_data.h"
+#include "mdi_parse.h"
 
 
 /*
@@ -1109,6 +1110,7 @@ static esp_err_t ws_handler(httpd_req_t *req)
 
         buf[ws_pkt.len] = '\0';
         ESP_LOGI(REST_TAG, "MDI Command received: %s", buf);
+        mdi_master_action(buf);
     }
     return ESP_OK;
 }

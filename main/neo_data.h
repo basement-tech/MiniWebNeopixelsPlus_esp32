@@ -60,7 +60,8 @@
 #define   NEO_FILE_LOAD_DESERR   -7  // deserialization of file error
 #define   NEO_FILE_LOAD_NOPLACE  -8  // no placeholder for file load
 #define   NEO_FILE_LOAD_OTHER    -9  // other file related error
-#define   NEO_MUTEX_ERR         -10  // mutex related errors
+#define   NEO_MDI_ERROR         -10  // MDI related error
+#define   NEO_MUTEX_ERR         -11  // mutex related errors
 
 
 /*
