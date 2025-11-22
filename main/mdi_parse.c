@@ -58,33 +58,46 @@ mdi_command_t mdi_cmds[];
  * and return in global argc[][].
  * return the number of arguments (the command is argc[0])
  * and set the global argv if no errors.
+ * return:
+ *   -1 : argument too long
+ *   -2 : too many arguments
+ * 
  * 
  * note: leading and trailing blanks are expected to be
  * trimmed off before calling this function.
  */
+
 int8_t mdi_parse_command(char *cmd, int8_t max_args, int8_t max_size)  {
     int8_t num_args = 0;
     int8_t i = 0;
+    bool done = false;
 
     max_size--; // make room for null termination of string
 
-    while((*cmd != '\0') && (num_args >= 0))  {
-        if(*cmd != ' ')  {
-            if(i < max_size)
-                argv[num_args][i++] = *cmd;
-            else
-                num_args = -1;  // error, get out
+    while((done == false) && (num_args >= 0))  {
+        switch(*cmd)  {
+            case ' ':
+                argv[num_args][i] = '\0';  // write string termination over space
+                i = 0;
+                cmd++;  // skip past the delimiter
+                if(++num_args >= max_args)  // next arg, too many?
+                    num_args = -2;
+            break;
+
+            case '\0':  // end of buffer
+                argv[num_args][i] = '\0';  // string termination
+                done = true;
+            break;
+
+            default:  // A-Z, etc.
+                if(i < max_size)
+                    argv[num_args][i++] = *cmd++;
+                else
+                    num_args = -1;  // too long
+            break;
         }
-        else  {
-            argv[num_args][i] = '\0';
-            ESP_LOGI(TAG, "argument %d = %s", num_args, argv[num_args]);
-            i = 0;
-            if(++num_args >= max_args)  // next arg, if space is available
-                num_args = -1;
-        }
-        cmd++;
     }
-    return(num_args);
+    return(++num_args);  // convert from index to count
 }
 
 /*
@@ -123,14 +136,16 @@ int8_t mdi_master_action(char *cmd)  {
     int8_t ret = NEO_MDI_ERROR;
     int8_t mdi_index = -1;
 
-    argc = mdi_parse_command(cmd, MDI_MAX_ARGS, MDI_MAX_ARG_SIZE);
-
-    if((mdi_index = mdi_find_command(argv[0])) >= 0)  {
-        ESP_LOGI(TAG, "MDI action found at index %d", mdi_index);
-        ret = mdi_cmds[mdi_index].mdi_action(argv[0]);
+    if((argc = mdi_parse_command(cmd, MDI_MAX_ARGS, MDI_MAX_ARG_SIZE)) > 0)  {
+        if((mdi_index = mdi_find_command(argv[0])) >= 0)  {
+            ESP_LOGI(TAG, "MDI action found at index %d", mdi_index);
+            ret = mdi_cmds[mdi_index].mdi_action(argv[0]);
+        }
+        else
+            ESP_LOGE(TAG, "MDI action not found");
     }
     else
-        ESP_LOGE(TAG, "MDI action not found");
+        ESP_LOGE(TAG, "error parsing MDI command");
 
     return(ret);
 }
